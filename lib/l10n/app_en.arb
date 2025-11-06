@@ -1,0 +1,49 @@
+{
+  "@@locale": "en",
+  "appName": "Bank Form System",
+  "roleAdmin": "Administrator",
+  "roleManager": "Account Manager",
+  "username": "Username",
+  "usernameHint": "Please enter username",
+  "password": "Password",
+  "passwordHint": "Please enter password",
+  "login": "Login",
+  "register": "Register",
+  "pleaseEnterUsernameAndPassword": "Please enter username and password",
+  "loginSuccess": "Login successful! Role: {role}, Username: {username}",
+  "@loginSuccess": {
+    "placeholders": {
+      "role": {
+        "type": "String"
+      },
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "navigateToRegister": "Navigate to register page",
+  "logout": "Logout",
+  "logoutConfirm": "Are you sure you want to logout?",
+  "logoutSuccess": "Logged out successfully",
+  "cancel": "Cancel",
+  "confirm": "Confirm",
+  "home": "Home",
+  "templateManagement": "Template Management",
+  "userManagement": "User Management",
+  "changePassword": "Change Password",
+  "recentlyGeneratedPdfFiles": "Recently Generated PDF Files",
+  "templateQuantity": "Template Quantity",
+  "customerQuantity": "Customer Quantity",
+  "signedDocumentQuantity": "Signed Document Quantity",
+  "pendingSignatureDocumentQuantity": "Pending Signature Document Quantity",
+  "viewAll": "View All",
+  "customerName": "Customer Name",
+  "accountFileName": "Account File Name",
+  "fileVersion": "File Version",
+  "templateUsed": "Template Used",
+  "accountManagerCode": "Account Manager Code",
+  "accountManagerName": "Account Manager Name",
+  "updateTime": "Update Time",
+  "customerAccountFileCountStatistics": "Customer Account File Count Statistics",
+  "monthlyNewCustomerAndNewAccountFileStatistics": "Monthly New Customer and New Account File Statistics"
+}

@@ -1,0 +1,50 @@
+{
+  "@@locale": "zh",
+  "appName": "银行表单系统",
+  "roleAdmin": "管理员",
+  "roleManager": "客户经理",
+  "username": "账号",
+  "usernameHint": "请输入账号",
+  "password": "密码",
+  "passwordHint": "请输入密码",
+  "login": "登录",
+  "register": "注册",
+  "pleaseEnterUsernameAndPassword": "请输入账号和密码",
+  "loginSuccess": "登录成功！角色: {role}, 账号: {username}",
+  "@loginSuccess": {
+    "placeholders": {
+      "role": {
+        "type": "String"
+      },
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "navigateToRegister": "跳转到注册页面",
+  "logout": "退出登录",
+  "logoutConfirm": "确定要退出登录吗？",
+  "logoutSuccess": "已退出登录",
+  "cancel": "取消",
+  "confirm": "确定",
+  "home": "首页",
+  "templateManagement": "模板管理",
+  "userManagement": "用户管理",
+  "changePassword": "修改密码",
+  "recentlyGeneratedPdfFiles": "最近生成的PDF文件",
+  "templateQuantity": "模板数量",
+  "customerQuantity": "客户数量",
+  "signedDocumentQuantity": "已签署文件数量",
+  "pendingSignatureDocumentQuantity": "待签署文件数量",
+  "viewAll": "查看全部",
+  "customerName": "客户姓名",
+  "accountFileName": "开户文件名",
+  "fileVersion": "文件版本",
+  "templateUsed": "使用模板",
+  "accountManagerCode": "客户经理编码",
+  "accountManagerName": "客户经理姓名",
+  "updateTime": "更新时间",
+  "customerAccountFileCountStatistics": "客户开户文件数统计",
+  "monthlyNewCustomerAndNewAccountFileStatistics": "每月新增客户数和新增开户文件统计"
+}
+

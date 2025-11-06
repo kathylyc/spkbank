@@ -1,11 +1,18 @@
 import 'dart:ui';
+import 'package:bank_flutter/utils/context_extensions.dart';
+import 'package:bank_flutter/utils/storage_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'pdf_preview_page.dart';
 import 'pdf_webview_page.dart';
 import 'pdf_form_reader.dart';
 import 'pdf_form_overlay_page.dart';
 import 'pdf_syncfusion_viewer_page.dart';
+import 'features/admin_user/login_page.dart';
+import 'features/router/router_page.dart';
+import 'l10n/app_localizations.dart';
 
 void main() {
   // 设置全局错误处理，确保所有错误都被打印到终端
@@ -27,6 +34,19 @@ void main() {
     return true;
   };
   
+  // 设置全屏模式
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.immersiveSticky,
+    overlays: [],
+  );
+  
+  // 设置首选屏幕方向（可选，根据需求调整）
+  // SystemChrome.setPreferredOrientations([
+  //   DeviceOrientation.landscapeLeft,
+  //   DeviceOrientation.landscapeRight,
+  // ]);
+  
   runApp(const MyApp());
 }
 
@@ -42,8 +62,78 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const HomePage(),
+      // 配置本地化支持（使用生成的代码）
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      // 支持的语言列表（使用生成的列表，确保一致性）
+      supportedLocales: AppLocalizations.supportedLocales,
+      // 不设置 locale，让系统自动根据设备语言选择
+      // 如果系统语言是英文，会显示英文；否则显示中文
+      home: const AuthWrapper(),
     );
+  }
+}
+
+/// 认证包装器
+/// 根据登录状态显示不同的页面
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _isLoggedIn = false;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLoginStatus();
+  }
+
+  /// 检查登录状态
+  Future<void> _checkLoginStatus() async {
+    final isLoggedIn = await StorageUtils.isLoggedIn();
+    if (mounted) {
+      setState(() {
+        _isLoggedIn = isLoggedIn;
+        _isLoading = false;
+      });
+    }
+  }
+
+  /// 处理登录成功
+  void _onLoginSuccess() {
+    setState(() {
+      _isLoggedIn = true;
+    });
+  }
+
+  /// 处理退出登录
+  void _onLogout() {
+    setState(() {
+      _isLoggedIn = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 加载中显示加载指示器
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    // 根据登录状态显示不同页面
+    if (_isLoggedIn) {
+      return RouterPage(onLogout: _onLogout);
+    } else {
+      return LoginPage(onLoginSuccess: _onLoginSuccess);
+    }
   }
 }
 

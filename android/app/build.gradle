@@ -22,6 +22,15 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
+// 读取签名证书配置
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader('UTF-8') { reader ->
+        keystoreProperties.load(reader)
+    }
+}
+
 android {
     namespace "com.beyoit.spdbankforms"
     compileSdk flutter.compileSdkVersion
@@ -48,9 +57,29 @@ android {
         versionName flutterVersionName
     }
 
+    // 配置签名
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                def keystoreFile = keystoreProperties['storeFile']
+                if (keystoreFile != null) {
+                    storeFile file(keystoreFile)
+                }
+                storePassword keystoreProperties['storePassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            // 如果配置了签名证书，使用 release 签名；否则使用 debug 签名
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
         }
     }
 }
@@ -60,4 +89,65 @@ flutter {
 }
 
 dependencies {}
+
+// 自动重命名 release APK 文件
+android.applicationVariants.all { variant ->
+    if (variant.buildType.name == "release") {
+        variant.assembleProvider.get().doLast {
+            // 生成时间戳：年月日时分 (yyyyMMddHHmm)
+            def date = new Date()
+            def formattedDate = date.format('yyyyMMddHHmm')
+            
+            // 构建新文件名：spdbank-{versionName}-{年月日时分}.apk
+            def newFileName = "spdbank-${flutterVersionName}-${formattedDate}.apk"
+            
+            def apkRenamed = false
+            
+            // 方法1: 从 variant.outputs 获取 APK 文件
+            variant.outputs.all { output ->
+                if (apkRenamed) return
+                
+                def outputFile = output.outputFile
+                if (outputFile != null && outputFile.exists() && outputFile.name.endsWith('.apk')) {
+                    def newFile = new File(outputFile.parent, newFileName)
+                    if (outputFile.renameTo(newFile)) {
+                        println "✓ APK 已重命名为: ${newFile.name}"
+                        println "  路径: ${newFile.absolutePath}"
+                        apkRenamed = true
+                    }
+                }
+            }
+            
+            // 方法2: 如果方法1没找到，尝试常见路径
+            if (!apkRenamed) {
+                // 获取项目根目录（android/app 的上级目录的上级目录）
+                def rootProjectDir = project.rootProject.projectDir.parentFile
+                
+                def possibleApkPaths = [
+                    // Flutter 构建输出路径（相对于项目根目录）
+                    file("${rootProjectDir}/build/app/outputs/flutter-apk/app-release.apk"),
+                    // Gradle 构建输出路径
+                    // file("${project.buildDir}/outputs/flutter-apk/app-release.apk"),
+                    // file("${project.buildDir}/outputs/apk/release/app-release.apk"),
+                ]
+                
+                for (apkFile in possibleApkPaths) {
+                    if (apkFile.exists()) {
+                        def newFile = new File(apkFile.parent, newFileName)
+                        if (apkFile.renameTo(newFile)) {
+                            println "✓ APK 已重命名为: ${newFile.name}"
+                            println "  路径: ${newFile.absolutePath}"
+                            apkRenamed = true
+                            break
+                        }
+                    }
+                }
+            }
+            
+            if (!apkRenamed) {
+                println "⚠ 未找到 release APK 文件，跳过重命名"
+            }
+        }
+    }
+}
 
