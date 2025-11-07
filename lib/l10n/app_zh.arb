@@ -29,6 +29,7 @@
   "confirm": "确定",
   "home": "首页",
   "templateManagement": "模板管理",
+  "customerManagement": "客户管理",
   "userManagement": "用户管理",
   "changePassword": "修改密码",
   "recentlyGeneratedPdfFiles": "最近生成的PDF文件",

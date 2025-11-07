@@ -5,12 +5,16 @@ import '../../utils/storage_utils.dart';
 import '../dashboard/dashboard_page.dart';
 import '../pdf_template/pdf_template_page.dart';
 import '../customer/customer_page.dart';
+import '../customer_file/customer_file_page.dart';
+import '../account_manager/account_manager_page.dart';
 
 /// 功能类型枚举
 enum FunctionType {
   dashboard,
   pdfTemplate,
   customer,
+  customerFile,
+  accountManager,
 }
 
 class RouterPage extends StatefulWidget {
@@ -39,8 +43,9 @@ class _RouterPageState extends State<RouterPage> {
 
   /// 加载用户信息
   Future<void> _loadUserInfo() async {
-    final username = await StorageUtils.getUsername();
-    final role = await StorageUtils.getRole();
+    final loginInfo = await StorageUtils.userInfo.get();
+    final username = loginInfo?.username;
+    final role = loginInfo?.role;
     if (mounted) {
       setState(() {
         _username = username;
@@ -69,7 +74,11 @@ class _RouterPageState extends State<RouterPage> {
       case FunctionType.pdfTemplate:
         return context.S.templateManagement;
       case FunctionType.customer:
-        return context.S.userManagement;
+        return context.S.customerManagement;
+      case FunctionType.customerFile:
+        return '开户文件管理';
+      case FunctionType.accountManager:
+        return '客户经理管理';
     }
   }
 
@@ -163,6 +172,7 @@ class _RouterPageState extends State<RouterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false, // 防止软键盘弹起时调整布局
       body: SafeArea(
         child: Row(
           children: [
@@ -205,11 +215,25 @@ class _RouterPageState extends State<RouterPage> {
                     onTap: () => _switchFunction(FunctionType.pdfTemplate),
                   ),
                   const SizedBox(height: 8),
-                  // 用户管理图标
+                  // 客户管理图标
                   _buildFunctionIcon(
                     icon: Icons.people_outline,
                     isSelected: _selectedFunction == FunctionType.customer,
                     onTap: () => _switchFunction(FunctionType.customer),
+                  ),
+                  const SizedBox(height: 8),
+                  // 开户文件管理图标
+                  _buildFunctionIcon(
+                    icon: Icons.folder_outlined,
+                    isSelected: _selectedFunction == FunctionType.customerFile,
+                    onTap: () => _switchFunction(FunctionType.customerFile),
+                  ),
+                  const SizedBox(height: 8),
+                  // 客户经理管理图标
+                  _buildFunctionIcon(
+                    icon: Icons.person_outline,
+                    isSelected: _selectedFunction == FunctionType.accountManager,
+                    onTap: () => _switchFunction(FunctionType.accountManager),
                   ),
                   const SizedBox(height: 8),
                   // 可以添加更多功能图标
@@ -392,6 +416,10 @@ class _RouterPageState extends State<RouterPage> {
         return const PdfTemplatePage();
       case FunctionType.customer:
         return const CustomerPage();
+      case FunctionType.customerFile:
+        return const CustomerFilePage();
+      case FunctionType.accountManager:
+        return const AccountManagerPage();
     }
   }
 }

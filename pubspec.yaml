@@ -43,6 +43,9 @@ dependencies:
   # Local storage
   shared_preferences: ^2.3.3
   
+  # JSON 序列化（代码生成）
+  json_annotation: ^4.9.0
+  
   # Charts
   fl_chart: ^0.69.0
   
@@ -63,6 +66,10 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  
+  # JSON 代码生成器
+  json_serializable: ^6.8.0
+  build_runner: ^2.4.13
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

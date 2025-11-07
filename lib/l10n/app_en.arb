@@ -29,6 +29,7 @@
   "confirm": "Confirm",
   "home": "Home",
   "templateManagement": "Template Management",
+  "customerManagement": "Customer Management",
   "userManagement": "User Management",
   "changePassword": "Change Password",
   "recentlyGeneratedPdfFiles": "Recently Generated PDF Files",

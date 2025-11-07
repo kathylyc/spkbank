@@ -68,6 +68,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get templateManagement => '模板管理';
 
   @override
+  String get customerManagement => '客户管理';
+
+  @override
   String get userManagement => '用户管理';
 
   @override

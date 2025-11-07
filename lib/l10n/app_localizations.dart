@@ -212,6 +212,12 @@ abstract class AppLocalizations {
   /// **'模板管理'**
   String get templateManagement;
 
+  /// No description provided for @customerManagement.
+  ///
+  /// In zh, this message translates to:
+  /// **'客户管理'**
+  String get customerManagement;
+
   /// No description provided for @userManagement.
   ///
   /// In zh, this message translates to:

@@ -69,6 +69,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get templateManagement => 'Template Management';
 
   @override
+  String get customerManagement => 'Customer Management';
+
+  @override
   String get userManagement => 'User Management';
 
   @override

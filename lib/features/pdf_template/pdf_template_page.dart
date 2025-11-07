@@ -1,126 +1,140 @@
 import 'package:flutter/material.dart';
 import '../../utils/context_extensions.dart';
+import '../../widgets/common_data_table_page.dart';
 
 /// PDF模板管理页面
-class PdfTemplatePage extends StatelessWidget {
+class PdfTemplatePage extends StatefulWidget {
   const PdfTemplatePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            context.S.recentlyGeneratedPdfFiles,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Expanded(
-            child: _buildPdfTable(context),
-          ),
-        ],
-      ),
-    );
+  State<PdfTemplatePage> createState() => _PdfTemplatePageState();
+}
+
+class _PdfTemplatePageState extends State<PdfTemplatePage> {
+  // 分页
+  int _currentPage = 1;
+  int _totalItems = 100; // 示例总数
+  
+  // 模拟数据
+  List<Map<String, dynamic>> _pdfData = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
   }
 
-  /// 构建PDF表格
-  Widget _buildPdfTable(BuildContext context) {
-    // 模拟数据
-    final List<Map<String, dynamic>> pdfData = [
-      {'id': 1, 'name': 'Account Mandate for Business Account', 'count': 15},
-      {'id': 2, 'name': 'Appendix 2b - Entity Self Certification...', 'count': 12},
-      {'id': 3, 'name': 'Account Mandate for Business Account', 'count': 10},
-      {'id': 4, 'name': 'Appendix 2b - Entity Self Certification...', 'count': 8},
-      {'id': 5, 'name': 'Account Mandate for Business Account', 'count': 12},
-      {'id': 6, 'name': 'Appendix 2b - Entity Self Certification...', 'count': 10},
-      {'id': 7, 'name': 'Account Mandate for Business Account', 'count': 15},
-      {'id': 8, 'name': 'Appendix 2b - Entity Self Certification...', 'count': 12},
+  /// 加载数据
+  void _loadData() {
+    // 生成模拟数据
+    final names = [
+      'Account Mandate for Business Account',
+      'Appendix 2b - Entity Self Certification...',
+      'Application Form for Corporate Account',
+      'Customer Due Diligence Form',
+      'Business Registration Certificate',
     ];
+    
+    _pdfData = List.generate(20, (index) {
+      final nameIndex = index % names.length;
+      return {
+        'id': (_currentPage - 1) * 20 + index + 1,
+        'name': names[nameIndex],
+        'count': 15 - (index % 8),
+      };
+    });
+    
+    setState(() {});
+  }
 
-    return SingleChildScrollView(
-      child: Table(
-        border: TableBorder.all(
-          color: Colors.grey.shade300,
-          width: 1,
-        ),
-        columnWidths: const {
-          0: FlexColumnWidth(0.5),
-          1: FlexColumnWidth(3),
-          2: FlexColumnWidth(1),
-          3: FlexColumnWidth(1),
-        },
-        children: [
-          // 表头
-          TableRow(
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-            ),
-            children: [
-              _buildTableCell('id', isHeader: true),
-              _buildTableCell('模板名称', isHeader: true),
-              _buildTableCell('引用次数', isHeader: true),
-              _buildTableCell('操作', isHeader: true),
-            ],
-          ),
-          // 数据行
-          ...pdfData.map((row) => TableRow(
-            children: [
-              _buildTableCell('${row['id']}'),
-              _buildTableCell(row['name']),
-              _buildTableCell('${row['count']}'),
-              _buildTableCell(
-                '下载',
-                isButton: true,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('下载: ${row['name']}'),
-                      backgroundColor: Colors.blue,
-                    ),
-                  );
-                },
-              ),
-            ],
-          )),
-        ],
+  /// 页码变化
+  void _handlePageChanged(int page) {
+    setState(() {
+      _currentPage = page;
+    });
+    _loadData();
+  }
+
+  /// 下载PDF
+  void _handleDownload(Map<String, dynamic> row) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('下载: ${row['name']}'),
+        backgroundColor: Colors.blue,
       ),
     );
   }
 
-  /// 构建表格单元格
-  Widget _buildTableCell(
-    String text, {
-    bool isHeader = false,
-    bool isButton = false,
-    VoidCallback? onTap,
-  }) {
-    Widget content = Padding(
-      padding: const EdgeInsets.all(12.0),
-      child: isButton
-          ? TextButton(
-              onPressed: onTap,
-              child: Text(
-                text,
-                style: const TextStyle(
-                  color: Color(0xFF4299E1),
-                ),
-              ),
-            )
-          : Text(
-              text,
-              style: TextStyle(
-                fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
-                fontSize: isHeader ? 14 : 13,
-              ),
-            ),
+  @override
+  Widget build(BuildContext context) {
+    return CommonDataTablePage(
+      // 查询条件区域（空）
+      querySection: const SizedBox.shrink(),
+      
+      // 表格标题
+      tableTitle: context.S.recentlyGeneratedPdfFiles,
+      
+      // 功能按钮（空）
+      actionButtons: const [],
+      
+      // 不显示复选框
+      showCheckbox: false,
+      
+      // 表格列定义
+      columns: [
+        DataTableColumn(
+          label: 'id',
+          builder: (row, context) => Text(row['id'].toString()),
+        ),
+        DataTableColumn(
+          label: '模板名称',
+          builder: (row, context) => Text(row['name']),
+        ),
+        DataTableColumn(
+          label: '引用次数',
+          builder: (row, context) => Text(row['count'].toString()),
+        ),
+        DataTableColumn(
+          label: '操作',
+          builder: (row, context) => _buildDownloadButton(row),
+        ),
+      ],
+      
+      // 自定义列宽
+      columnWidths: const [
+        80,   // id
+        400,  // 模板名称
+        120,  // 引用次数
+        150,  // 操作
+      ],
+      
+      // 数据
+      data: _pdfData,
+      
+      // 分页配置
+      currentPage: _currentPage,
+      totalItems: _totalItems,
+      itemsPerPage: 20,
+      onPageChanged: _handlePageChanged,
     );
+  }
 
-    return content;
+  /// 构建下载按钮
+  Widget _buildDownloadButton(Map<String, dynamic> row) {
+    return ElevatedButton(
+      onPressed: () => _handleDownload(row),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+        ),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: const Text('下载', style: TextStyle(fontSize: 13)),
+    );
   }
 }
 

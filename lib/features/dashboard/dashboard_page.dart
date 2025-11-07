@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../utils/context_extensions.dart';
+import '../../widgets/common_data_table_page.dart';
 
 /// Dashboard 页面
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
+
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
@@ -167,117 +174,90 @@ class DashboardPage extends StatelessWidget {
       },
     ];
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 标题和查看全部按钮
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  context.S.recentlyGeneratedPdfFiles,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+    return SizedBox(
+      height: 400,
+      child: CommonDataTablePage(
+        // 无查询条件区域
+        querySection: const SizedBox.shrink(),
+        
+        // 表格标题
+        tableTitle: context.S.recentlyGeneratedPdfFiles,
+        
+        // 右上角按钮（查看全部）
+        actionButtons: [
+          ActionButton(
+            label: context.S.viewAll,
+            color: Colors.blue,
+            onPressed: () {
+              // TODO: 跳转到查看全部页面
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(context.S.viewAll),
+                  backgroundColor: Colors.blue,
                 ),
-                TextButton(
-                  onPressed: () {
-                    // TODO: 跳转到查看全部页面
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(context.S.viewAll),
-                        backgroundColor: Colors.blue,
-                      ),
-                    );
-                  },
-                  child: Text(
-                    context.S.viewAll,
-                    style: const TextStyle(
-                      color: Color(0xFF4299E1),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // 表格
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Table(
-                border: TableBorder(
-                  horizontalInside: BorderSide(
-                    color: Colors.grey.shade300,
-                    width: 1,
-                  ),
-                ),
-                columnWidths: const {
-                  0: FixedColumnWidth(50),
-                  1: FixedColumnWidth(100),
-                  2: FixedColumnWidth(200),
-                  3: FixedColumnWidth(80),
-                  4: FixedColumnWidth(200),
-                  5: FixedColumnWidth(120),
-                  6: FixedColumnWidth(120),
-                  7: FixedColumnWidth(120),
-                },
-                children: [
-                  // 表头
-                  TableRow(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                    ),
-                    children: [
-                      _buildDashboardTableCell('id', isHeader: true),
-                      _buildDashboardTableCell(context.S.customerName, isHeader: true),
-                      _buildDashboardTableCell(context.S.accountFileName, isHeader: true),
-                      _buildDashboardTableCell(context.S.fileVersion, isHeader: true),
-                      _buildDashboardTableCell(context.S.templateUsed, isHeader: true),
-                      _buildDashboardTableCell(context.S.accountManagerCode, isHeader: true),
-                      _buildDashboardTableCell(context.S.accountManagerName, isHeader: true),
-                      _buildDashboardTableCell(context.S.updateTime, isHeader: true),
-                    ],
-                  ),
-                  // 数据行
-                  ...pdfData.map((row) => TableRow(
-                    children: [
-                      _buildDashboardTableCell('${row['id']}'),
-                      _buildDashboardTableCell(row['customerName']),
-                      _buildDashboardTableCell(row['accountFileName']),
-                      _buildDashboardTableCell(row['fileVersion']),
-                      _buildDashboardTableCell(row['templateUsed']),
-                      _buildDashboardTableCell(row['accountManagerCode']),
-                      _buildDashboardTableCell(row['accountManagerName']),
-                      _buildDashboardTableCell(row['updateTime']),
-                    ],
-                  )),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 构建Dashboard表格单元格
-  Widget _buildDashboardTableCell(String text, {bool isHeader = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
-          fontSize: isHeader ? 14 : 13,
-          color: isHeader ? Colors.black87 : Colors.black54,
-        ),
+              );
+            },
+          ),
+        ],
+        
+        // 不显示复选框
+        showCheckbox: false,
+        
+        // 表格列定义
+        columns: [
+          DataTableColumn(
+            label: 'id',
+            builder: (row, context) => Text(row['id'].toString()),
+          ),
+          DataTableColumn(
+            label: context.S.customerName,
+            builder: (row, context) => Text(row['customerName']),
+          ),
+          DataTableColumn(
+            label: context.S.accountFileName,
+            builder: (row, context) => Text(row['accountFileName']),
+          ),
+          DataTableColumn(
+            label: context.S.fileVersion,
+            builder: (row, context) => Text(row['fileVersion']),
+          ),
+          DataTableColumn(
+            label: context.S.templateUsed,
+            builder: (row, context) => Text(row['templateUsed']),
+          ),
+          DataTableColumn(
+            label: context.S.accountManagerCode,
+            builder: (row, context) => Text(row['accountManagerCode']),
+          ),
+          DataTableColumn(
+            label: context.S.accountManagerName,
+            builder: (row, context) => Text(row['accountManagerName']),
+          ),
+          DataTableColumn(
+            label: context.S.updateTime,
+            builder: (row, context) => Text(row['updateTime']),
+          ),
+        ],
+        
+        // 自定义列宽
+        columnWidths: const [
+          60,   // id
+          120,  // 客户姓名
+          280,  // 开户文件名称
+          80,   // 文件版本
+          280,  // 使用的模板
+          140,  // 客户经理编码
+          140,  // 客户经理姓名
+          120,  // 更新时间
+        ],
+        
+        // 数据
+        data: pdfData,
+        
+        // 不显示分页（设置totalItems=0）
+        currentPage: 1,
+        totalItems: 0,
+        itemsPerPage: 20,
       ),
     );
   }

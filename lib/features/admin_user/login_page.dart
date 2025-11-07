@@ -48,10 +48,10 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       // 保存登录信息到本地存储
-      await StorageUtils.saveLoginInfo(
+      await StorageUtils.userInfo.set(LoginInfo(
         username: username,
         role: _selectedRole,
-      );
+      ));
 
       final roleName = _selectedRole == 'admin' ? context.S.roleAdmin : context.S.roleManager;
       

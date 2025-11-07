@@ -13,6 +13,7 @@ import 'pdf_syncfusion_viewer_page.dart';
 import 'features/admin_user/login_page.dart';
 import 'features/router/router_page.dart';
 import 'l10n/app_localizations.dart';
+import '../utils/page_transition_animations.dart';
 
 void main() {
   // 设置全局错误处理，确保所有错误都被打印到终端
@@ -94,10 +95,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   /// 检查登录状态
   Future<void> _checkLoginStatus() async {
-    final isLoggedIn = await StorageUtils.isLoggedIn();
+    final isLoggedIn = await StorageUtils.isLoggedIn.get();
     if (mounted) {
       setState(() {
-        _isLoggedIn = isLoggedIn;
+        _isLoggedIn = isLoggedIn!;
         _isLoading = false;
       });
     }
@@ -128,12 +129,20 @@ class _AuthWrapperState extends State<AuthWrapper> {
       );
     }
 
-    // 根据登录状态显示不同页面
-    if (_isLoggedIn) {
-      return RouterPage(onLogout: _onLogout);
-    } else {
-      return LoginPage(onLoginSuccess: _onLoginSuccess);
-    }
+    // 使用 AnimatedSwitcher 实现页面切换动画
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 500), // 动画持续时间
+      transitionBuilder: PageTransitionAnimations.fadeScale,
+      child: _isLoggedIn
+          ? RouterPage(
+              key: const ValueKey('router'), // 关键：不同的 key 才会触发动画
+              onLogout: _onLogout,
+            )
+          : LoginPage(
+              key: const ValueKey('login'), // 关键：不同的 key 才会触发动画
+              onLoginSuccess: _onLoginSuccess,
+            ),
+    );
   }
 }
 
