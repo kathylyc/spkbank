@@ -3,3 +3,5 @@
 //  Runner
 //
 
+#import "GeneratedPluginRegistrant.h"
+

@@ -44,3 +44,54 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /android/build/
+
+# iOS related
+# Xcode 编译产物和缓存目录
+ios/DerivedData/
+ios/build/
+ios/Release/
+ios/Debug/
+
+# CocoaPods 依赖（只保留 Podfile 和 Podfile.lock）
+ios/Pods/
+ios/Podfile.lock.json  # 某些版本CocoaPods生成的冗余文件
+ios/*.podspec.json     # 非必要的podspec衍生文件
+
+# Xcode 用户特定配置（不同开发者的本地配置，不应共享）
+ios/Runner.xcworkspace/xcuserdata/
+ios/Runner.xcodeproj/xcuserdata/
+ios/Runner.xcodeproj/project.xcworkspace/xcuserdata/
+ios/xcuserdata/
+ios/*.xcuserstate
+ios/*.xcuserdatad
+
+# Flutter 生成的临时文件（iOS端）
+ios/Flutter/ephemeral/
+ios/Flutter/flutter_export_environment.sh  # 自动生成的环境变量脚本
+ios/Flutter/app.flx  # 旧版Flutter产物（已废弃，但可能残留）
+ios/Flutter/app.zip  # 旧版Flutter产物（已废弃）
+ios/.symlinks/
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/Generated.xcconfig
+
+# 系统和日志文件
+ios/.DS_Store
+ios/Runner/.DS_Store
+ios/Flutter/.DS_Store
+ios/*.log
+ios/*.crash
+ios/*.swp  # Vim临时文件
+ios/*.swo  # Vim临时文件
+
+# 代码签名相关临时文件（本地证书配置，不应提交）
+ios/Runner/embedded.mobileprovision
+ios/Runner/Provisioning Profiles/
+ios/Runner/*.entitlements.orig  # 权限配置备份文件
+
+# 本地化相关临时文件
+ios/Runner/en.lproj/*.orig
+ios/Runner/Base.lproj/*.orig
+
+# Swift Package Manager
+**/ios/.swiftpm/
+**/ios/.build/
