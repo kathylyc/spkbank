@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:bank_flutter/data/models/user.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:json_annotation/json_annotation.dart';
 
@@ -97,6 +98,9 @@ class StorageKey<T> {
             final fromJson = _typeRegistry[T];
             if (fromJson != null) {
               return fromJson(decoded) as T;
+            } else {
+              // 找不到注册的 fromJson，强转
+              return decoded as T;
             }
           }
         } catch (e) {
@@ -132,7 +136,8 @@ class StorageKey<T> {
         // 直接使用 json.encode，会自动调用对象的 toJson() 方法
         // 这就是 Gson 的工作方式！
         final jsonStr = json.encode(value);
-        return await prefs.setString(key, jsonStr);
+        final result = await prefs.setString(key, jsonStr);
+        return result;
       } catch (e) {
         return false;
       }
@@ -185,70 +190,39 @@ class StorageUtils {
   static void init() {
     // 注册所有自定义类型
     StorageKey.register<LoginInfo>(LoginInfo.fromJson);
-    
-    // 注册其他 package 的类型
-    StorageKey.register<NoticeInfo>(NoticeInfo.fromJson);
-    
-    // 后续添加更多类型注册
-    // StorageKey.register<UserProfile>(UserProfile.fromJson);
   }
 
   // 定义所有缓存键常量（无需 Key 后缀）
-  /// 登录状态
-  static const isLoggedIn = StorageKey<bool>('is_logged_in', defaultValue: false);
-  
-  /// 用户名
-  static const username = StorageKey<String>('username');
-  
-  /// 角色
-  static const role = StorageKey<String>('role');
-
-  /// 用户信息对象（自动序列化）
-  static const userInfo = StorageKey<LoginInfo>('user_info');
-
-  /// 通知信息对象（来自其他 package 的类型）
-  static const noticeInfo = StorageKey<NoticeInfo>('notice_info');
+  /// 登录的用户信息
+  static const loginUserMap = StorageKey<Map<String, Object?>>('login_user_map', defaultValue: null);
 
   /// 获取 SharedPreferences 实例
   static Future<SharedPreferences> get _prefs async {
     return await SharedPreferences.getInstance();
   }
 
-  /// 保存登录信息（对象方式 - 推荐）
-  static Future<void> saveLoginInfo(LoginInfo loginInfo) async {
+  /// 登录
+  static Future<void> login(Map<String, Object?> dbUser) async {
     await Future.wait([
-      userInfo.set(loginInfo),
-      isLoggedIn.set(true),
-    ]);
-  }
-
-  /// 保存登录信息（命名参数方式）
-  static Future<void> saveLoginInfoWithParams({
-    required String username,
-    required String role,
-  }) async {
-    await saveLoginInfo(LoginInfo(username: username, role: role));
-  }
-
-  /// 获取登录信息
-  static Future<LoginInfo?> getLoginInfo() async {
-    return await userInfo.get();
-  }
-
-  /// 清除登录信息
-  static Future<void> clearLoginInfo() async {
-    await Future.wait([
-      isLoggedIn.remove(),
-      userInfo.remove(),
-      // 保留单独字段的清除（如果有使用的话）
-      username.remove(),
-      role.remove(),
+      loginUserMap.set(dbUser),
     ]);
   }
 
   /// 退出登录
   static Future<void> logout() async {
-    await clearLoginInfo();
+    await Future.wait([
+      loginUserMap.remove(),
+    ]);
+  }
+
+  static Future<User?> getLoginUser() async {
+    Map<String, Object?>? loginUserMap = await StorageUtils.loginUserMap.get();
+    if (loginUserMap != null) {
+      User loginUser = User.fromMap(loginUserMap);
+      return loginUser;
+    } else {
+      return null;
+    }
   }
 }
 

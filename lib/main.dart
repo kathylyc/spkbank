@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'data/db/database_manager.dart';
+import 'data/models/user.dart';
 import 'pdf_preview_page.dart';
 import 'pdf_webview_page.dart';
 import 'pdf_form_reader.dart';
@@ -14,8 +16,9 @@ import 'features/admin_user/login_page.dart';
 import 'features/router/router_page.dart';
 import 'l10n/app_localizations.dart';
 import '../utils/page_transition_animations.dart';
+import 'data/db/db_provider.dart';
 
-void main() {
+Future<void> main() async {
   // 设置全局错误处理，确保所有错误都被打印到终端
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
@@ -47,8 +50,29 @@ void main() {
   //   DeviceOrientation.landscapeLeft,
   //   DeviceOrientation.landscapeRight,
   // ]);
+
+
+  await _initSdk();
   
   runApp(const MyApp());
+}
+/// 检查登录状态
+Future<void> _initSdk() async {
+  // 可在应用启动（如 main 函数中）提前触发数据库初始化
+
+  try {
+    final users = await DbProvider.instance.userDao.findAll(limit: 1);
+    debugPrint('读取users = ${users.length}');
+  } catch (e, s) {
+    debugPrint('findAll failed: $e');
+    debugPrint('$s');
+  }
+
+
+  final db = await DatabaseManager.instance.database;
+  debugPrint('db path = ${db.path}');
+  final rows = await db.rawQuery('SELECT * FROM t_user');
+  debugPrint('raw t_user = $rows');
 }
 
 class MyApp extends StatelessWidget {
@@ -95,10 +119,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   /// 检查登录状态
   Future<void> _checkLoginStatus() async {
-    final isLoggedIn = await StorageUtils.isLoggedIn.get();
+    final User? loginUser = await StorageUtils.getLoginUser();
     if (mounted) {
       setState(() {
-        _isLoggedIn = isLoggedIn!;
+        _isLoggedIn = loginUser != null;
         _isLoading = false;
       });
     }

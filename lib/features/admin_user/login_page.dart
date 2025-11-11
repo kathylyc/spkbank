@@ -1,7 +1,10 @@
+import 'package:bcrypt/bcrypt.dart';
 import 'package:flutter/material.dart';
 import '../../utils/screen_utils.dart';
 import '../../utils/context_extensions.dart';
 import '../../utils/storage_utils.dart';
+import '../../data/models/user.dart';
+import '../../data/repositories/user_repository.dart';
 
 class LoginPage extends StatefulWidget {
   final VoidCallback onLoginSuccess;
@@ -44,26 +47,53 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     try {
-      // 保存登录信息到本地存储
-      await StorageUtils.userInfo.set(LoginInfo(
-        username: username,
-        role: _selectedRole,
-      ));
-
-      final roleName = _selectedRole == 'admin' ? context.S.roleAdmin : context.S.roleManager;
+      final userRepo = UserRepository();
+      List<User> listUser = await userRepo.findAll();
+      // User? user = await userRepo.findByUserName(username);
+      debugPrint('读取user：${listUser.length}');
+      User? foundUser;
+      for (int i = 0; i < listUser.length; i++) {
+        User user = listUser[i];
+        if (user.userName == username) {
+          foundUser = user;
+          break;
+        }
+      }
+      if (foundUser == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('用户名不存在'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      // 校验密码
+      bool isMatch = BCrypt.checkpw(password, foundUser.password);
+      if (!isMatch) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('密码不正确'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      // 保存当前登录的user_name到kv中
+      StorageUtils.login(foundUser.toMap());
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.S.loginSuccess(roleName, username)),
+            content: Text('登录成功'),
             backgroundColor: Colors.green,
           ),
         );
-
         // 通知父组件登录成功
         widget.onLoginSuccess();
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint(stackTrace.toString());
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -298,8 +328,8 @@ class _LoginPageState extends State<LoginPage> {
   List<Widget> _buildFormFields({double topSpacing = 0}) {
     return [
       if (topSpacing > 0) SizedBox(height: topSpacing),
-      _buildRoleSwitcher(),
-      const SizedBox(height: 32),
+      // _buildRoleSwitcher(),
+      // const SizedBox(height: 32),
       _buildUsernameField(),
       const SizedBox(height: 24),
       _buildPasswordField(),

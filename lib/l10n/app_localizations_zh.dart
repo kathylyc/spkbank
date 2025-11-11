@@ -77,6 +77,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get changePassword => '修改密码';
 
   @override
+  String get oldPasswordRequired => '请输入旧密码';
+
+  @override
+  String get newPasswordRequired => '请输入新密码';
+
+  @override
+  String get newPassword => '新密码';
+
+  @override
+  String get oldPassword => '旧密码';
+
+  @override
   String get recentlyGeneratedPdfFiles => '最近生成的PDF文件';
 
   @override

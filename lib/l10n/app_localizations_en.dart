@@ -78,6 +78,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get changePassword => 'Change Password';
 
   @override
+  String get oldPasswordRequired => 'Old Password Required';
+
+  @override
+  String get newPasswordRequired => 'New Password Required';
+
+  @override
+  String get newPassword => 'New Password';
+
+  @override
+  String get oldPassword => 'Old Password';
+
+  @override
   String get recentlyGeneratedPdfFiles => 'Recently Generated PDF Files';
 
   @override

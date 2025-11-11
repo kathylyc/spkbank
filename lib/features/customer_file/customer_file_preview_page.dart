@@ -97,8 +97,10 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
       // 根据模板名称加载对应的PDF文件
       // TODO: 这里可以根据 widget.templateName 来选择不同的模板
+      // const String pdfAssetPath =
+      //     'assets/pdf/Application Form for CorporateAccount_202212_clean (FINAL VERSION).pdf';
       const String pdfAssetPath =
-          'assets/pdf/Application Form for CorporateAccount_202212_clean (FINAL VERSION).pdf';
+          'assets/pdf/WqA2kX4FeEAM5Tq9.pdf';
 
       final ByteData data = await rootBundle.load(pdfAssetPath);
       final Uint8List bytes = data.buffer.asUint8List();

@@ -230,6 +230,30 @@ abstract class AppLocalizations {
   /// **'修改密码'**
   String get changePassword;
 
+  /// No description provided for @oldPasswordRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入旧密码'**
+  String get oldPasswordRequired;
+
+  /// No description provided for @newPasswordRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入新密码'**
+  String get newPasswordRequired;
+
+  /// No description provided for @newPassword.
+  ///
+  /// In zh, this message translates to:
+  /// **'新密码'**
+  String get newPassword;
+
+  /// No description provided for @oldPassword.
+  ///
+  /// In zh, this message translates to:
+  /// **'旧密码'**
+  String get oldPassword;
+
   /// No description provided for @recentlyGeneratedPdfFiles.
   ///
   /// In zh, this message translates to:

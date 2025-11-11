@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../data/models/user.dart';
 import '../../utils/screen_utils.dart';
 import '../../utils/context_extensions.dart';
 import '../../utils/storage_utils.dart';
@@ -30,10 +31,11 @@ class RouterPage extends StatefulWidget {
 }
 
 class _RouterPageState extends State<RouterPage> {
-  String? _username;
-  String? _role;
+  User? _loginUser;
   FunctionType _selectedFunction = FunctionType.dashboard;
   final List<String> _openTabs = ['首页']; // 打开的标签页列表
+  final TextEditingController _oldPasswordController = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
 
   @override
   void initState() {
@@ -43,15 +45,19 @@ class _RouterPageState extends State<RouterPage> {
 
   /// 加载用户信息
   Future<void> _loadUserInfo() async {
-    final loginInfo = await StorageUtils.userInfo.get();
-    final username = loginInfo?.username;
-    final role = loginInfo?.role;
+    final User? loginUser = await StorageUtils.getLoginUser();
     if (mounted) {
       setState(() {
-        _username = username;
-        _role = role;
+        _loginUser = loginUser;
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _oldPasswordController.dispose();
+    _newPasswordController.dispose();
+    super.dispose();
   }
 
   /// 切换功能
@@ -102,13 +108,128 @@ class _RouterPageState extends State<RouterPage> {
 
   /// 处理修改密码
   Future<void> _handleChangePassword() async {
-    // TODO: 实现修改密码逻辑
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${context.S.changePassword}功能待实现'),
-        backgroundColor: Colors.blue,
-      ),
+    final formKey = GlobalKey<FormState>();
+
+    _oldPasswordController.clear();
+    _newPasswordController.clear();
+
+    bool? confirmed;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        bool oldObscure = true;
+        bool newObscure = true;
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text(context.S.changePassword),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: _oldPasswordController,
+                      obscureText: oldObscure,
+                      decoration: InputDecoration(
+                        labelText: context.S.oldPassword,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            oldObscure ? Icons.visibility_off : Icons.visibility,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              oldObscure = !oldObscure;
+                            });
+                          },
+                        ),
+                      ),
+                      validator: (value) {
+                        if ((value ?? '').isEmpty) {
+                          return context.S.oldPasswordRequired;
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _newPasswordController,
+                      obscureText: newObscure,
+                      decoration: InputDecoration(
+                        labelText: context.S.newPassword,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            newObscure ? Icons.visibility_off : Icons.visibility,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              newObscure = !newObscure;
+                            });
+                          },
+                        ),
+                      ),
+                      validator: (value) {
+                        if ((value ?? '').isEmpty) {
+                          return context.S.newPasswordRequired;
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    confirmed = false;
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: Text(context.S.cancel),
+                ),
+                TextButton(
+                  onPressed: () {
+                    if (formKey.currentState?.validate() ?? false) {
+                      confirmed = true;
+                      Navigator.of(dialogContext).pop();
+                    }
+                  },
+                  child: Text(context.S.confirm),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
+
+    if (confirmed == true && mounted) {
+     //  // 1. 校验旧密码是否与当前密码一致
+     //   if (!await userRepository.verifyPassword(_oldPasswordController.text)) {
+     //     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('旧密码不正确')));
+     //     return;
+     //   }
+     //
+     //  // 2. 校验新密码是否与旧密码相同
+     //   if (_oldPasswordController.text == _newPasswordController.text) {
+     //     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('新密码不能与旧密码相同')));
+     //     return;
+     //   }
+     //
+     //  // 3. 保存新密码
+     // final success = await userRepository.updatePassword(_newPasswordController.text);
+     // if (!success) {
+     //   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('保存失败')));
+     //   return;
+     // }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${context.S.changePassword}功能待实现'),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
   }
 
   /// 处理退出登录
@@ -348,61 +469,94 @@ class _RouterPageState extends State<RouterPage> {
           ),
         ),
       ),
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: _openTabs.length,
-        itemBuilder: (context, index) {
-          final tabName = _openTabs[index];
-          final isActive = tabName == _getFunctionName(_selectedFunction);
-          
-          return GestureDetector(
-            onTap: () {
-              // 根据标签名称切换功能
-              if (tabName == context.S.home) {
-                _switchFunction(FunctionType.dashboard);
-              } else if (tabName == context.S.templateManagement) {
-                _switchFunction(FunctionType.pdfTemplate);
-              } else if (tabName == context.S.userManagement) {
-                _switchFunction(FunctionType.customer);
-              }
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: isActive ? const Color(0xFF4299E1) : Colors.transparent,
-                    width: 2,
-                  ),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    tabName,
-                    style: TextStyle(
-                      color: isActive ? const Color(0xFF4299E1) : Colors.grey.shade700,
-                      fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                    ),
-                  ),
-                  // 首页标签不显示关闭按钮，其他标签在多个标签时显示关闭按钮
-                  if (tabName != context.S.home && _openTabs.length > 1) ...[
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () => _closeTab(tabName),
-                      child: Icon(
-                        Icons.close,
-                        size: 16,
-                        color: Colors.grey.shade600,
+      child: Row(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _openTabs.length,
+              itemBuilder: (context, index) {
+                final tabName = _openTabs[index];
+                final isActive = tabName == _getFunctionName(_selectedFunction);
+                
+                return GestureDetector(
+                  onTap: () {
+                    // 根据标签名称切换功能
+                    if (tabName == context.S.home) {
+                      _switchFunction(FunctionType.dashboard);
+                    } else if (tabName == context.S.templateManagement) {
+                      _switchFunction(FunctionType.pdfTemplate);
+                    } else if (tabName == context.S.customerManagement) {
+                      _switchFunction(FunctionType.customer);
+                    } else if (tabName == '开户文件管理') {
+                      _switchFunction(FunctionType.customerFile);
+                    } else if (tabName == '客户经理管理') {
+                      _switchFunction(FunctionType.accountManager);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: isActive ? const Color(0xFF4299E1) : Colors.transparent,
+                          width: 2,
+                        ),
                       ),
                     ),
-                  ],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          tabName,
+                          style: TextStyle(
+                            color: isActive ? const Color(0xFF4299E1) : Colors.grey.shade700,
+                            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        // 首页标签不显示关闭按钮，其他标签在多个标签时显示关闭按钮
+                        if (tabName != context.S.home && _openTabs.length > 1) ...[
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () => _closeTab(tabName),
+                            child: Icon(
+                              Icons.close,
+                              size: 16,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text.rich(
+              TextSpan(
+                style: DefaultTextStyle.of(context).style.copyWith(
+                      fontWeight: FontWeight.normal,
+                      fontSize: 14,
+                    ),
+                children: [
+                  const TextSpan(text: '您好，',
+                    style: const TextStyle(
+                      color: Color(0xFF222222),
+                    ),),
+                  TextSpan(
+                    text: _loginUser?.nickName ?? '',
+                    style: const TextStyle(
+                      color: Color(0xFF4299E1),
+                    ),
+                  ),
                 ],
               ),
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
