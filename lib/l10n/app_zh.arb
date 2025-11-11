@@ -36,6 +36,8 @@
   "newPasswordRequired": "请输入新密码",
   "newPassword": "新密码",
   "oldPassword": "旧密码",
+  "oldNewPasswordSame": "新旧密码不能相同",
+  "oldPasswordIncorrect": "旧密码不正确",
   "recentlyGeneratedPdfFiles": "最近生成的PDF文件",
   "templateQuantity": "模板数量",
   "customerQuantity": "客户数量",

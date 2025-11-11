@@ -90,6 +90,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get oldPassword => 'Old Password';
 
   @override
+  String get oldNewPasswordSame =>
+      'The new and old passwords cannot be the same';
+
+  @override
+  String get oldPasswordIncorrect => 'Old Password Incorrect';
+
+  @override
   String get recentlyGeneratedPdfFiles => 'Recently Generated PDF Files';
 
   @override

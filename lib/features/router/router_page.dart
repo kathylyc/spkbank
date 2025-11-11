@@ -1,5 +1,7 @@
+import 'package:bcrypt/bcrypt.dart';
 import 'package:flutter/material.dart';
 import '../../data/models/user.dart';
+import '../../data/repositories/user_repository.dart';
 import '../../utils/screen_utils.dart';
 import '../../utils/context_extensions.dart';
 import '../../utils/storage_utils.dart';
@@ -150,6 +152,12 @@ class _RouterPageState extends State<RouterPage> {
                         if ((value ?? '').isEmpty) {
                           return context.S.oldPasswordRequired;
                         }
+                        if (value == _newPasswordController.text) {
+                          return context.S.oldNewPasswordSame;
+                        }
+                        if (!BCrypt.checkpw(value!, _loginUser!.password)) {
+                          return context.S.oldPasswordIncorrect;
+                        }
                         return null;
                       },
                     ),
@@ -173,6 +181,9 @@ class _RouterPageState extends State<RouterPage> {
                       validator: (value) {
                         if ((value ?? '').isEmpty) {
                           return context.S.newPasswordRequired;
+                        }
+                        if (value == _oldPasswordController.text) {
+                          return context.S.oldNewPasswordSame;
                         }
                         return null;
                       },
@@ -205,30 +216,23 @@ class _RouterPageState extends State<RouterPage> {
     );
 
     if (confirmed == true && mounted) {
-     //  // 1. 校验旧密码是否与当前密码一致
-     //   if (!await userRepository.verifyPassword(_oldPasswordController.text)) {
-     //     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('旧密码不正确')));
-     //     return;
-     //   }
-     //
-     //  // 2. 校验新密码是否与旧密码相同
-     //   if (_oldPasswordController.text == _newPasswordController.text) {
-     //     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('新密码不能与旧密码相同')));
-     //     return;
-     //   }
-     //
-     //  // 3. 保存新密码
-     // final success = await userRepository.updatePassword(_newPasswordController.text);
-     // if (!success) {
-     //   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('保存失败')));
-     //   return;
-     // }
+      // 保存新密码
+      final newPwdEncrypt = BCrypt.hashpw(_newPasswordController.text, BCrypt.gensalt());
+      final userRepo = UserRepository();
+      userRepo.updatePassword(_loginUser!.userName, newPwdEncrypt, DateTime.now());
+      if (mounted) {
+        setState(() {
+          _loginUser = _loginUser?.copyWith(password: newPwdEncrypt);
+        });
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${context.S.changePassword}功能待实现'),
-          backgroundColor: Colors.blue,
+          content: Text('${context.S.changePassword}成功'),
+          backgroundColor: Colors.green,
         ),
       );
+      // 修改成功后退出登录
+      _doLogout();
     }
   }
 
@@ -262,30 +266,33 @@ class _RouterPageState extends State<RouterPage> {
     );
 
     if (confirmed == true) {
-      try {
-        // 清除登录信息
-        await StorageUtils.logout();
+      _doLogout();
+    }
+  }
+  Future<void> _doLogout() async {
+    try {
+      // 清除登录信息
+      await StorageUtils.logout();
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(context.S.logoutSuccess),
-              backgroundColor: Colors.green,
-            ),
-          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.S.logoutSuccess),
+            backgroundColor: Colors.green,
+          ),
+        );
 
-          // 通知父组件退出登录
-          widget.onLogout();
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('退出登录失败: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        // 通知父组件退出登录
+        widget.onLogout();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('退出登录失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }

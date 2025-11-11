@@ -254,6 +254,18 @@ abstract class AppLocalizations {
   /// **'旧密码'**
   String get oldPassword;
 
+  /// No description provided for @oldNewPasswordSame.
+  ///
+  /// In zh, this message translates to:
+  /// **'新旧密码不能相同'**
+  String get oldNewPasswordSame;
+
+  /// No description provided for @oldPasswordIncorrect.
+  ///
+  /// In zh, this message translates to:
+  /// **'旧密码不正确'**
+  String get oldPasswordIncorrect;
+
   /// No description provided for @recentlyGeneratedPdfFiles.
   ///
   /// In zh, this message translates to:

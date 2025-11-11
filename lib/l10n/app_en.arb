@@ -36,6 +36,8 @@
   "newPasswordRequired": "New Password Required",
   "newPassword": "New Password",
   "oldPassword": "Old Password",
+  "oldNewPasswordSame": "The new and old passwords cannot be the same",
+  "oldPasswordIncorrect": "Old Password Incorrect",
   "recentlyGeneratedPdfFiles": "Recently Generated PDF Files",
   "templateQuantity": "Template Quantity",
   "customerQuantity": "Customer Quantity",
