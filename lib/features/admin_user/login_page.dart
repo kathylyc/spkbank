@@ -18,7 +18,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  String _selectedRole = 'admin'; // 默认选择管理员，使用 key 而不是文本
+  String _selectedRole = 'manager'; // 默认选择管理员，使用 key 而不是文本
   bool _obscurePassword = true; // 密码是否隐藏
   bool _isPhonePortrait = false;// 是否是手机并且竖屏
 
@@ -42,9 +42,6 @@ class _LoginPageState extends State<LoginPage> {
       );
       return;
     }
-
-    // TODO: 实现实际的登录逻辑（调用API验证账号密码）
-    // 这里暂时模拟登录成功
 
     try {
       // 保存登录信息到本地存储
@@ -117,9 +114,7 @@ class _LoginPageState extends State<LoginPage> {
                     minHeight: _isPhonePortrait ? 640 : 480,
                     maxHeight: _isPhonePortrait ? 640 : 480,
                   ),
-                  child: _isPhonePortrait
-                      ? _buildVerticalLayout() // 手机竖屏：上下布局
-                      : _buildHorizontalLayout(), // 其他情况：左右布局
+                  child: _buildHorizontalLayout(), // 其他情况：左右布局
                 ),
               ),
             ),
@@ -133,283 +128,14 @@ class _LoginPageState extends State<LoginPage> {
   Widget _buildHorizontalLayout() {
     return Row(
       children: [
-        // 左侧区域：背景图 + logo + 系统名称
+        Expanded(child: _buildBrandingPanel()),
         Expanded(
-          flex: 1,
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF667EEA),
-                  Color(0xFF764BA2),
-                ],
-              ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(24),
-                bottomLeft: Radius.circular(24),
-              ),
-            ),
-            child: Stack(
-              children: [
-                // 背景装饰图案（可选）
-                // 如果不需要背景图案，可以注释掉这部分
-                // Positioned.fill(
-                //   child: Opacity(
-                //     opacity: 0.1,
-                //     child: Container(
-                //       decoration: const BoxDecoration(
-                //         image: DecorationImage(
-                //           image: AssetImage('assets/images/pattern.png'),
-                //           repeat: ImageRepeat.repeat,
-                //           fit: BoxFit.none,
-                //         ),
-                //       ),
-                //     ),
-                //   ),
-                // ),
-                // 内容区域
-                Padding(
-                  padding: const EdgeInsets.all(48.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Logo
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.account_balance,
-                          size: 48,
-                          color: Color(0xFF667EEA),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      // 系统名称（根据系统语言自动显示）
-                      Text(
-                        context.S.appName,
-                        style: const TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // 右侧区域：账号密码输入框 + 角色切换 + 登录按钮 + 注册按钮
-        Expanded(
-          flex: 1,
           child: Container(
             padding: const EdgeInsets.all(48.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 48),
-                // 角色切换
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEDF2F7),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedRole = 'admin';
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12,
-                              horizontal: 16,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _selectedRole == 'admin'
-                                  ? Colors.white
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: _selectedRole == 'admin'
-                                  ? [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.1),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: Text(
-                              context.S.roleAdmin,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: _selectedRole == 'admin'
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: _selectedRole == 'admin'
-                                    ? const Color(0xFF667EEA)
-                                    : const Color(0xFF718096),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedRole = 'manager';
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12,
-                              horizontal: 16,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _selectedRole == 'manager'
-                                  ? Colors.white
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: _selectedRole == 'manager'
-                                  ? [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.1),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: Text(
-                              context.S.roleManager,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: _selectedRole == 'manager'
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: _selectedRole == 'manager'
-                                    ? const Color(0xFF667EEA)
-                                    : const Color(0xFF718096),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                // 账号输入框
-                TextField(
-                  controller: _usernameController,
-                  decoration: InputDecoration(
-                    labelText: context.S.username,
-                    hintText: context.S.usernameHint,
-                    prefixIcon: const Icon(Icons.person_outline),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: const Color(0xFFF7FAFC),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                // 密码输入框
-                TextField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: context.S.password,
-                    hintText: context.S.passwordHint,
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: const Color(0xFFF7FAFC),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                // 登录按钮
-                ElevatedButton(
-                  onPressed: _handleLogin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF667EEA),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 2,
-                  ),
-                  child: Text(
-                    context.S.login,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // 注册按钮
-                OutlinedButton(
-                  onPressed: _handleRegister,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF667EEA),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    side: const BorderSide(
-                      color: Color(0xFF667EEA),
-                      width: 2,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    context.S.register,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+              children: _buildFormFields(topSpacing: 0),
             ),
           ),
         ),
@@ -497,193 +223,250 @@ class _LoginPageState extends State<LoginPage> {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-                // 角色切换
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEDF2F7),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedRole = 'admin';
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12,
-                              horizontal: 16,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _selectedRole == 'admin'
-                                  ? Colors.white
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: _selectedRole == 'admin'
-                                  ? [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.1),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: Text(
-                              context.S.roleAdmin,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: _selectedRole == 'admin'
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: _selectedRole == 'admin'
-                                    ? const Color(0xFF667EEA)
-                                    : const Color(0xFF718096),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedRole = 'manager';
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12,
-                              horizontal: 16,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _selectedRole == 'manager'
-                                  ? Colors.white
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: _selectedRole == 'manager'
-                                  ? [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.1),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: Text(
-                              context.S.roleManager,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: _selectedRole == 'manager'
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: _selectedRole == 'manager'
-                                    ? const Color(0xFF667EEA)
-                                    : const Color(0xFF718096),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+            children: _buildFormFields(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBrandingPanel() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF667EEA),
+            Color(0xFF764BA2),
+          ],
+        ),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          bottomLeft: Radius.circular(24),
+        ),
+      ),
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(48.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildLogo(size: 80, iconSize: 48),
                 const SizedBox(height: 32),
-                // 账号输入框
-                TextField(
-                  controller: _usernameController,
-                  decoration: InputDecoration(
-                    labelText: context.S.username,
-                    hintText: context.S.usernameHint,
-                    prefixIcon: const Icon(Icons.person_outline),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: const Color(0xFFF7FAFC),
+                Text(
+                  context.S.appName,
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 24),
-                // 密码输入框
-                TextField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: context.S.password,
-                    hintText: context.S.passwordHint,
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: const Color(0xFFF7FAFC),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogo({required double size, required double iconSize}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Icon(
+        Icons.account_balance,
+        size: iconSize,
+        color: const Color(0xFF667EEA),
+      ),
+    );
+  }
+
+  List<Widget> _buildFormFields({double topSpacing = 0}) {
+    return [
+      if (topSpacing > 0) SizedBox(height: topSpacing),
+      _buildRoleSwitcher(),
+      const SizedBox(height: 32),
+      _buildUsernameField(),
+      const SizedBox(height: 24),
+      _buildPasswordField(),
+      const SizedBox(height: 32),
+      _buildLoginButton(),
+      const SizedBox(height: 16),
+      _buildRegisterButton(),
+    ];
+  }
+
+  Widget _buildRoleSwitcher() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEDF2F7),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildRoleOption(
+              label: context.S.roleAdmin,
+              isSelected: _selectedRole == 'admin',
+              onTap: () => setState(() => _selectedRole = 'admin'),
+            ),
+          ),
+          Expanded(
+            child: _buildRoleOption(
+              label: context.S.roleManager,
+              isSelected: _selectedRole == 'manager',
+              onTap: () => setState(() => _selectedRole = 'manager'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoleOption({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
                   ),
-                ),
-                const SizedBox(height: 32),
-                // 登录按钮
-                ElevatedButton(
-                  onPressed: _handleLogin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF667EEA),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 2,
-                  ),
-                  child: Text(
-                    context.S.login,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // 注册按钮
-                OutlinedButton(
-                  onPressed: _handleRegister,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF667EEA),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    side: const BorderSide(
-                      color: Color(0xFF667EEA),
-                      width: 2,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    context.S.register,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-            ],
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected
+                ? const Color(0xFF667EEA)
+                : const Color(0xFF718096),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUsernameField() {
+    return TextField(
+      controller: _usernameController,
+      decoration: InputDecoration(
+        labelText: context.S.username,
+        hintText: context.S.usernameHint,
+        prefixIcon: const Icon(Icons.person_outline),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        filled: true,
+        fillColor: const Color(0xFFF7FAFC),
+      ),
+    );
+  }
+
+  Widget _buildPasswordField() {
+    return TextField(
+      controller: _passwordController,
+      obscureText: _obscurePassword,
+      decoration: InputDecoration(
+        labelText: context.S.password,
+        hintText: context.S.passwordHint,
+        prefixIcon: const Icon(Icons.lock_outline),
+        suffixIcon: IconButton(
+          icon: Icon(
+            _obscurePassword
+                ? Icons.visibility_outlined
+                : Icons.visibility_off_outlined,
+          ),
+          onPressed: () {
+            setState(() {
+              _obscurePassword = !_obscurePassword;
+            });
+          },
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        filled: true,
+        fillColor: const Color(0xFFF7FAFC),
+      ),
+    );
+  }
+
+  Widget _buildLoginButton() {
+    return ElevatedButton(
+      onPressed: _handleLogin,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF667EEA),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        elevation: 2,
+      ),
+      child: Text(
+        context.S.login,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRegisterButton() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text(
+          '还没有账号，',
+          style: TextStyle(
+            fontSize: 14,
+            color: Color(0xFF4A5568),
+          ),
+        ),
+        TextButton(
+          onPressed: _handleRegister,
+          style: TextButton.styleFrom(
+            padding: EdgeInsets.zero,
+            minimumSize: const Size(0, 0),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: const Text(
+            '立即注册',
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xFF3182CE),
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],

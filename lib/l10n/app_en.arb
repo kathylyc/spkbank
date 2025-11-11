@@ -1,6 +1,6 @@
 {
   "@@locale": "en",
-  "appName": "Bank Form System",
+  "appName": "SPD Bank Form System",
   "roleAdmin": "Administrator",
   "roleManager": "Account Manager",
   "username": "Username",
