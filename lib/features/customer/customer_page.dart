@@ -232,10 +232,6 @@ class _CustomerPageState extends State<CustomerPage> {
       // 表格列定义
       columns: [
         DataTableColumn(
-          label: 'id',
-          builder: (row, context) => Text(row['id'].toString()),
-        ),
-        DataTableColumn(
           label: '客户姓名',
           builder: (row, context) => Text(row['name']),
         ),
@@ -421,14 +417,14 @@ class _CustomerPageState extends State<CustomerPage> {
               vertical: 12,
             ),
           ),
-          items: const [
-            DropdownMenuItem(value: "", child: Text('请选择')),
-            DropdownMenuItem(value: ConstCustomerTag.keyCustomer, child: Text('大客户')),
-            DropdownMenuItem(value: ConstCustomerTag.publicOfficials, child: Text('公职人员')),
-          ],
+          items: _buildTagDropdownItems(),
           onChanged: (value) {
             setState(() {
-              _selectedTag = value;
+              if (value != null && value.isEmpty) {
+                _selectedTag = null;
+              } else {
+                _selectedTag = value;
+              }
             });
           },
         ),
@@ -442,6 +438,7 @@ class _CustomerPageState extends State<CustomerPage> {
       spacing: 8,
       runSpacing: 4,
       children: tags.map((tag) {
+        final String displayTag = _resolveTagLabel(tag);
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
@@ -449,7 +446,7 @@ class _CustomerPageState extends State<CustomerPage> {
             borderRadius: BorderRadius.circular(4),
           ),
           child: Text(
-            tag,
+            displayTag,
             style: TextStyle(
               fontSize: 13,
               color: Colors.grey.shade800,
@@ -458,6 +455,36 @@ class _CustomerPageState extends State<CustomerPage> {
         );
       }).toList(),
     );
+  }
+
+  String _resolveTagLabel(String tag) {
+    switch (tag) {
+      case ConstCustomerTag.keyCustomer:
+        return '大客户';
+      case ConstCustomerTag.publicOfficials:
+        return '公职人员';
+      case ConstCustomerTag.highQualityCredit:
+        return '优质征信';
+      default:
+        return tag;
+    }
+  }
+
+  List<DropdownMenuItem<String>> _buildTagDropdownItems() {
+    final List<MapEntry<String?, String>> options = [
+      const MapEntry(null, '请选择'),
+      MapEntry(ConstCustomerTag.keyCustomer, _resolveTagLabel(ConstCustomerTag.keyCustomer)),
+      MapEntry(ConstCustomerTag.publicOfficials, _resolveTagLabel(ConstCustomerTag.publicOfficials)),
+      MapEntry(ConstCustomerTag.highQualityCredit, _resolveTagLabel(ConstCustomerTag.highQualityCredit)),
+    ];
+    return options
+        .map(
+          (item) => DropdownMenuItem<String>(
+            value: item.key ?? '',
+            child: Text(item.value),
+          ),
+        )
+        .toList();
   }
 
   /// 构建附件链接

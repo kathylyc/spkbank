@@ -61,6 +61,9 @@ dependencies:
   syncfusion_flutter_pdf: ^31.2.4
   syncfusion_flutter_pdfviewer: ^31.2.4
 
+  # UUID
+  uuid: ^4.4.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

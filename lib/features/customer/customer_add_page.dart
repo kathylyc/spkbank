@@ -25,6 +25,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
   final TextEditingController _addressController = TextEditingController();
   final CustomerRepository _customerRepository = CustomerRepository();
   final UserRepository _userRepository = UserRepository();
+  bool get _isAccountManager => _loginUser?.userType == '01';
 
   User? _loginUser;
   Customer? _initialCustomer;
@@ -85,6 +86,9 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
     if (mounted) {
       setState(() {
         _loginUser = loginUser;
+        if (!_isEdit && _isAccountManager) {
+          _managerAccountController.text = _loginUser!.userName;
+        }
       });
     }
   }
@@ -258,6 +262,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
                             hint: '请输入客户经理编号',
                             controller: _managerAccountController,
                             requiredField: true,
+                            enabled: !_isAccountManager && !_isEdit,
                             inputFormatters: [
                               FilteringTextInputFormatter.deny(RegExp(r'\s')),
                             ],
@@ -301,6 +306,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
     required String hint,
     required TextEditingController controller,
     bool requiredField = false,
+    bool enabled = true,
     TextInputType keyboardType = TextInputType.text,
     List<TextInputFormatter>? inputFormatters,
     int? maxLength,
@@ -337,6 +343,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
           const SizedBox(height: 8),
           TextFormField(
             controller: controller,
+            enabled: enabled,
             keyboardType: keyboardType,
             inputFormatters: inputFormatters,
             maxLength: maxLength,
