@@ -39,6 +39,8 @@ class _RouterPageState extends State<RouterPage> {
   final TextEditingController _oldPasswordController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
 
+  bool get _isAccountManager => _loginUser?.userType == '01';
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +53,14 @@ class _RouterPageState extends State<RouterPage> {
     if (mounted) {
       setState(() {
         _loginUser = loginUser;
+        if (_isAccountManager) {
+          _openTabs.remove(context.S.templateManagement);
+          _openTabs.remove('客户经理管理');
+          if (_selectedFunction == FunctionType.pdfTemplate ||
+              _selectedFunction == FunctionType.accountManager) {
+            _selectedFunction = FunctionType.dashboard;
+          }
+        }
       });
     }
   }
@@ -64,6 +74,11 @@ class _RouterPageState extends State<RouterPage> {
 
   /// 切换功能
   void _switchFunction(FunctionType functionType) {
+    if (_isAccountManager &&
+        (functionType == FunctionType.pdfTemplate ||
+            functionType == FunctionType.accountManager)) {
+      return;
+    }
     setState(() {
       _selectedFunction = functionType;
       // 根据功能类型添加标签页
@@ -337,12 +352,14 @@ class _RouterPageState extends State<RouterPage> {
                   ),
                   const SizedBox(height: 8),
                   // 模板管理图标
-                  _buildFunctionIcon(
-                    icon: Icons.description_outlined,
-                    isSelected: _selectedFunction == FunctionType.pdfTemplate,
-                    onTap: () => _switchFunction(FunctionType.pdfTemplate),
-                  ),
-                  const SizedBox(height: 8),
+                  if (!_isAccountManager) ...[
+                    _buildFunctionIcon(
+                      icon: Icons.description_outlined,
+                      isSelected: _selectedFunction == FunctionType.pdfTemplate,
+                      onTap: () => _switchFunction(FunctionType.pdfTemplate),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   // 客户管理图标
                   _buildFunctionIcon(
                     icon: Icons.people_outline,
@@ -356,13 +373,15 @@ class _RouterPageState extends State<RouterPage> {
                     isSelected: _selectedFunction == FunctionType.customerFile,
                     onTap: () => _switchFunction(FunctionType.customerFile),
                   ),
-                  const SizedBox(height: 8),
-                  // 客户经理管理图标
-                  _buildFunctionIcon(
-                    icon: Icons.person_outline,
-                    isSelected: _selectedFunction == FunctionType.accountManager,
-                    onTap: () => _switchFunction(FunctionType.accountManager),
-                  ),
+                  if (!_isAccountManager) ...[
+                    const SizedBox(height: 8),
+                    // 客户经理管理图标
+                    _buildFunctionIcon(
+                      icon: Icons.person_outline,
+                      isSelected: _selectedFunction == FunctionType.accountManager,
+                      onTap: () => _switchFunction(FunctionType.accountManager),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   // 可以添加更多功能图标
                 ],
@@ -465,6 +484,13 @@ class _RouterPageState extends State<RouterPage> {
 
   /// 构建标签页栏
   Widget _buildTabBar() {
+    final visibleTabs = _openTabs.where((tabName) {
+      if (_isAccountManager) {
+        return tabName != context.S.templateManagement && tabName != '客户经理管理';
+      }
+      return true;
+    }).toList();
+
     return Container(
       height: 48,
       decoration: BoxDecoration(
@@ -481,9 +507,9 @@ class _RouterPageState extends State<RouterPage> {
           Expanded(
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: _openTabs.length,
+              itemCount: visibleTabs.length,
               itemBuilder: (context, index) {
-                final tabName = _openTabs[index];
+                final tabName = visibleTabs[index];
                 final isActive = tabName == _getFunctionName(_selectedFunction);
                 
                 return GestureDetector(
@@ -522,7 +548,7 @@ class _RouterPageState extends State<RouterPage> {
                           ),
                         ),
                         // 首页标签不显示关闭按钮，其他标签在多个标签时显示关闭按钮
-                        if (tabName != context.S.home && _openTabs.length > 1) ...[
+                        if (tabName != context.S.home && visibleTabs.length > 1) ...[
                           const SizedBox(width: 8),
                           GestureDetector(
                             onTap: () => _closeTab(tabName),
@@ -549,7 +575,7 @@ class _RouterPageState extends State<RouterPage> {
                       fontSize: 14,
                     ),
                 children: [
-                  const TextSpan(text: '您好，',
+                  TextSpan(text: _getSayHello(),
                     style: const TextStyle(
                       color: Color(0xFF222222),
                     ),),
@@ -566,6 +592,14 @@ class _RouterPageState extends State<RouterPage> {
         ],
       ),
     );
+  }
+
+  String _getSayHello() {
+    if (_isAccountManager) {
+      return '${context.S.helloRightTop}${context.S.accountManager}';
+    } else {
+      return context.S.helloRightTop;
+    }
   }
 
   /// 构建功能内容

@@ -69,5 +69,34 @@ class CustomerDao {
     );
     return rows.map(Customer.fromMap).toList();
   }
+
+  Future<List<Customer>> findAll({int? limit, int? offset}) async {
+    final db = await _manager.database;
+    final rows = await db.query(
+      Customer.tableName,
+      limit: limit,
+      offset: offset,
+      orderBy: 'create_time DESC',
+    );
+    return rows.map(Customer.fromMap).toList();
+  }
+
+  Future<List<Map<String, Object?>>> managerStats(List<String> managerAccounts) async {
+    if (managerAccounts.isEmpty) return [];
+    final db = await _manager.database;
+    final placeholders = List.filled(managerAccounts.length, '?').join(', ');
+    final rows = await db.rawQuery(
+      '''
+      SELECT manager_account AS managerAccount,
+             COUNT(*) AS customerCount,
+             MAX(create_time) AS latestEntryTime
+      FROM ${Customer.tableName}
+      WHERE manager_account IN ($placeholders)
+      GROUP BY manager_account
+      ''',
+      managerAccounts,
+    );
+    return rows;
+  }
 }
 

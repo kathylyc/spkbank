@@ -6,6 +6,18 @@ import '../models/customer_account_file.dart';
 import '../models/customer_attachment_file.dart';
 import '../utils/customer_uid_generator.dart';
 
+class ManagerCustomerStats {
+  const ManagerCustomerStats({
+    required this.managerAccount,
+    required this.customerCount,
+    this.latestEntryTime,
+  });
+
+  final String managerAccount;
+  final int customerCount;
+  final DateTime? latestEntryTime;
+}
+
 class CustomerRepository {
   CustomerRepository({DbProvider? provider}) : _provider = provider ?? DbProvider.instance;
 
@@ -77,5 +89,22 @@ class CustomerRepository {
       _provider.customerAttachmentFileDao.findByType(customerUid, type);
 
   Future<int> deleteAttachmentFile(int id) => _provider.customerAttachmentFileDao.deleteById(id);
+
+  Future<List<Customer>> findAll({int? limit, int? offset}) =>
+      _provider.customerDao.findAll(limit: limit, offset: offset);
+
+  Future<List<ManagerCustomerStats>> findManagerStats(List<String> managerAccounts) async {
+    final rows = await _provider.customerDao.managerStats(managerAccounts);
+    DateTime? parseDate(Object? value) =>
+        value == null ? null : DateTime.tryParse(value as String);
+
+    return rows.map((row) {
+      return ManagerCustomerStats(
+        managerAccount: row['managerAccount'] as String,
+        customerCount: ((row['customerCount'] as num?) ?? 0).toInt(),
+        latestEntryTime: parseDate(row['latestEntryTime']),
+      );
+    }).toList();
+  }
 }
 

@@ -48,6 +48,8 @@
   "accountFileName": "开户文件名",
   "fileVersion": "文件版本",
   "templateUsed": "使用模板",
+  "helloRightTop": "您好，",
+  "accountManager": "客户经理",
   "accountManagerCode": "客户经理编码",
   "accountManagerName": "客户经理姓名",
   "updateTime": "更新时间",

@@ -1,5 +1,12 @@
+import 'package:bcrypt/bcrypt.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../../data/models/user.dart';
+import '../../data/repositories/customer_repository.dart';
+import '../../data/repositories/user_repository.dart';
 import '../../widgets/common_data_table_page.dart';
+import 'account_manager_add_page.dart';
 
 /// 客户经理管理页面
 class AccountManagerPage extends StatefulWidget {
@@ -14,13 +21,18 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
   final TextEditingController _managerCodeController = TextEditingController();
   final TextEditingController _managerNameController = TextEditingController();
   final TextEditingController _managerPhoneController = TextEditingController();
+  final CustomerRepository _customerRepository = CustomerRepository();
+  final UserRepository _userRepository = UserRepository();
+  final DateFormat _dateFormatter = DateFormat('yyyy-MM-dd');
+  
+  static const int _itemsPerPage = 20;
   
   // 分页
   int _currentPage = 1;
-  int _totalItems = 100; // 示例总数
+  int _totalItems = 0;
   
-  // 模拟数据
-  List<Map<String, dynamic>> _mockData = [];
+  // 表格数据
+  List<Map<String, dynamic>> _tableData = [];
 
   @override
   void initState() {
@@ -37,33 +49,87 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
   }
 
   /// 加载数据
-  void _loadData() {
-    // 生成模拟数据
-    final names = ['张经理', '李经理', '王经理'];
-    final customerCounts = [4, 6, 10, 12, 8];
-    
-    _mockData = List.generate(20, (index) {
-      final nameIndex = index % 3;
-      final countIndex = index % 5;
-      
-      return {
-        'id': (_currentPage - 1) * 20 + index + 1,
-        'managerCode': '20030211',
-        'managerName': names[nameIndex],
-        'managerPhone': '18987765666',
-        'customerCount': customerCounts[countIndex],
-        'entryTime': '2025-10-12',
+  Future<void> _loadData() async {
+    final managerCodeKeyword = _managerCodeController.text.trim();
+    final managerNameKeyword = _managerNameController.text.trim();
+    final managerPhoneKeyword = _managerPhoneController.text.trim();
+
+    try {
+      final totalItems = await _userRepository.countManagers(
+        accountKeyword: managerCodeKeyword,
+        nameKeyword: managerNameKeyword,
+        phoneKeyword: managerPhoneKeyword,
+      );
+      final totalPages = (totalItems / _itemsPerPage).ceil();
+      int currentPage = _currentPage;
+      if (totalPages == 0) {
+        currentPage = 1;
+      } else if (currentPage > totalPages) {
+        currentPage = totalPages;
+      }
+
+      final offset = totalItems == 0 ? 0 : (currentPage - 1) * _itemsPerPage;
+      final managers = totalItems == 0
+          ? <User>[]
+          : await _userRepository.findManagers(
+              limit: _itemsPerPage,
+              offset: offset,
+              accountKeyword: managerCodeKeyword,
+              nameKeyword: managerNameKeyword,
+              phoneKeyword: managerPhoneKeyword,
+            );
+
+      final managerAccounts = managers.map((user) => user.userName).toList();
+      final statsList = await _customerRepository.findManagerStats(managerAccounts);
+      final statsByAccount = {
+        for (final stat in statsList) stat.managerAccount: stat,
       };
-    });
-    
-    setState(() {});
+
+      final tableData = <Map<String, dynamic>>[];
+      for (int index = 0; index < managers.length; index++) {
+        final manager = managers[index];
+        final stats = statsByAccount[manager.userName];
+        final displayIndex = offset + index + 1;
+        final displayName = manager.nickName.isNotEmpty ? manager.nickName : manager.userName;
+        final phone = manager.phoneNumber;
+        final latestEntry = stats?.latestEntryTime;
+
+        tableData.add({
+          'id': displayIndex,
+          'managerAccount': manager.userName,
+          'managerCode': manager.userName,
+          'managerName': displayName,
+          'managerPhone': (phone != null && phone.isNotEmpty) ? phone : '-',
+          'customerCount': stats?.customerCount ?? 0,
+          'entryTime': latestEntry != null
+              ? _dateFormatter.format(latestEntry)
+              : '-',
+        });
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _currentPage = currentPage;
+        _totalItems = totalItems;
+        _tableData = tableData;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('加载客户经理数据失败: $error')),
+      );
+      setState(() {
+        _currentPage = 1;
+        _totalItems = 0;
+        _tableData = [];
+      });
+    }
   }
 
   /// 查询
   void _handleQuery() {
     _currentPage = 1;
     _loadData();
-    // 这里可以根据查询条件过滤数据
   }
 
   /// 重置
@@ -71,21 +137,32 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
     _managerCodeController.clear();
     _managerNameController.clear();
     _managerPhoneController.clear();
+    _currentPage = 1;
+    _loadData();
   }
 
   /// 页码变化
   void _handlePageChanged(int page) {
-    setState(() {
-      _currentPage = page;
-    });
+    _currentPage = page;
     _loadData();
   }
 
   /// 新增客户经理
-  void _handleAddManager() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('新增客户经理')),
-    );
+  Future<void> _handleAddManager() async {
+    final saved = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (context) => const AccountManagerAddPage(),
+          ),
+        ) ??
+        false;
+
+    if (!mounted) return;
+    if (saved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('保存成功')),
+      );
+      _loadData();
+    }
   }
 
   /// 下载导入模板
@@ -129,10 +206,10 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
       
       // 表格列定义
       columns: [
-        DataTableColumn(
-          label: 'id',
-          builder: (row, context) => Text(row['id'].toString()),
-        ),
+        // DataTableColumn(
+        //   label: 'id',
+        //   builder: (row, context) => Text(row['id'].toString()),
+        // ),
         DataTableColumn(
           label: '客户经理编码',
           builder: (row, context) => Text(row['managerCode']),
@@ -160,12 +237,12 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
       ],
       
       // 数据
-      data: _mockData,
+      data: _tableData,
       
       // 分页配置
       currentPage: _currentPage,
       totalItems: _totalItems,
-      itemsPerPage: 20,
+      itemsPerPage: _itemsPerPage,
       onPageChanged: _handlePageChanged,
     );
   }
@@ -288,10 +365,41 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
       children: [
         // 修改按钮（蓝色）
         ElevatedButton(
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('修改客户经理: ${row['managerName']}')),
-            );
+          onPressed: () async {
+            final managerAccount = row['managerAccount'] as String?;
+            if (managerAccount == null || managerAccount.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('无法获取客户经理编号')),
+              );
+              return;
+            }
+            try {
+              final manager = await _userRepository.findByUserName(managerAccount);
+              if (!mounted) return;
+              if (manager == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('未找到该客户经理')),
+                );
+                return;
+              }
+              final saved = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute(
+                      builder: (context) => AccountManagerAddPage(manager: manager),
+                    ),
+                  ) ??
+                  false;
+              if (saved) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('保存成功')),
+                );
+                _loadData();
+              }
+            } catch (error) {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('加载客户经理信息失败: $error')),
+              );
+            }
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.blue,
@@ -311,6 +419,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
         // 重置密码按钮（蓝色）
         ElevatedButton(
           onPressed: () {
+            final managerAccount = row['managerAccount'] as String?;
             showDialog(
               context: context,
               builder: (context) => AlertDialog(
@@ -322,11 +431,36 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
                     child: const Text('取消'),
                   ),
                   TextButton(
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('已重置密码: ${row['managerName']}')),
-                      );
+                      if (managerAccount == null || managerAccount.isEmpty) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('无法获取客户经理编号')),
+                        );
+                        return;
+                      }
+                      try {
+                        final defaultPwdLight = managerAccount;
+                        final passwordHash = BCrypt.hashpw(defaultPwdLight, BCrypt.gensalt());
+                        await _userRepository.updatePassword(
+                          managerAccount,
+                          passwordHash,
+                          DateTime.now(),
+                        );
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('已重置密码: ${row['managerName']}'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      } catch (error) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('重置密码失败: $error')),
+                        );
+                      }
                     },
                     child: const Text('确认'),
                   ),

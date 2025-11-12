@@ -128,6 +128,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get templateUsed => 'Template Used';
 
   @override
+  String get helloRightTop => 'Hi, ';
+
+  @override
+  String get accountManager => 'Account Manager';
+
+  @override
   String get accountManagerCode => 'Account Manager Code';
 
   @override

@@ -48,6 +48,8 @@
   "accountFileName": "Account File Name",
   "fileVersion": "File Version",
   "templateUsed": "Template Used",
+  "helloRightTop": "Hi, ",
+  "accountManager": "Account Manager",
   "accountManagerCode": "Account Manager Code",
   "accountManagerName": "Account Manager Name",
   "updateTime": "Update Time",

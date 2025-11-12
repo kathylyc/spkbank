@@ -125,6 +125,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get templateUsed => '使用模板';
 
   @override
+  String get helloRightTop => '您好，';
+
+  @override
+  String get accountManager => '客户经理';
+
+  @override
   String get accountManagerCode => '客户经理编码';
 
   @override

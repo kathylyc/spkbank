@@ -37,5 +37,31 @@ class UserRepository {
       existing.copyWith(password: password, pwdUpdateDate: updateTime, updateTime: updateTime),
     );
   }
+
+  Future<List<User>> findManagers({
+    int? limit,
+    int? offset,
+    String? accountKeyword,
+    String? nameKeyword,
+    String? phoneKeyword,
+  }) =>
+      _provider.userDao.findManagers(
+        limit: limit,
+        offset: offset,
+        accountKeyword: accountKeyword,
+        nameKeyword: nameKeyword,
+        phoneKeyword: phoneKeyword,
+      );
+
+  Future<int> countManagers({
+    String? accountKeyword,
+    String? nameKeyword,
+    String? phoneKeyword,
+  }) =>
+      _provider.userDao.countManagers(
+        accountKeyword: accountKeyword,
+        nameKeyword: nameKeyword,
+        phoneKeyword: phoneKeyword,
+      );
 }
 

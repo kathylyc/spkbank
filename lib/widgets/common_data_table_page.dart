@@ -410,6 +410,33 @@ class _CommonDataTablePageState extends State<CommonDataTablePage> {
   
   /// 构建表格数据体内容
   Widget _buildTableBodyContent() {
+    if (widget.data.isEmpty) {
+      final dataWidth = _columnWidths.fold<double>(
+            0,
+            (sum, width) => sum + width,
+          ) +
+          (widget.showCheckbox ? 50.0 : 0.0);
+      return SizedBox(
+        width: dataWidth,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 56),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: Colors.grey.shade300),
+            ),
+          ),
+          child: Text(
+            '暂无数据',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade500,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Column(
       children: widget.data.map((row) {
         final rowId = row['id'] as int? ?? 0;

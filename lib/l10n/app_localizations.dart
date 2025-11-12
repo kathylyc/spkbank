@@ -326,6 +326,18 @@ abstract class AppLocalizations {
   /// **'使用模板'**
   String get templateUsed;
 
+  /// No description provided for @helloRightTop.
+  ///
+  /// In zh, this message translates to:
+  /// **'您好，'**
+  String get helloRightTop;
+
+  /// No description provided for @accountManager.
+  ///
+  /// In zh, this message translates to:
+  /// **'客户经理'**
+  String get accountManager;
+
   /// No description provided for @accountManagerCode.
   ///
   /// In zh, this message translates to:

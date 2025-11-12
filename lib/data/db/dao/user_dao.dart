@@ -60,5 +60,71 @@ class UserDao {
     debugPrint('findAll rows: $rows');        // 观察这里
     return rows.map(User.fromMap).toList();
   }
+
+  Future<List<User>> findManagers({
+    int? limit,
+    int? offset,
+    String? accountKeyword,
+    String? nameKeyword,
+    String? phoneKeyword,
+  }) async {
+    final db = await _manager.database;
+    final whereClauses = <String>['user_type = ?'];
+    final whereArgs = <Object?>['01'];
+
+    if (accountKeyword != null && accountKeyword.isNotEmpty) {
+      whereClauses.add('user_name LIKE ?');
+      whereArgs.add('%$accountKeyword%');
+    }
+    if (nameKeyword != null && nameKeyword.isNotEmpty) {
+      whereClauses.add('(nick_name LIKE ? OR user_name LIKE ?)');
+      whereArgs.add('%$nameKeyword%');
+      whereArgs.add('%$nameKeyword%');
+    }
+    if (phoneKeyword != null && phoneKeyword.isNotEmpty) {
+      whereClauses.add('phonenumber LIKE ?');
+      whereArgs.add('%$phoneKeyword%');
+    }
+
+    final rows = await db.query(
+      User.tableName,
+      where: whereClauses.join(' AND '),
+      whereArgs: whereArgs,
+      limit: limit,
+      offset: offset,
+      orderBy: 'create_time DESC',
+    );
+    return rows.map(User.fromMap).toList();
+  }
+
+  Future<int> countManagers({
+    String? accountKeyword,
+    String? nameKeyword,
+    String? phoneKeyword,
+  }) async {
+    final db = await _manager.database;
+    final whereClauses = <String>['user_type = ?'];
+    final whereArgs = <Object?>['01'];
+
+    if (accountKeyword != null && accountKeyword.isNotEmpty) {
+      whereClauses.add('user_name LIKE ?');
+      whereArgs.add('%$accountKeyword%');
+    }
+    if (nameKeyword != null && nameKeyword.isNotEmpty) {
+      whereClauses.add('(nick_name LIKE ? OR user_name LIKE ?)');
+      whereArgs.add('%$nameKeyword%');
+      whereArgs.add('%$nameKeyword%');
+    }
+    if (phoneKeyword != null && phoneKeyword.isNotEmpty) {
+      whereClauses.add('phonenumber LIKE ?');
+      whereArgs.add('%$phoneKeyword%');
+    }
+
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS count FROM ${User.tableName} WHERE ${whereClauses.join(' AND ')}',
+      whereArgs,
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
 }
 
