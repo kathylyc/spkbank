@@ -63,6 +63,7 @@ dependencies:
 
   # UUID
   uuid: ^4.4.1
+  file_picker: ^8.1.2
 
 dev_dependencies:
   flutter_test:

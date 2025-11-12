@@ -7,6 +7,7 @@ import '../../data/repositories/user_repository.dart';
 import '../../utils/common_const.dart';
 import '../../widgets/common_data_table_page.dart';
 import 'customer_add_page.dart';
+import 'customer_attachment_page.dart';
 
 /// 客户管理页面
 class CustomerPage extends StatefulWidget {
@@ -166,6 +167,17 @@ class _CustomerPageState extends State<CustomerPage> {
   Future<void> _handleEditCustomer(Customer customer) async {
     final bool? hasChanged = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (context) => CustomerAddPage(customer: customer)),
+    );
+    if (hasChanged == true) {
+      _loadData();
+    }
+  }
+
+  Future<void> _handleUploadAttachment(Customer customer) async {
+    final bool? hasChanged = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) => CustomerAttachmentPage(customer: customer),
+      ),
     );
     if (hasChanged == true) {
       _loadData();
@@ -541,12 +553,7 @@ class _CustomerPageState extends State<CustomerPage> {
         
         // 上传附件按钮
         ElevatedButton(
-          onPressed: () {
-            // TODO: 实现上传附件功能
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('上传附件: ${row['name']}')),
-            );
-          },
+          onPressed: () => _handleUploadAttachment(customer),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.blue,
             foregroundColor: Colors.white,
