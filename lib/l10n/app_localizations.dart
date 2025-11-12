@@ -101,7 +101,7 @@ abstract class AppLocalizations {
   /// No description provided for @appName.
   ///
   /// In zh, this message translates to:
-  /// **'浦发银行表单系统'**
+  /// **'数据凭证管理'**
   String get appName;
 
   /// No description provided for @roleAdmin.

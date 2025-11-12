@@ -35,6 +35,7 @@ class MigrationV1 implements MigrationStep {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         customer_uid TEXT NOT NULL UNIQUE,
         customer_name TEXT NOT NULL,
+        customer_tag TEXT NOT NULL,
         country_code TEXT NOT NULL,
         phone TEXT,
         address TEXT,

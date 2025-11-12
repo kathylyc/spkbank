@@ -81,6 +81,81 @@ class CustomerDao {
     return rows.map(Customer.fromMap).toList();
   }
 
+  Future<List<Customer>> search({
+    int? limit,
+    int? offset,
+    String? nameKeyword,
+    String? phoneKeyword,
+    String? managerAccount,
+    String? tag,
+  }) async {
+    final db = await _manager.database;
+    final whereClauses = <String>[];
+    final whereArgs = <Object?>[];
+
+    if (nameKeyword != null && nameKeyword.isNotEmpty) {
+      whereClauses.add('customer_name LIKE ?');
+      whereArgs.add('%$nameKeyword%');
+    }
+    if (phoneKeyword != null && phoneKeyword.isNotEmpty) {
+      whereClauses.add('phone LIKE ?');
+      whereArgs.add('%$phoneKeyword%');
+    }
+    if (managerAccount != null && managerAccount.isNotEmpty) {
+      whereClauses.add('manager_account = ?');
+      whereArgs.add(managerAccount);
+    }
+    if (tag != null && tag.isNotEmpty) {
+      whereClauses.add("(',' || COALESCE(customer_tag, '') || ',') LIKE ?");
+      whereArgs.add('%,${tag.trim()},%');
+    }
+
+    final rows = await db.query(
+      Customer.tableName,
+      where: whereClauses.isEmpty ? null : whereClauses.join(' AND '),
+      whereArgs: whereArgs.isEmpty ? null : whereArgs,
+      limit: limit,
+      offset: offset,
+      orderBy: 'create_time DESC',
+    );
+    return rows.map(Customer.fromMap).toList();
+  }
+
+  Future<int> count({
+    String? nameKeyword,
+    String? phoneKeyword,
+    String? managerAccount,
+    String? tag,
+  }) async {
+    final db = await _manager.database;
+    final whereClauses = <String>[];
+    final whereArgs = <Object?>[];
+
+    if (nameKeyword != null && nameKeyword.isNotEmpty) {
+      whereClauses.add('customer_name LIKE ?');
+      whereArgs.add('%$nameKeyword%');
+    }
+    if (phoneKeyword != null && phoneKeyword.isNotEmpty) {
+      whereClauses.add('phone LIKE ?');
+      whereArgs.add('%$phoneKeyword%');
+    }
+    if (managerAccount != null && managerAccount.isNotEmpty) {
+      whereClauses.add('manager_account = ?');
+      whereArgs.add(managerAccount);
+    }
+    if (tag != null && tag.isNotEmpty) {
+      whereClauses.add("(',' || COALESCE(customer_tag, '') || ',') LIKE ?");
+      whereArgs.add('%,${tag.trim()},%');
+    }
+
+    final whereClause = whereClauses.isEmpty ? '' : 'WHERE ${whereClauses.join(' AND ')}';
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS count FROM ${Customer.tableName} $whereClause',
+      whereArgs,
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
   Future<List<Map<String, Object?>>> managerStats(List<String> managerAccounts) async {
     if (managerAccounts.isEmpty) return [];
     final db = await _manager.database;

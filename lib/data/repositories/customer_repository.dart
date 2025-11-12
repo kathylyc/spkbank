@@ -29,6 +29,7 @@ class CustomerRepository {
     required String managerAccount,
     String? phone,
     String? address,
+    String? customerTag,
     String? createBy,
     DateTime? createTime,
   }) async {
@@ -36,6 +37,7 @@ class CustomerRepository {
     final customer = Customer(
       customerUid: generateCustomerUid(customerName: customerName, createTime: now),
       customerName: customerName,
+      customerTag: customerTag,
       countryCode: countryCode,
       phone: phone,
       address: address,
@@ -64,6 +66,36 @@ class CustomerRepository {
   Future<List<Customer>> searchByName(String keyword) => _provider.customerDao.searchByName(keyword);
 
   Future<int> deleteByUid(String customerUid) => _provider.customerDao.deleteByUid(customerUid);
+
+  Future<List<Customer>> search({
+    int? limit,
+    int? offset,
+    String? nameKeyword,
+    String? phoneKeyword,
+    String? managerAccount,
+    String? tag,
+  }) =>
+      _provider.customerDao.search(
+        limit: limit,
+        offset: offset,
+        nameKeyword: nameKeyword,
+        phoneKeyword: phoneKeyword,
+        managerAccount: managerAccount,
+        tag: tag,
+      );
+
+  Future<int> count({
+    String? nameKeyword,
+    String? phoneKeyword,
+    String? managerAccount,
+    String? tag,
+  }) =>
+      _provider.customerDao.count(
+        nameKeyword: nameKeyword,
+        phoneKeyword: phoneKeyword,
+        managerAccount: managerAccount,
+        tag: tag,
+      );
 
   Future<CustomerAccountFile> addAccountFile(CustomerAccountFile entity,
       {ConflictAlgorithm conflictAlgorithm = ConflictAlgorithm.replace}) async {

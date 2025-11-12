@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart';
+
+import '../../data/models/customer.dart';
+import '../../data/models/user.dart';
+import '../../data/repositories/customer_repository.dart';
+import '../../data/repositories/user_repository.dart';
+import '../../utils/common_const.dart';
 import '../../widgets/common_data_table_page.dart';
+import 'customer_add_page.dart';
 
 /// 客户管理页面
 class CustomerPage extends StatefulWidget {
@@ -14,13 +21,17 @@ class _CustomerPageState extends State<CustomerPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   String? _selectedTag;
+  final CustomerRepository _customerRepository = CustomerRepository();
+  final UserRepository _userRepository = UserRepository();
+  
+  static const int _itemsPerPage = 20;
   
   // 分页
   int _currentPage = 1;
-  int _totalItems = 100; // 示例总数
+  int _totalItems = 0;
   
-  // 模拟数据
-  List<Map<String, dynamic>> _mockData = [];
+  // 表格数据
+  List<Map<String, dynamic>> _tableData = [];
 
   @override
   void initState() {
@@ -36,35 +47,85 @@ class _CustomerPageState extends State<CustomerPage> {
   }
 
   /// 加载数据
-  void _loadData() {
-    // 生成模拟数据
-    final names = ['张三', '李四', '王五'];
-    final tags = [
-      ['大客户', '公职人员'],
-      ['公职人员'],
-      ['大客户'],
-    ];
-    final attachments = [
-      ['身份证', '营业执照'],
-      ['身份证'],
-      ['身份证', '营业执照'],
-    ];
-    
-    _mockData = List.generate(20, (index) {
-      final nameIndex = index % 3;
-      return {
-        'id': (_currentPage - 1) * 20 + index + 1,
-        'name': names[nameIndex],
-        'phone': '17776666666',
-        'address': '广西省南宁市青秀区桂雅路1号',
-        'tags': tags[nameIndex],
-        'attachments': attachments[nameIndex],
-        'managerCode': '20030211',
-        'managerName': '张经理',
-      };
-    });
-    
-    setState(() {});
+  Future<void> _loadData() async {
+    final nameKeyword = _nameController.text.trim();
+    final phoneKeyword = _phoneController.text.trim();
+    final tagKeyword = _selectedTag?.trim();
+
+    try {
+      final totalItems = await _customerRepository.count(
+        nameKeyword: nameKeyword.isEmpty ? null : nameKeyword,
+        phoneKeyword: phoneKeyword.isEmpty ? null : phoneKeyword,
+        tag: tagKeyword != null && tagKeyword.isNotEmpty ? tagKeyword : null,
+      );
+      final totalPages = (totalItems / _itemsPerPage).ceil();
+      var currentPage = _currentPage;
+      if (totalPages == 0) {
+        currentPage = 1;
+      } else if (currentPage > totalPages) {
+        currentPage = totalPages;
+      }
+
+      final offset = totalItems == 0 ? 0 : (currentPage - 1) * _itemsPerPage;
+      final customers = totalItems == 0
+          ? <Customer>[]
+          : await _customerRepository.search(
+              limit: _itemsPerPage,
+              offset: offset,
+              nameKeyword: nameKeyword.isEmpty ? null : nameKeyword,
+              phoneKeyword: phoneKeyword.isEmpty ? null : phoneKeyword,
+              tag: tagKeyword != null && tagKeyword.isNotEmpty ? tagKeyword : null,
+            );
+
+      final managerAccounts = customers.map((customer) => customer.managerAccount).toSet();
+      final managerMap = <String, User>{};
+      for (final account in managerAccounts) {
+        final manager = await _userRepository.findByUserName(account);
+        if (manager != null) {
+          managerMap[account] = manager;
+        }
+      }
+
+      final attachmentsList = await Future.wait(
+        customers.map((customer) => _customerRepository.findAttachmentFiles(customer.customerUid)),
+      );
+
+      final tableData = <Map<String, dynamic>>[];
+      for (int index = 0; index < customers.length; index++) {
+        final customer = customers[index];
+        final attachments = attachmentsList[index];
+        final manager = managerMap[customer.managerAccount];
+        tableData.add({
+          'customer': customer,
+          'id': offset + index + 1,
+          'customerUid': customer.customerUid,
+          'name': customer.customerName,
+          'phone': customer.phone ?? '-',
+          'address': customer.address ?? '-',
+          'tags': _resolveTags(customer),
+          'attachments': attachments.map((file) => file.attachmentType).toList(),
+          'managerCode': customer.managerAccount,
+          'managerName': _resolveManagerName(manager, customer.managerAccount),
+        });
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _currentPage = currentPage;
+        _totalItems = totalItems;
+        _tableData = tableData;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('加载客户数据失败: $error')),
+      );
+      setState(() {
+        _currentPage = 1;
+        _totalItems = 0;
+        _tableData = [];
+      });
+    }
   }
 
   /// 查询
@@ -80,7 +141,9 @@ class _CustomerPageState extends State<CustomerPage> {
     _phoneController.clear();
     setState(() {
       _selectedTag = null;
+      _currentPage = 1;
     });
+    _loadData();
   }
 
   /// 页码变化
@@ -89,6 +152,46 @@ class _CustomerPageState extends State<CustomerPage> {
       _currentPage = page;
     });
     _loadData();
+  }
+
+  Future<void> _handleAddCustomer() async {
+    final bool? hasChanged = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (context) => const CustomerAddPage()),
+    );
+    if (hasChanged == true) {
+      _loadData();
+    }
+  }
+
+  Future<void> _handleEditCustomer(Customer customer) async {
+    final bool? hasChanged = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (context) => CustomerAddPage(customer: customer)),
+    );
+    if (hasChanged == true) {
+      _loadData();
+    }
+  }
+
+  List<String> _resolveTags(Customer customer) {
+    final raw = customer.customerTag;
+    if (raw == null || raw.trim().isEmpty) {
+      return [];
+    }
+    return raw
+        .split(',')
+        .map((tag) => tag.trim())
+        .where((tag) => tag.isNotEmpty)
+        .toList();
+  }
+
+  String _resolveManagerName(User? manager, String fallbackAccount) {
+    if (manager == null) {
+      return fallbackAccount;
+    }
+    if (manager.nickName.isNotEmpty) {
+      return manager.nickName;
+    }
+    return manager.userName;
   }
 
   @override
@@ -104,12 +207,7 @@ class _CustomerPageState extends State<CustomerPage> {
       actionButtons: [
         ActionButton(
           label: '新增客户',
-          onPressed: () {
-            // TODO: 实现新增客户
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('新增客户')),
-            );
-          },
+          onPressed: _handleAddCustomer,
         ),
         ActionButton(
           label: '导入客户',
@@ -172,12 +270,12 @@ class _CustomerPageState extends State<CustomerPage> {
       ],
       
       // 数据
-      data: _mockData,
+      data: _tableData,
       
       // 分页配置
       currentPage: _currentPage,
       totalItems: _totalItems,
-      itemsPerPage: 20,
+      itemsPerPage: _itemsPerPage,
       onPageChanged: _handlePageChanged,
     );
   }
@@ -324,8 +422,9 @@ class _CustomerPageState extends State<CustomerPage> {
             ),
           ),
           items: const [
-            DropdownMenuItem(value: '大客户', child: Text('大客户')),
-            DropdownMenuItem(value: '公职人员', child: Text('公职人员')),
+            DropdownMenuItem(value: "", child: Text('请选择')),
+            DropdownMenuItem(value: ConstCustomerTag.keyCustomer, child: Text('大客户')),
+            DropdownMenuItem(value: ConstCustomerTag.publicOfficials, child: Text('公职人员')),
           ],
           onChanged: (value) {
             setState(() {
@@ -363,15 +462,24 @@ class _CustomerPageState extends State<CustomerPage> {
 
   /// 构建附件链接
   Widget _buildAttachments(List<String> attachments) {
+    if (attachments.isEmpty) {
+      return Text(
+        '-',
+        style: TextStyle(
+          color: Colors.grey.shade500,
+        ),
+      );
+    }
+    final displayText = attachments.join(', ');
     return InkWell(
       onTap: () {
         // TODO: 查看附件
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('查看附件: ${attachments.join(', ')}')),
+          SnackBar(content: Text('查看附件: $displayText')),
         );
       },
       child: Text(
-        attachments.join(','),
+        displayText,
         style: const TextStyle(
           color: Colors.blue,
           decoration: TextDecoration.underline,
@@ -382,17 +490,13 @@ class _CustomerPageState extends State<CustomerPage> {
 
   /// 构建操作按钮
   Widget _buildActions(Map<String, dynamic> row) {
+    final Customer customer = row['customer'] as Customer;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         // 修改按钮
         ElevatedButton(
-          onPressed: () {
-            // TODO: 实现修改功能
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('修改客户: ${row['name']}')),
-            );
-          },
+          onPressed: () => _handleEditCustomer(customer),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.blue,
             foregroundColor: Colors.white,

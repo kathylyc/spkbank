@@ -9,7 +9,7 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
-  String get appName => '浦发银行表单系统';
+  String get appName => '数据凭证管理';
 
   @override
   String get roleAdmin => '管理员';

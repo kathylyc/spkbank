@@ -6,6 +6,7 @@ class Customer {
     this.id,
     required this.customerUid,
     required this.customerName,
+    this.customerTag,
     required this.countryCode,
     this.phone,
     this.address,
@@ -21,6 +22,7 @@ class Customer {
   final int? id;
   final String customerUid;
   final String customerName;
+  final String? customerTag;
   final String countryCode;
   final String? phone;
   final String? address;
@@ -38,6 +40,7 @@ class Customer {
       id: map['id'] as int?,
       customerUid: map['customer_uid'] as String,
       customerName: map['customer_name'] as String,
+      customerTag: map['customer_tag'] as String?,
       countryCode: map['country_code'] as String,
       phone: map['phone'] as String?,
       address: map['address'] as String?,
@@ -56,6 +59,7 @@ class Customer {
       'id': id,
       'customer_uid': customerUid,
       'customer_name': customerName,
+      'customer_tag': customerTag,
       'country_code': countryCode,
       'phone': phone,
       'address': address,
@@ -71,6 +75,7 @@ class Customer {
     int? id,
     String? customerUid,
     String? customerName,
+    String? customerTag,
     String? countryCode,
     String? phone,
     String? address,
@@ -84,6 +89,7 @@ class Customer {
       id: id ?? this.id,
       customerUid: customerUid ?? this.customerUid,
       customerName: customerName ?? this.customerName,
+      customerTag: customerTag ?? this.customerTag,
       countryCode: countryCode ?? this.countryCode,
       phone: phone ?? this.phone,
       address: address ?? this.address,

@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appName => 'SPD Bank Form System';
+  String get appName => 'Data voucher management';
 
   @override
   String get roleAdmin => 'Administrator';
