@@ -114,6 +114,10 @@ class CustomerRepository {
     return entity.copyWith(id: id);
   }
 
+  Future<int> updateAttachmentFile(CustomerAttachmentFile entity) async {
+    return await _provider.customerAttachmentFileDao.update(entity);
+  }
+
   Future<List<CustomerAttachmentFile>> findAttachmentFiles(String customerUid) =>
       _provider.customerAttachmentFileDao.findByCustomerUid(customerUid);
 

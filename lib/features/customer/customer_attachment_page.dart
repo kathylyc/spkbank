@@ -8,6 +8,8 @@ import '../../data/models/customer.dart';
 import '../../data/models/customer_attachment_file.dart';
 import '../../data/models/user.dart';
 import '../../data/repositories/customer_repository.dart';
+import '../../utils/common_const.dart';
+import '../../utils/file_manager.dart';
 import '../../utils/storage_utils.dart';
 
 class CustomerAttachmentPage extends StatefulWidget {
@@ -33,15 +35,15 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
 
   static const List<_AttachmentConfig> _attachmentConfigs = [
     _AttachmentConfig(
-      type: 'id_front',
+      type: ConstCustomerAttachmentType.idCardFront,
       title: '身份证正面',
     ),
     _AttachmentConfig(
-      type: 'id_back',
+      type: ConstCustomerAttachmentType.idCardBack,
       title: '身份证背面',
     ),
     _AttachmentConfig(
-      type: 'business_license',
+      type: ConstCustomerAttachmentType.businessLicense,
       title: '营业执照',
     ),
   ];
@@ -50,6 +52,15 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
   void initState() {
     super.initState();
     _initData();
+  }
+
+  @override
+  void dispose() {
+    // 清理 file_picker 生成的临时文件
+    FilePicker.platform.clearTemporaryFiles().catchError((error) {
+      debugPrint('清理 file_picker 临时文件失败: $error');
+    });
+    super.dispose();
   }
 
   Future<void> _initData() async {
@@ -140,6 +151,25 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
     }
   }
 
+  void _clearFile(String type) {
+    setState(() {
+      final currentState = _attachmentStates[type];
+      if (currentState != null) {
+        _attachmentStates[type] = currentState.copyWith(
+          clearSelectedPath: true,
+          clearSelectedName: true,
+          clearExistingPath: true,
+        );
+      }
+    });
+  }
+
+  bool _isImageFile(String? filePath) {
+    if (filePath == null) return false;
+    final extension = p.extension(filePath).toLowerCase();
+    return ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].contains(extension);
+  }
+
   Future<void> _handleSave() async {
     if (_isSaving) {
       return;
@@ -160,19 +190,65 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
 
     try {
       final DateTime now = DateTime.now();
+      final String customerUid = widget.customer.customerUid;
+      
       for (final entry in selectedEntries) {
-        final String type = entry.key;
-        final String filePath = entry.value.selectedPath!;
-        final CustomerAttachmentFile entity = CustomerAttachmentFile(
-          customerUid: widget.customer.customerUid,
-          attachmentType: type,
-          filePath: filePath,
-          createBy: _loginUser?.userName,
-          createTime: now,
-          updateBy: _loginUser?.userName,
-          updateTime: now,
+        final String attachmentType = entry.key; // 已经是常量值
+        final String sourcePath = entry.value.selectedPath!;
+        
+        // 先复制文件到沙盒目录
+        final String sandboxPath = await FileManager.saveCustomerAttachment(
+          sourcePath: sourcePath,
+          customerUid: customerUid,
+          attachmentType: attachmentType,
         );
-        await _customerRepository.addAttachmentFile(entity);
+        
+        // 检查是否已存在该类型的附件
+        final existingFiles = await _customerRepository.findAttachmentFilesByType(
+          customerUid,
+          attachmentType,
+        );
+        
+        if (existingFiles.isNotEmpty) {
+          // 如果存在，执行 update
+          final existingFile = existingFiles.first;
+          
+          // 删除旧文件（如果存在且与新文件路径不同）
+          if (existingFile.filePath != sandboxPath) {
+            try {
+              await FileManager.deleteCustomerAttachment(existingFile.filePath);
+            } catch (e) {
+              // 忽略删除旧文件失败的错误
+              debugPrint('删除旧文件失败: $e');
+            }
+          }
+          
+          final updatedEntity = existingFile.copyWith(
+            filePath: sandboxPath,
+            updateBy: _loginUser?.userName,
+            updateTime: now,
+          );
+          await _customerRepository.updateAttachmentFile(updatedEntity);
+        } else {
+          // 如果不存在，执行 insert
+          final newEntity = CustomerAttachmentFile(
+            customerUid: customerUid,
+            attachmentType: attachmentType,
+            filePath: sandboxPath,
+            createBy: _loginUser?.userName,
+            createTime: now,
+            updateBy: _loginUser?.userName,
+            updateTime: now,
+          );
+          await _customerRepository.addAttachmentFile(newEntity);
+        }
+      }
+
+      // 保存成功后，清理 file_picker 生成的临时文件
+      try {
+        await FilePicker.platform.clearTemporaryFiles();
+      } catch (e) {
+        debugPrint('清理 file_picker 临时文件失败: $e');
       }
 
       if (!mounted) {
@@ -184,6 +260,14 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
       Navigator.of(context).pop(true);
     } catch (error, stackTrace) {
       debugPrintStack(stackTrace: stackTrace);
+      
+      // 保存失败时，也清理 file_picker 生成的临时文件
+      try {
+        await FilePicker.platform.clearTemporaryFiles();
+      } catch (e) {
+        debugPrint('清理 file_picker 临时文件失败: $e');
+      }
+      
       if (!mounted) {
         return;
       }
@@ -213,13 +297,18 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
                     _buildCustomerInfoCard(),
                     const SizedBox(height: 24),
                     Expanded(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: _attachmentConfigs
-                              .map((config) => _buildAttachmentTile(config))
-                              .toList(),
+                      child: GridView.builder(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 0.7,
+                          mainAxisExtent: 310,
                         ),
+                        itemCount: _attachmentConfigs.length,
+                        itemBuilder: (context, index) {
+                          return _buildAttachmentTile(_attachmentConfigs[index]);
+                        },
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -282,59 +371,119 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
     final String? existingName =
         existingPath == null ? null : p.basename(existingPath);
 
+    final String? previewPath = selectedPath ?? existingPath;
+    final bool hasFile = previewPath != null;
+    final bool isImage = _isImageFile(previewPath);
+
     String displayText;
     if (selectedName != null) {
       displayText = selectedName;
     } else if (existingName != null) {
       displayText = '已上传: $existingName';
     } else {
-      displayText = '暂未选择文件';
+      displayText = '点击选择文件';
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              config.title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            config.title,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    displayText,
-                    style: TextStyle(
-                      color: selectedName != null || existingName != null
-                          ? Colors.black87
-                          : Colors.grey.shade500,
+          ),
+          const SizedBox(height: 12),
+          // 预览区域（始终显示）
+          InkWell(
+            onTap: () => _pickFile(config.type),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              width: 200,
+              height: 150,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+                color: Colors.grey.shade100,
+              ),
+              child: hasFile
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: isImage
+                          ? Image.file(
+                              File(previewPath!),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Center(
+                                  child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                                );
+                              },
+                            )
+                          : const Center(
+                              child: Icon(Icons.insert_drive_file, size: 64, color: Colors.grey),
+                            ),
+                    )
+                  : const Center(
+                      child: Icon(Icons.add, size: 48, color: Colors.grey),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                ElevatedButton(
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            displayText,
+            style: TextStyle(
+              fontSize: 13,
+              color: selectedName != null || existingName != null
+                  ? Colors.black87
+                  : Colors.grey.shade500,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              SizedBox(
+                width: 100,
+                child: ElevatedButton(
                   onPressed: () => _pickFile(config.type),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
-                  child: Text(selectedPath != null ? '重新上传' : '上传'),
+                  child: Text(
+                    selectedPath != null ? '重新上传' : '上传',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ),
+              if (hasFile) ...[
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 100,
+                  child: ElevatedButton(
+                    onPressed: () => _clearFile(config.type),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey.shade300,
+                      foregroundColor: Colors.grey.shade800,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    child: const Text('清除', style: TextStyle(fontSize: 13)),
+                  ),
                 ),
               ],
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -365,11 +514,14 @@ class _AttachmentState {
     String? selectedPath,
     String? selectedName,
     String? existingPath,
+    bool clearSelectedPath = false,
+    bool clearSelectedName = false,
+    bool clearExistingPath = false,
   }) {
     return _AttachmentState(
-      selectedPath: selectedPath ?? this.selectedPath,
-      selectedName: selectedName ?? this.selectedName,
-      existingPath: existingPath ?? this.existingPath,
+      selectedPath: clearSelectedPath ? null : (selectedPath ?? this.selectedPath),
+      selectedName: clearSelectedName ? null : (selectedName ?? this.selectedName),
+      existingPath: clearExistingPath ? null : (existingPath ?? this.existingPath),
     );
   }
 }
