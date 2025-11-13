@@ -88,7 +88,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       // 转换数据格式以匹配表格显示
       _data = rawData.map((row) {
         return {
-          'account_file_uid': row['account_file_uid'],
+          'account_file_uid': row['account_file_uid'] ?? '-',
           'customerName': row['customer_name'] ?? '',
           'phone': row['phone'] ?? '',
           'fileName': row['account_file_name'] ?? '',
@@ -150,11 +150,65 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   }
 
   /// 新增开户文件
-  void _handleAddFile() async {
+  void _handleAddFile() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          '新增开户文件',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: const Text(
+          '请选择新增方式：',
+          style: TextStyle(fontSize: 14),
+        ),
+        actions: [
+          // 取消按钮
+          // TextButton(
+          //   onPressed: () => Navigator.pop(context),
+          //   style: TextButton.styleFrom(
+          //     foregroundColor: Colors.grey.shade700,
+          //   ),
+          //   child: const Text('取消'),
+          // ),
+          // 从模板新增按钮
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _navigateToAddPage(0); // 0 表示模板生成 Tab
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('从模板新增'),
+          ),
+          // 上传PDF新增按钮
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _navigateToAddPage(1); // 1 表示上传PDF Tab
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('上传PDF新增'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 导航到新增页面
+  Future<void> _navigateToAddPage(int initialTabIndex) async {
     await Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) {
-          return const CustomerFileAddPage();
+          return CustomerFileAddPage(initialTabIndex: initialTabIndex);
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return PageTransitionAnimations.slideFromRight(child, animation);

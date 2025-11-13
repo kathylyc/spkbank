@@ -8,12 +8,14 @@ class CustomerFilePreviewPage extends StatefulWidget {
   final String customerName;
   final String fileName;
   final String templateName;
+  final String templateAssetPath; // PDF 模板的 asset 路径
 
   const CustomerFilePreviewPage({
     super.key,
     required this.customerName,
     required this.fileName,
     required this.templateName,
+    required this.templateAssetPath,
   });
 
   @override
@@ -95,14 +97,8 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         _error = null;
       });
 
-      // 根据模板名称加载对应的PDF文件
-      // TODO: 这里可以根据 widget.templateName 来选择不同的模板
-      // const String pdfAssetPath =
-      //     'assets/pdf/Application Form for CorporateAccount_202212_clean (FINAL VERSION).pdf';
-      const String pdfAssetPath =
-          'assets/pdf/WqA2kX4FeEAM5Tq9.pdf';
-
-      final ByteData data = await rootBundle.load(pdfAssetPath);
+      // 使用传入的模板 asset 路径加载 PDF 文件
+      final ByteData data = await rootBundle.load(widget.templateAssetPath);
       final Uint8List bytes = data.buffer.asUint8List();
 
       setState(() {
@@ -114,6 +110,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         _error = '加载PDF失败: $e';
         _isLoading = false;
       });
+      debugPrint('加载PDF失败，路径: ${widget.templateAssetPath}, 错误: $e');
     }
   }
 

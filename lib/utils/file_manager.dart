@@ -117,6 +117,37 @@ class FileManager {
     return targetFile.path;
   }
 
+  /// 保存账户文件（指定文件名）
+  /// 
+  /// [sourcePath] 源文件路径
+  /// [accountFileUid] 账户文件UID
+  /// [fileVersion] 文件版本号
+  /// 
+  /// 返回保存后的文件路径（沙盒中的路径）
+  /// 文件名格式: {account_file_uid}_{file_version}.pdf
+  static Future<String> saveAccountFileWithName({
+    required String sourcePath,
+    required String accountFileUid,
+    required String fileVersion,
+  }) async {
+    final sourceFile = File(sourcePath);
+    if (!await sourceFile.exists()) {
+      throw Exception('源文件不存在: $sourcePath');
+    }
+
+    // 获取目标目录
+    final targetDir = await _getAccountDir();
+
+    // 生成文件名
+    final fileName = '${accountFileUid}_$fileVersion.pdf';
+    final targetPath = p.join(targetDir.path, fileName);
+
+    // 复制文件
+    final targetFile = await sourceFile.copy(targetPath);
+
+    return targetFile.path;
+  }
+
   /// 删除客户附件文件
   /// 
   /// [filePath] 文件路径（沙盒中的路径）

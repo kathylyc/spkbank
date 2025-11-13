@@ -48,6 +48,24 @@ class CustomerAccountFileDao {
     return rows.map(CustomerAccountFile.fromMap).toList();
   }
 
+  /// 根据客户UID和模板名称查找最新的账户文件
+  /// 返回使用相同模板的最新文件（按版本号降序排列）
+  Future<CustomerAccountFile?> findLatestByCustomerUidAndTemplate(
+    String customerUid,
+    String templateName,
+  ) async {
+    final db = await _manager.database;
+    final rows = await db.query(
+      CustomerAccountFile.tableName,
+      where: 'customer_uid = ? AND template_name = ?',
+      whereArgs: [customerUid, templateName],
+      orderBy: 'CAST(file_version AS INTEGER) DESC',
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return CustomerAccountFile.fromMap(rows.first);
+  }
+
   /// 查询开户文件列表，关联客户信息和客户经理信息
   /// 返回包含所有关联数据的 Map 列表
   Future<List<Map<String, Object?>>> findWithCustomerAndManager({
@@ -82,6 +100,7 @@ class CustomerAccountFileDao {
       '''
       SELECT 
         f.id,
+        f.account_file_uid,
         f.customer_uid,
         f.account_file_name,
         f.file_version,

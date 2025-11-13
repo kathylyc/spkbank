@@ -106,6 +106,16 @@ class CustomerRepository {
   Future<List<CustomerAccountFile>> findAccountFiles(String customerUid) =>
       _provider.customerAccountFileDao.findByCustomerUid(customerUid);
 
+  /// 根据客户UID和模板名称查找最新的账户文件
+  Future<CustomerAccountFile?> findLatestByCustomerUidAndTemplate(
+    String customerUid,
+    String templateName,
+  ) =>
+      _provider.customerAccountFileDao.findLatestByCustomerUidAndTemplate(
+        customerUid,
+        templateName,
+      );
+
   Future<int> deleteByAccountFileUidAndVersion(String accountFileUid, String fileVersion) => _provider.customerAccountFileDao.deleteByAccountFileUidAndVersion(accountFileUid, fileVersion);
 
   /// 查询开户文件列表，关联客户信息和客户经理信息
