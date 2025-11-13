@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../widgets/common_data_table_page.dart';
 import '../../utils/page_transition_animations.dart';
+import '../../data/repositories/customer_repository.dart';
 import 'customer_file_add_page.dart';
 
 /// 开户文件管理页面
@@ -19,10 +20,14 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   
   // 分页
   int _currentPage = 1;
-  int _totalItems = 100; // 示例总数
+  int _totalItems = 0;
   
-  // 模拟数据
-  List<Map<String, dynamic>> _mockData = [];
+  // 数据
+  List<Map<String, dynamic>> _data = [];
+  bool _isLoading = false;
+  
+  // Repository
+  final CustomerRepository _repository = CustomerRepository();
 
   @override
   void initState() {
@@ -39,49 +44,85 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   }
 
   /// 加载数据
-  void _loadData() {
-    // 生成模拟数据
-    final names = ['张三', '李四', '王五'];
-    final fileNames = [
-      '开户文件_张三',
-      '开户文件_李四',
-      '开户文件_王五',
-      '董事长签名扫描件',
-    ];
-    final versions = ['V1.0', 'V2.0', '-'];
-    final statuses = ['未签署', '已签署', '-'];
-    final templates = [
-      'Account Mandate for Business Account',
-      'Account Mandate for Business Account',
-      '-',
-    ];
+  Future<void> _loadData() async {
+    if (_isLoading) return;
     
-    _mockData = List.generate(20, (index) {
-      final nameIndex = index % 3;
-      final fileIndex = index % 4;
-      final versionIndex = index % 3;
-      
-      return {
-        'id': (_currentPage - 1) * 20 + index + 1,
-        'customerName': names[nameIndex],
-        'phone': '17776666666',
-        'fileName': fileNames[fileIndex],
-        'version': versions[versionIndex],
-        'status': statuses[versionIndex],
-        'template': templates[versionIndex],
-        'managerCode': '20030211',
-        'managerName': '张经理',
-      };
+    setState(() {
+      _isLoading = true;
     });
     
-    setState(() {});
+    try {
+      final itemsPerPage = 20;
+      final offset = (_currentPage - 1) * itemsPerPage;
+      
+      // 获取查询条件
+      final customerNameKeyword = _customerNameController.text.trim().isEmpty 
+          ? null 
+          : _customerNameController.text.trim();
+      final phoneKeyword = _phoneController.text.trim().isEmpty 
+          ? null 
+          : _phoneController.text.trim();
+      final fileNameKeyword = _fileNameController.text.trim().isEmpty 
+          ? null 
+          : _fileNameController.text.trim();
+      
+      // 查询数据和总数
+      final results = await Future.wait([
+        _repository.findAccountFilesWithDetails(
+          limit: itemsPerPage,
+          offset: offset,
+          customerNameKeyword: customerNameKeyword,
+          phoneKeyword: phoneKeyword,
+          fileNameKeyword: fileNameKeyword,
+        ),
+        _repository.countAccountFiles(
+          customerNameKeyword: customerNameKeyword,
+          phoneKeyword: phoneKeyword,
+          fileNameKeyword: fileNameKeyword,
+        ),
+      ]);
+      
+      final rawData = results[0] as List<Map<String, Object?>>;
+      final total = results[1] as int;
+      
+      // 转换数据格式以匹配表格显示
+      _data = rawData.map((row) {
+        return {
+          'account_file_uid': row['account_file_uid'],
+          'customerName': row['customer_name'] ?? '',
+          'phone': row['phone'] ?? '',
+          'fileName': row['account_file_name'] ?? '',
+          'version': row['file_version'] ?? '-',
+          'status': row['sign_status'] ?? '-',
+          'file_src_type': row['file_src_type'] ?? '',
+          'template': row['template_name'] ?? '-',
+          'managerCode': row['manager_code'] ?? '',
+          'managerName': row['manager_name'] ?? '',
+          'filePath': row['file_path'],
+          'customerUid': row['customer_uid'],
+        };
+      }).toList();
+      
+      setState(() {
+        _totalItems = total;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('加载数据失败: $e')),
+        );
+      }
+    }
   }
 
   /// 查询
   void _handleQuery() {
     _currentPage = 1;
     _loadData();
-    // 这里可以根据查询条件过滤数据
   }
 
   /// 重置
@@ -89,6 +130,8 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     _customerNameController.clear();
     _phoneController.clear();
     _fileNameController.clear();
+    _currentPage = 1;
+    _loadData();
   }
 
   /// 页码变化
@@ -107,8 +150,8 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   }
 
   /// 新增开户文件
-  void _handleAddFile() {
-    Navigator.of(context).push(
+  void _handleAddFile() async {
+    await Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) {
           return const CustomerFileAddPage();
@@ -119,6 +162,10 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         transitionDuration: const Duration(milliseconds: 300),
       ),
     );
+    // 返回后刷新数据
+    if (mounted) {
+      _loadData();
+    }
   }
 
   /// 导出压缩包
@@ -156,40 +203,44 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       // 表格列定义
       columns: [
         DataTableColumn(
-          label: 'id',
-          builder: (row, context) => Text(row['id'].toString()),
+          label: '开户文件uid',
+          builder: (row, context) => Text(row['account_file_uid'].toString()),
         ),
         DataTableColumn(
           label: '客户姓名',
-          builder: (row, context) => Text(row['customerName']),
+          builder: (row, context) => Text(row['customerName']?.toString() ?? ''),
         ),
         DataTableColumn(
           label: '电话号码',
-          builder: (row, context) => Text(row['phone']),
+          builder: (row, context) => Text(row['phone']?.toString() ?? ''),
         ),
         DataTableColumn(
           label: '开户文件名',
-          builder: (row, context) => Text(row['fileName']),
+          builder: (row, context) => Text(row['fileName']?.toString() ?? ''),
         ),
         DataTableColumn(
           label: '文件版本',
-          builder: (row, context) => Text(row['version']),
+          builder: (row, context) => Text(row['version']?.toString() ?? '-'),
         ),
         DataTableColumn(
           label: '签署状态',
-          builder: (row, context) => _buildStatusBadge(row['status']),
+          builder: (row, context) => _buildStatusBadge(row['status']?.toString() ?? '-'),
+        ),
+        DataTableColumn(
+          label: '开户方式',
+          builder: (row, context) => Text(row['file_src_type']?.toString() ?? ''),
         ),
         DataTableColumn(
           label: '使用模板',
-          builder: (row, context) => Text(row['template']),
+          builder: (row, context) => Text(row['template']?.toString() ?? '-'),
         ),
         DataTableColumn(
           label: '客户经理编号',
-          builder: (row, context) => Text(row['managerCode']),
+          builder: (row, context) => Text(row['managerCode']?.toString() ?? ''),
         ),
         DataTableColumn(
           label: '客户经理姓名',
-          builder: (row, context) => Text(row['managerName']),
+          builder: (row, context) => Text(row['managerName']?.toString() ?? ''),
         ),
         DataTableColumn(
           label: '操作',
@@ -198,7 +249,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       ],
       
       // 数据
-      data: _mockData,
+      data: _data,
       
       // 分页配置
       currentPage: _currentPage,
@@ -320,7 +371,11 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   }
 
   /// 构建状态标签
-  Widget _buildStatusBadge(String status) {
+  Widget _buildStatusBadge(String? status) {
+    if (status == null || status.isEmpty || status == '-') {
+      return Text(status ?? '-');
+    }
+    
     Color backgroundColor;
     Color textColor;
     
@@ -418,11 +473,27 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
                     child: const Text('取消'),
                   ),
                   TextButton(
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('已删除: ${row['fileName']}')),
-                      );
+                      final accountFileUid = row['account_file_uid'] as String?;
+                      final fileVersion = row['file_version'] as String?;
+                      if (accountFileUid != null) {
+                        try {
+                          await _repository.deleteByAccountFileUidAndVersion(accountFileUid, fileVersion!);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('已删除: ${row['fileName']}')),
+                            );
+                            _loadData();
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('删除失败: $e')),
+                            );
+                          }
+                        }
+                      }
                     },
                     style: TextButton.styleFrom(foregroundColor: Colors.red),
                     child: const Text('删除'),

@@ -50,6 +50,7 @@ class MigrationV1 implements MigrationStep {
       '''
       CREATE TABLE IF NOT EXISTS t_customer_account_file (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_file_uid TEXT NOT NULL,
         customer_uid TEXT NOT NULL,
         account_file_name TEXT NOT NULL,
         file_version TEXT,

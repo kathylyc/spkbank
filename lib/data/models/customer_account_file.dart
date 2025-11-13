@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 class CustomerAccountFile {
   const CustomerAccountFile({
     this.id,
+    required this.accountFileUid,
     required this.customerUid,
     required this.accountFileName,
     this.fileVersion,
@@ -20,6 +21,7 @@ class CustomerAccountFile {
   static const String tableName = 't_customer_account_file';
 
   final int? id;
+  final String accountFileUid;
   final String customerUid;
   final String accountFileName;
   final String? fileVersion;
@@ -38,6 +40,7 @@ class CustomerAccountFile {
 
     return CustomerAccountFile(
       id: map['id'] as int?,
+      accountFileUid: map['account_file_uid'] as String,
       customerUid: map['customer_uid'] as String,
       accountFileName: map['account_file_name'] as String,
       fileVersion: map['file_version'] as String?,
@@ -57,6 +60,7 @@ class CustomerAccountFile {
 
     return {
       'id': id,
+      'account_file_uid': accountFileUid,
       'customer_uid': customerUid,
       'account_file_name': accountFileName,
       'file_version': fileVersion,
@@ -73,6 +77,7 @@ class CustomerAccountFile {
 
   CustomerAccountFile copyWith({
     int? id,
+    String? accountFileUid,
     String? customerUid,
     String? accountFileName,
     String? fileVersion,
@@ -87,6 +92,7 @@ class CustomerAccountFile {
   }) {
     return CustomerAccountFile(
       id: id ?? this.id,
+      accountFileUid: accountFileUid ?? this.accountFileUid,
       customerUid: customerUid ?? this.customerUid,
       accountFileName: accountFileName ?? this.accountFileName,
       fileVersion: fileVersion ?? this.fileVersion,

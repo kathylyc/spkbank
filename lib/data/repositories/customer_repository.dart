@@ -106,7 +106,35 @@ class CustomerRepository {
   Future<List<CustomerAccountFile>> findAccountFiles(String customerUid) =>
       _provider.customerAccountFileDao.findByCustomerUid(customerUid);
 
-  Future<int> deleteAccountFile(int id) => _provider.customerAccountFileDao.deleteById(id);
+  Future<int> deleteByAccountFileUidAndVersion(String accountFileUid, String fileVersion) => _provider.customerAccountFileDao.deleteByAccountFileUidAndVersion(accountFileUid, fileVersion);
+
+  /// 查询开户文件列表，关联客户信息和客户经理信息
+  Future<List<Map<String, Object?>>> findAccountFilesWithDetails({
+    int? limit,
+    int? offset,
+    String? customerNameKeyword,
+    String? phoneKeyword,
+    String? fileNameKeyword,
+  }) =>
+      _provider.customerAccountFileDao.findWithCustomerAndManager(
+        limit: limit,
+        offset: offset,
+        customerNameKeyword: customerNameKeyword,
+        phoneKeyword: phoneKeyword,
+        fileNameKeyword: fileNameKeyword,
+      );
+
+  /// 统计开户文件总数（带查询条件）
+  Future<int> countAccountFiles({
+    String? customerNameKeyword,
+    String? phoneKeyword,
+    String? fileNameKeyword,
+  }) =>
+      _provider.customerAccountFileDao.countWithCustomerAndManager(
+        customerNameKeyword: customerNameKeyword,
+        phoneKeyword: phoneKeyword,
+        fileNameKeyword: fileNameKeyword,
+      );
 
   Future<CustomerAttachmentFile> addAttachmentFile(CustomerAttachmentFile entity,
       {ConflictAlgorithm conflictAlgorithm = ConflictAlgorithm.replace}) async {
