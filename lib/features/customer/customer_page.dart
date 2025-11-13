@@ -261,7 +261,7 @@ class _CustomerPageState extends State<CustomerPage> {
         ),
         DataTableColumn(
           label: '客户信息附件',
-          builder: (row, context) => _buildAttachments(row['attachments']),
+          builder: (row, context) => _buildAttachments(row),
         ),
         DataTableColumn(
           label: '客户经理编码',
@@ -500,7 +500,9 @@ class _CustomerPageState extends State<CustomerPage> {
   }
 
   /// 构建附件链接
-  Widget _buildAttachments(List<String> attachments) {
+  Widget _buildAttachments(Map<String, dynamic> row) {
+    final Customer customer = row['customer'] as Customer;
+    final attachments = row['attachments'];
     if (attachments.isEmpty) {
       return Text(
         '-',
@@ -512,10 +514,8 @@ class _CustomerPageState extends State<CustomerPage> {
     final displayText = attachments.join(', ');
     return InkWell(
       onTap: () {
-        // TODO: 查看附件
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('查看附件: $displayText')),
-        );
+        // 查看附件
+        _handleUploadAttachment(customer);
       },
       child: Text(
         displayText,
