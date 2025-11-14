@@ -5,6 +5,7 @@ import '../../utils/context_extensions.dart';
 import '../../utils/storage_utils.dart';
 import '../../data/models/user.dart';
 import '../../data/repositories/user_repository.dart';
+import '../account_manager/account_manager_add_page.dart';
 
 class LoginPage extends StatefulWidget {
   final VoidCallback onLoginSuccess;
@@ -106,11 +107,11 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _handleRegister() {
-    // TODO: 实现注册逻辑
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(context.S.navigateToRegister),
-        backgroundColor: Colors.blue,
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const AccountManagerAddPage(
+          isRegisterMode: true,
+        ),
       ),
     );
   }

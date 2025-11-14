@@ -5,6 +5,7 @@ import '../../data/models/user.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/user_repository.dart';
 import '../../utils/common_const.dart';
+import '../../utils/storage_utils.dart';
 import '../../widgets/common_data_table_page.dart';
 import 'customer_add_page.dart';
 import 'customer_attachment_page.dart';
@@ -33,11 +34,27 @@ class _CustomerPageState extends State<CustomerPage> {
   
   // 表格数据
   List<Map<String, dynamic>> _tableData = [];
+  
+  User? _loginUser;
+  
+  bool get _isAccountManager => _loginUser?.userType == '01';
+  String? get _managerAccount => _isAccountManager ? _loginUser?.userName : null;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadUserInfo();
+  }
+
+  /// 加载用户信息
+  Future<void> _loadUserInfo() async {
+    final loginUser = await StorageUtils.getLoginUser();
+    if (mounted) {
+      setState(() {
+        _loginUser = loginUser;
+      });
+      _loadData();
+    }
   }
 
   @override
@@ -57,6 +74,7 @@ class _CustomerPageState extends State<CustomerPage> {
       final totalItems = await _customerRepository.count(
         nameKeyword: nameKeyword.isEmpty ? null : nameKeyword,
         phoneKeyword: phoneKeyword.isEmpty ? null : phoneKeyword,
+        managerAccount: _managerAccount,
         tag: tagKeyword != null && tagKeyword.isNotEmpty ? tagKeyword : null,
       );
       final totalPages = (totalItems / _itemsPerPage).ceil();
@@ -75,6 +93,7 @@ class _CustomerPageState extends State<CustomerPage> {
               offset: offset,
               nameKeyword: nameKeyword.isEmpty ? null : nameKeyword,
               phoneKeyword: phoneKeyword.isEmpty ? null : phoneKeyword,
+              managerAccount: _managerAccount,
               tag: tagKeyword != null && tagKeyword.isNotEmpty ? tagKeyword : null,
             );
 

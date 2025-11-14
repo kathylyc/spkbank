@@ -606,7 +606,9 @@ class _RouterPageState extends State<RouterPage> {
   Widget _buildFunctionContent() {
     switch (_selectedFunction) {
       case FunctionType.dashboard:
-        return const DashboardPage();
+        return DashboardPage(
+          onNavigateToCustomerFile: () => _switchFunction(FunctionType.customerFile),
+        );
       case FunctionType.pdfTemplate:
         return const PdfTemplatePage();
       case FunctionType.customer:

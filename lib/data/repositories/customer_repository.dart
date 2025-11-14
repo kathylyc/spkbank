@@ -133,6 +133,7 @@ class CustomerRepository {
     String? customerNameKeyword,
     String? phoneKeyword,
     String? fileNameKeyword,
+    String? managerAccount,
   }) =>
       _provider.customerAccountFileDao.findWithCustomerAndManager(
         limit: limit,
@@ -140,6 +141,7 @@ class CustomerRepository {
         customerNameKeyword: customerNameKeyword,
         phoneKeyword: phoneKeyword,
         fileNameKeyword: fileNameKeyword,
+        managerAccount: managerAccount,
       );
 
   /// 统计开户文件总数（带查询条件）
@@ -147,11 +149,13 @@ class CustomerRepository {
     String? customerNameKeyword,
     String? phoneKeyword,
     String? fileNameKeyword,
+    String? managerAccount,
   }) =>
       _provider.customerAccountFileDao.countWithCustomerAndManager(
         customerNameKeyword: customerNameKeyword,
         phoneKeyword: phoneKeyword,
         fileNameKeyword: fileNameKeyword,
+        managerAccount: managerAccount,
       );
 
   Future<CustomerAttachmentFile> addAttachmentFile(CustomerAttachmentFile entity,
@@ -188,5 +192,37 @@ class CustomerRepository {
       );
     }).toList();
   }
+
+  /// 统计不同模板数量
+  Future<int> countDistinctTemplates({String? managerAccount}) =>
+      _provider.customerAccountFileDao.countDistinctTemplates(managerAccount: managerAccount);
+
+  /// 统计已签署文档数量
+  Future<int> countSignedDocuments({String? managerAccount}) =>
+      _provider.customerAccountFileDao.countSignedDocuments(managerAccount: managerAccount);
+
+  /// 统计待签署文档数量
+  Future<int> countPendingDocuments({String? managerAccount}) =>
+      _provider.customerAccountFileDao.countPendingDocuments(managerAccount: managerAccount);
+
+  /// 按客户统计账户文件数量（用于饼图）
+  Future<List<Map<String, Object?>>> countFilesByCustomer({
+    int limit = 10,
+    String? managerAccount,
+  }) =>
+      _provider.customerAccountFileDao.countFilesByCustomer(
+        limit: limit,
+        managerAccount: managerAccount,
+      );
+
+  /// 每月新客户和新账户文件统计（用于柱状图）
+  Future<List<Map<String, Object?>>> getMonthlyStats({
+    int months = 5,
+    String? managerAccount,
+  }) =>
+      _provider.customerAccountFileDao.getMonthlyStats(
+        months: months,
+        managerAccount: managerAccount,
+      );
 }
 

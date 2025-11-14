@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 
+import '../../models/customer.dart';
 import '../../models/customer_account_file.dart';
 import '../database_manager.dart';
 
@@ -102,6 +103,7 @@ class CustomerAccountFileDao {
     String? customerNameKeyword,
     String? phoneKeyword,
     String? fileNameKeyword,
+    String? managerAccount,
   }) async {
     final db = await _manager.database;
     final whereClauses = <String>[];
@@ -118,6 +120,10 @@ class CustomerAccountFileDao {
     if (fileNameKeyword != null && fileNameKeyword.isNotEmpty) {
       whereClauses.add('f.account_file_name LIKE ?');
       whereArgs.add('%$fileNameKeyword%');
+    }
+    if (managerAccount != null && managerAccount.isNotEmpty) {
+      whereClauses.add('c.manager_account = ?');
+      whereArgs.add(managerAccount);
     }
 
     final whereClause = whereClauses.isEmpty ? '' : 'WHERE ${whereClauses.join(' AND ')}';
@@ -163,6 +169,7 @@ class CustomerAccountFileDao {
     String? customerNameKeyword,
     String? phoneKeyword,
     String? fileNameKeyword,
+    String? managerAccount,
   }) async {
     final db = await _manager.database;
     final whereClauses = <String>[];
@@ -180,6 +187,10 @@ class CustomerAccountFileDao {
       whereClauses.add('f.account_file_name LIKE ?');
       whereArgs.add('%$fileNameKeyword%');
     }
+    if (managerAccount != null && managerAccount.isNotEmpty) {
+      whereClauses.add('c.manager_account = ?');
+      whereArgs.add(managerAccount);
+    }
 
     final whereClause = whereClauses.isEmpty ? '' : 'WHERE ${whereClauses.join(' AND ')}';
 
@@ -194,6 +205,213 @@ class CustomerAccountFileDao {
       whereArgs,
     );
     return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  /// 统计不同模板数量
+  Future<int> countDistinctTemplates({String? managerAccount}) async {
+    final db = await _manager.database;
+    final whereClauses = <String>["template_name IS NOT NULL AND template_name != ''"];
+    final whereArgs = <Object?>[];
+    
+    if (managerAccount != null && managerAccount.isNotEmpty) {
+      whereClauses.add('customer_uid IN (SELECT customer_uid FROM ${Customer.tableName} WHERE manager_account = ?)');
+      whereArgs.add(managerAccount);
+    }
+    
+    final whereClause = whereClauses.join(' AND ');
+    final result = await db.rawQuery(
+      '''
+      SELECT COUNT(DISTINCT template_name) AS count
+      FROM ${CustomerAccountFile.tableName}
+      WHERE $whereClause
+      ''',
+      whereArgs,
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  /// 统计已签署文档数量
+  Future<int> countSignedDocuments({String? managerAccount}) async {
+    final db = await _manager.database;
+    final whereClauses = <String>["sign_status = '1' OR sign_status = '已签署'"];
+    final whereArgs = <Object?>[];
+    
+    if (managerAccount != null && managerAccount.isNotEmpty) {
+      whereClauses.add('customer_uid IN (SELECT customer_uid FROM ${Customer.tableName} WHERE manager_account = ?)');
+      whereArgs.add(managerAccount);
+    }
+    
+    final whereClause = whereClauses.join(' AND ');
+    final result = await db.rawQuery(
+      '''
+      SELECT COUNT(*) AS count
+      FROM ${CustomerAccountFile.tableName}
+      WHERE $whereClause
+      ''',
+      whereArgs,
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  /// 统计待签署文档数量
+  Future<int> countPendingDocuments({String? managerAccount}) async {
+    final db = await _manager.database;
+    final whereClauses = <String>["sign_status IS NULL OR sign_status = '' OR sign_status = '2' OR sign_status = '未签署'"];
+    final whereArgs = <Object?>[];
+    
+    if (managerAccount != null && managerAccount.isNotEmpty) {
+      whereClauses.add('customer_uid IN (SELECT customer_uid FROM ${Customer.tableName} WHERE manager_account = ?)');
+      whereArgs.add(managerAccount);
+    }
+    
+    final whereClause = whereClauses.join(' AND ');
+    final result = await db.rawQuery(
+      '''
+      SELECT COUNT(*) AS count
+      FROM ${CustomerAccountFile.tableName}
+      WHERE $whereClause
+      ''',
+      whereArgs,
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  /// 按客户统计账户文件数量（用于饼图）
+  /// 返回前N个客户的文件数量统计
+  Future<List<Map<String, Object?>>> countFilesByCustomer({
+    int limit = 10,
+    String? managerAccount,
+  }) async {
+    final db = await _manager.database;
+    final whereClauses = <String>[];
+    final whereArgs = <Object?>[];
+    
+    if (managerAccount != null && managerAccount.isNotEmpty) {
+      whereClauses.add('c.manager_account = ?');
+      whereArgs.add(managerAccount);
+    }
+    
+    final whereClause = whereClauses.isEmpty ? '' : 'WHERE ${whereClauses.join(' AND ')}';
+    final rows = await db.rawQuery(
+      '''
+      SELECT 
+        c.customer_uid,
+        c.customer_name,
+        COUNT(f.id) AS file_count
+      FROM ${Customer.tableName} c
+      LEFT JOIN ${CustomerAccountFile.tableName} f ON c.customer_uid = f.customer_uid
+      $whereClause
+      GROUP BY c.customer_uid, c.customer_name
+      ORDER BY file_count DESC
+      LIMIT ?
+      ''',
+      [...whereArgs, limit],
+    );
+    return rows;
+  }
+
+  /// 每月新客户和新账户文件统计（用于柱状图）
+  /// 返回最近N个月的数据
+  Future<List<Map<String, Object?>>> getMonthlyStats({
+    int months = 5,
+    String? managerAccount,
+  }) async {
+    final db = await _manager.database;
+    final now = DateTime.now();
+    
+    // 计算起始日期，处理跨年情况
+    int startYear = now.year;
+    int startMonth = now.month - months + 1;
+    while (startMonth <= 0) {
+      startMonth += 12;
+      startYear -= 1;
+    }
+    final startDate = DateTime(startYear, startMonth, 1);
+    final startDateStr = startDate.toIso8601String();
+
+    // 构建客户查询条件
+    final customerWhereClauses = <String>['create_time >= ?'];
+    final customerWhereArgs = <Object?>[startDateStr];
+    if (managerAccount != null && managerAccount.isNotEmpty) {
+      customerWhereClauses.add('manager_account = ?');
+      customerWhereArgs.add(managerAccount);
+    }
+    final customerWhereClause = customerWhereClauses.join(' AND ');
+
+    // 获取每月新客户数量
+    final customerRows = await db.rawQuery(
+      '''
+      SELECT 
+        strftime('%Y-%m', create_time) AS month,
+        COUNT(*) AS customer_count
+      FROM ${Customer.tableName}
+      WHERE $customerWhereClause
+      GROUP BY strftime('%Y-%m', create_time)
+      ORDER BY month ASC
+      ''',
+      customerWhereArgs,
+    );
+
+    // 构建文件查询条件
+    final fileWhereClauses = <String>['create_time >= ?'];
+    final fileWhereArgs = <Object?>[startDateStr];
+    if (managerAccount != null && managerAccount.isNotEmpty) {
+      fileWhereClauses.add('customer_uid IN (SELECT customer_uid FROM ${Customer.tableName} WHERE manager_account = ?)');
+      fileWhereArgs.add(managerAccount);
+    }
+    final fileWhereClause = fileWhereClauses.join(' AND ');
+
+    // 获取每月新账户文件数量
+    final fileRows = await db.rawQuery(
+      '''
+      SELECT 
+        strftime('%Y-%m', create_time) AS month,
+        COUNT(*) AS file_count
+      FROM ${CustomerAccountFile.tableName}
+      WHERE $fileWhereClause
+      GROUP BY strftime('%Y-%m', create_time)
+      ORDER BY month ASC
+      ''',
+      fileWhereArgs,
+    );
+
+    // 合并数据
+    final Map<String, Map<String, Object?>> resultMap = {};
+    
+    // 初始化所有月份
+    for (int i = 0; i < months; i++) {
+      int year = startYear;
+      int month = startMonth + i;
+      while (month > 12) {
+        month -= 12;
+        year += 1;
+      }
+      final monthDateTime = DateTime(year, month, 1);
+      final monthStr = '${monthDateTime.year}-${monthDateTime.month.toString().padLeft(2, '0')}';
+      resultMap[monthStr] = {
+        'month': monthStr,
+        'customer_count': 0,
+        'file_count': 0,
+      };
+    }
+
+    // 填充客户数据
+    for (final row in customerRows) {
+      final month = row['month'] as String;
+      if (resultMap.containsKey(month)) {
+        resultMap[month]!['customer_count'] = row['customer_count'];
+      }
+    }
+
+    // 填充文件数据
+    for (final row in fileRows) {
+      final month = row['month'] as String;
+      if (resultMap.containsKey(month)) {
+        resultMap[month]!['file_count'] = row['file_count'];
+      }
+    }
+
+    return resultMap.values.toList();
   }
 }
 

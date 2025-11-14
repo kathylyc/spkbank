@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../widgets/common_data_table_page.dart';
 import '../../utils/page_transition_animations.dart';
+import '../../utils/storage_utils.dart';
+import '../../data/models/user.dart';
 import '../../data/repositories/customer_repository.dart';
 import 'customer_file_add_page.dart';
 import 'customer_file_add_picture_page.dart';
@@ -30,11 +32,27 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   
   // Repository
   final CustomerRepository _repository = CustomerRepository();
+  
+  User? _loginUser;
+  
+  bool get _isAccountManager => _loginUser?.userType == '01';
+  String? get _managerAccount => _isAccountManager ? _loginUser?.userName : null;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadUserInfo();
+  }
+
+  /// 加载用户信息
+  Future<void> _loadUserInfo() async {
+    final loginUser = await StorageUtils.getLoginUser();
+    if (mounted) {
+      setState(() {
+        _loginUser = loginUser;
+      });
+      _loadData();
+    }
   }
 
   @override
@@ -76,11 +94,13 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           customerNameKeyword: customerNameKeyword,
           phoneKeyword: phoneKeyword,
           fileNameKeyword: fileNameKeyword,
+          managerAccount: _managerAccount,
         ),
         _repository.countAccountFiles(
           customerNameKeyword: customerNameKeyword,
           phoneKeyword: phoneKeyword,
           fileNameKeyword: fileNameKeyword,
+          managerAccount: _managerAccount,
         ),
       ]);
       

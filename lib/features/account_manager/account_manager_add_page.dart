@@ -7,9 +7,14 @@ import '../../data/repositories/user_repository.dart';
 import '../../utils/storage_utils.dart';
 
 class AccountManagerAddPage extends StatefulWidget {
-  const AccountManagerAddPage({super.key, this.manager});
+  const AccountManagerAddPage({
+    super.key,
+    this.manager,
+    this.isRegisterMode = false,
+  });
 
   final User? manager;
+  final bool isRegisterMode;
 
   @override
   State<AccountManagerAddPage> createState() => _AccountManagerAddPageState();
@@ -20,14 +25,19 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
   final TextEditingController _managerAccountController = TextEditingController();
   final TextEditingController _managerNameController = TextEditingController();
   final TextEditingController _managerPhoneController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
   final UserRepository _userRepository = UserRepository();
   User? _loginUser;
   User? _initialManager;
 
   final RegExp _chineseCharacterRegExp = RegExp(r'[\u4e00-\u9fff]');
   bool _isSaving = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   bool get _isEdit => _initialManager != null;
+  bool get _isRegisterMode => widget.isRegisterMode;
 
   @override
   void initState() {
@@ -56,13 +66,23 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
     _managerAccountController.dispose();
     _managerNameController.dispose();
     _managerPhoneController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  bool get _hasUnsavedChanges =>
-      _managerAccountController.text.trim() != (_initialManager?.userName ?? '') ||
-      _managerNameController.text.trim() != (_initialManager?.nickName ?? '') ||
-      _managerPhoneController.text.trim() != (_initialManager?.phoneNumber ?? '');
+  bool get _hasUnsavedChanges {
+    if (_isRegisterMode) {
+      return _managerAccountController.text.trim().isNotEmpty ||
+          _managerNameController.text.trim().isNotEmpty ||
+          _managerPhoneController.text.trim().isNotEmpty ||
+          _passwordController.text.isNotEmpty ||
+          _confirmPasswordController.text.isNotEmpty;
+    }
+    return _managerAccountController.text.trim() != (_initialManager?.userName ?? '') ||
+        _managerNameController.text.trim() != (_initialManager?.nickName ?? '') ||
+        _managerPhoneController.text.trim() != (_initialManager?.phoneNumber ?? '');
+  }
 
   Future<bool> _handleWillPop() async {
     if (!_hasUnsavedChanges) {
@@ -141,8 +161,11 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
         );
         await _userRepository.upsert(updated);
       } else {
-        final defaultPwdLight = managerAccount;
-        final passwordHash = BCrypt.hashpw(defaultPwdLight, BCrypt.gensalt());
+        // 注册模式下使用用户输入的密码，否则使用默认密码（客户经理编号）
+        final passwordToUse = _isRegisterMode
+            ? _passwordController.text
+            : managerAccount;
+        final passwordHash = BCrypt.hashpw(passwordToUse, BCrypt.gensalt());
         final newManager = User(
           userName: managerAccount,
           nickName: managerName,
@@ -157,12 +180,19 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
       }
 
       if (!mounted) return;
-      Navigator.of(context).pop(true);
+      if (_isRegisterMode) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('注册成功')),
+        );
+        Navigator.of(context).pop(true);
+      } else {
+        Navigator.of(context).pop(true);
+      }
     } catch (error, stackTrace) {
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存失败: $error')),
+        SnackBar(content: Text(_isRegisterMode ? '注册失败: $error' : '保存失败: $error')),
       );
       setState(() {
         _isSaving = false;
@@ -176,7 +206,9 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
       onWillPop: _handleWillPop,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(_isEdit ? '修改客户经理' : '新增客户经理'),
+          title: Text(_isRegisterMode
+              ? '注册客户经理'
+              : (_isEdit ? '修改客户经理' : '新增客户经理')),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: _handleLeadingPressed,
@@ -226,6 +258,48 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
                             },
                             maxLength: 15,
                           ),
+                          if (_isRegisterMode) ...[
+                            _buildPasswordField(
+                              label: '登录密码',
+                              hint: '请输入登录密码',
+                              controller: _passwordController,
+                              obscureText: _obscurePassword,
+                              onToggleObscure: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                              onChanged: (value) {
+                                // 当密码改变时，重新验证确认密码字段
+                                if (_confirmPasswordController.text.isNotEmpty) {
+                                  _formKey.currentState?.validate();
+                                }
+                              },
+                              extraValidator: (value) {
+                                if (value.length < 6) {
+                                  return '密码长度不能少于6位';
+                                }
+                                return null;
+                              },
+                            ),
+                            _buildPasswordField(
+                              label: '确认密码',
+                              hint: '请再次输入登录密码',
+                              controller: _confirmPasswordController,
+                              obscureText: _obscureConfirmPassword,
+                              onToggleObscure: () {
+                                setState(() {
+                                  _obscureConfirmPassword = !_obscureConfirmPassword;
+                                });
+                              },
+                              extraValidator: (value) {
+                                if (value != _passwordController.text) {
+                                  return '两次输入的密码不一致';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -240,7 +314,7 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
                         backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
                       ),
-                      child: const Text('保存'),
+                      child: Text(_isRegisterMode ? '注册' : '保存'),
                     ),
                   ),
                 ],
@@ -296,6 +370,87 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: TextStyle(color: Colors.grey.shade400),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: const BorderSide(color: Colors.blue),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
+            ),
+            validator: (rawValue) {
+              final value = rawValue?.trim() ?? '';
+              if (value.isEmpty) {
+                return '请输入$label';
+              }
+              if (extraValidator != null) {
+                return extraValidator(value);
+              }
+              return null;
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPasswordField({
+    required String label,
+    required String hint,
+    required TextEditingController controller,
+    required bool obscureText,
+    required VoidCallback onToggleObscure,
+    String? Function(String value)? extraValidator,
+    ValueChanged<String>? onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade800,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                '*',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.red,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: controller,
+            obscureText: obscureText,
+            onChanged: onChanged,
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: TextStyle(color: Colors.grey.shade400),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  obscureText ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                ),
+                onPressed: onToggleObscure,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(4),
                 borderSide: BorderSide(color: Colors.grey.shade300),
