@@ -318,10 +318,15 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
       String fileVersion;
       
       if (existingFile != null) {
-        // 如果存在，使用现有的 account_file_uid，file_version 加一
+        // 如果存在，使用现有的 account_file_uid，查询该 account_file_uid 的最大版本号并加一
         accountFileUid = existingFile.accountFileUid;
-        final currentVersion = int.tryParse(existingFile.fileVersion ?? '0') ?? 0;
-        fileVersion = (currentVersion + 1).toString();
+        final maxVersion = await _repository.findMaxVersionByAccountFileUid(accountFileUid);
+        if (maxVersion != null) {
+          final currentVersion = int.tryParse(maxVersion) ?? 0;
+          fileVersion = (currentVersion + 1).toString();
+        } else {
+          fileVersion = '1';
+        }
       } else {
         // 如果不存在，使用 UUID 生成 account_file_uid，file_version 设为 1
         accountFileUid = _uuid.v4().replaceAll('-', '');

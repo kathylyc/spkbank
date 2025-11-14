@@ -33,7 +33,7 @@ class CustomerAccountFileDao {
     return db.delete(
       CustomerAccountFile.tableName,
       where: 'account_file_uid = ? AND file_version = ?',
-      whereArgs: [accountFileUid],
+      whereArgs: [accountFileUid, fileVersion],
     );
   }
 
@@ -64,6 +64,34 @@ class CustomerAccountFileDao {
     );
     if (rows.isEmpty) return null;
     return CustomerAccountFile.fromMap(rows.first);
+  }
+
+  /// 根据账户文件UID查找所有记录
+  Future<List<CustomerAccountFile>> findByAccountFileUid(String accountFileUid) async {
+    final db = await _manager.database;
+    final rows = await db.query(
+      CustomerAccountFile.tableName,
+      where: 'account_file_uid = ?',
+      whereArgs: [accountFileUid],
+      orderBy: 'CAST(file_version AS INTEGER) DESC',
+    );
+    return rows.map(CustomerAccountFile.fromMap).toList();
+  }
+
+  /// 根据账户文件UID查找最大版本号
+  /// 返回最大版本号，如果没有记录则返回 null
+  Future<String?> findMaxVersionByAccountFileUid(String accountFileUid) async {
+    final db = await _manager.database;
+    final rows = await db.query(
+      CustomerAccountFile.tableName,
+      columns: ['file_version'],
+      where: 'account_file_uid = ?',
+      whereArgs: [accountFileUid],
+      orderBy: 'CAST(file_version AS INTEGER) DESC',
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['file_version'] as String?;
   }
 
   /// 查询开户文件列表，关联客户信息和客户经理信息

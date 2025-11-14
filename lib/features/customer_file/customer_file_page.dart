@@ -3,6 +3,7 @@ import '../../widgets/common_data_table_page.dart';
 import '../../utils/page_transition_animations.dart';
 import '../../data/repositories/customer_repository.dart';
 import 'customer_file_add_page.dart';
+import 'customer_file_preview_page.dart';
 
 /// 开户文件管理页面
 class CustomerFilePage extends StatefulWidget {
@@ -151,56 +152,57 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
 
   /// 新增开户文件
   void _handleAddFile() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(
-          '新增开户文件',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        content: const Text(
-          '请选择新增方式：',
-          style: TextStyle(fontSize: 14),
-        ),
-        actions: [
-          // 取消按钮
-          // TextButton(
-          //   onPressed: () => Navigator.pop(context),
-          //   style: TextButton.styleFrom(
-          //     foregroundColor: Colors.grey.shade700,
-          //   ),
-          //   child: const Text('取消'),
-          // ),
-          // 从模板新增按钮
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _navigateToAddPage(0); // 0 表示模板生成 Tab
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('从模板新增'),
-          ),
-          // 上传PDF新增按钮
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _navigateToAddPage(1); // 1 表示上传PDF Tab
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('上传PDF新增'),
-          ),
-        ],
-      ),
-    );
+    _navigateToAddPage(0); // 0 表示模板生成 Tab
+    // showDialog(
+    //   context: context,
+    //   builder: (context) => AlertDialog(
+    //     title: const Text(
+    //       '新增开户文件',
+    //       style: TextStyle(
+    //         fontSize: 18,
+    //         fontWeight: FontWeight.w600,
+    //       ),
+    //     ),
+    //     content: const Text(
+    //       '请选择新增方式：',
+    //       style: TextStyle(fontSize: 14),
+    //     ),
+    //     actions: [
+    //       // 取消按钮
+    //       // TextButton(
+    //       //   onPressed: () => Navigator.pop(context),
+    //       //   style: TextButton.styleFrom(
+    //       //     foregroundColor: Colors.grey.shade700,
+    //       //   ),
+    //       //   child: const Text('取消'),
+    //       // ),
+    //       // 从模板新增按钮
+    //       ElevatedButton(
+    //         onPressed: () {
+    //           Navigator.pop(context);
+    //           _navigateToAddPage(0); // 0 表示模板生成 Tab
+    //         },
+    //         style: ElevatedButton.styleFrom(
+    //           backgroundColor: Colors.blue,
+    //           foregroundColor: Colors.white,
+    //         ),
+    //         child: const Text('从模板新增'),
+    //       ),
+    //       // 上传PDF新增按钮
+    //       ElevatedButton(
+    //         onPressed: () {
+    //           Navigator.pop(context);
+    //           _navigateToAddPage(1); // 1 表示上传PDF Tab
+    //         },
+    //         style: ElevatedButton.styleFrom(
+    //           backgroundColor: Colors.blue,
+    //           foregroundColor: Colors.white,
+    //         ),
+    //         child: const Text('上传PDF新增'),
+    //       ),
+    //     ],
+    //   ),
+    // );
   }
 
   /// 导航到新增页面
@@ -218,6 +220,45 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     );
     // 返回后刷新数据
     if (mounted) {
+      _loadData();
+    }
+  }
+
+  /// 导航到预览页面
+  Future<void> _navigateToPreviewPage(Map<String, dynamic> row, {required bool isEditMode}) async {
+    final customerName = row['customerName']?.toString() ?? '';
+    final fileName = row['fileName']?.toString() ?? '';
+    final templateName = row['template']?.toString() ?? '-';
+    final filePath = row['filePath']?.toString();
+    final accountFileUid = row['account_file_uid']?.toString();
+    final customerUid = row['customerUid']?.toString();
+    final fileVersion = row['version']?.toString();
+    final fileSrcType = row['file_src_type']?.toString();
+
+    final result = await Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return CustomerFilePreviewPage(
+            customerName: customerName,
+            fileName: fileName,
+            templateName: templateName,
+            filePath: filePath,
+            isEditMode: isEditMode,
+            accountFileUid: accountFileUid,
+            customerUid: customerUid,
+            fileVersion: fileVersion,
+            fileSrcType: fileSrcType,
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return PageTransitionAnimations.slideFromRight(child, animation);
+        },
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
+    );
+    
+    // 如果保存成功，刷新数据
+    if (result == true && mounted) {
       _loadData();
     }
   }
@@ -472,9 +513,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         // 文件预览按钮（蓝色）
         ElevatedButton(
           onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('文件预览: ${row['fileName']}')),
-            );
+            _navigateToPreviewPage(row, isEditMode: false);
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.blue,
@@ -494,13 +533,13 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         // 修改按钮（灰色）
         ElevatedButton(
           onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('修改: ${row['fileName']}')),
-            );
+            _navigateToPreviewPage(row, isEditMode: true);
           },
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.grey.shade300,
-            foregroundColor: Colors.grey.shade800,
+            // backgroundColor: Colors.grey.shade300,
+            // foregroundColor: Colors.grey.shade800,
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(4),

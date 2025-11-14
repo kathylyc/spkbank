@@ -116,6 +116,14 @@ class CustomerRepository {
         templateName,
       );
 
+  /// 根据账户文件UID查找所有记录
+  Future<List<CustomerAccountFile>> findAccountFilesByAccountFileUid(String accountFileUid) =>
+      _provider.customerAccountFileDao.findByAccountFileUid(accountFileUid);
+
+  /// 根据账户文件UID查找最大版本号
+  Future<String?> findMaxVersionByAccountFileUid(String accountFileUid) =>
+      _provider.customerAccountFileDao.findMaxVersionByAccountFileUid(accountFileUid);
+
   Future<int> deleteByAccountFileUidAndVersion(String accountFileUid, String fileVersion) => _provider.customerAccountFileDao.deleteByAccountFileUidAndVersion(accountFileUid, fileVersion);
 
   /// 查询开户文件列表，关联客户信息和客户经理信息
