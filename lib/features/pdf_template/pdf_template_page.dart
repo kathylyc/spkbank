@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../../utils/context_extensions.dart';
+import '../../utils/page_transition_animations.dart';
 import '../../widgets/common_data_table_page.dart';
+import '../customer_file/customer_file_preview_page.dart';
 
 /// PDF模板管理页面
 class PdfTemplatePage extends StatefulWidget {
@@ -282,8 +284,15 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
         ),
         DataTableColumn(
           label: '操作',
-          builder: (row, context) => _buildDownloadButton(row),
-        ),
+          builder: (row, context) => Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildPreviewButton(row),
+                const SizedBox(width: 8),
+                _buildDownloadButton(row),
+              ]
+          ),
+        )
       ],
       
       // 自定义列宽
@@ -302,6 +311,49 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
       totalItems: _totalItems,
       itemsPerPage: 20,
       onPageChanged: _handlePageChanged,
+    );
+  }
+
+
+  /// 导航到预览页面
+  Future<void> _navigateToPreviewPage(Map<String, dynamic> row, {required bool isEditMode}) async {
+    final assetPath = row['assetPath']?.toString();
+    final result = await Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return CustomerFilePreviewPage(
+            templateAssetPath: assetPath,
+            isEditMode: false,
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return PageTransitionAnimations.slideFromRight(child, animation);
+        },
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
+    );
+
+    // 如果保存成功，刷新数据
+    if (result == true && mounted) {
+      _loadData();
+    }
+  }
+
+  /// 构建文件预览按钮
+  Widget _buildPreviewButton(Map<String, dynamic> row) {
+    return ElevatedButton(
+      onPressed: () => _navigateToPreviewPage(row, isEditMode: false),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+        ),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: const Text('预览', style: TextStyle(fontSize: 13)),
     );
   }
 

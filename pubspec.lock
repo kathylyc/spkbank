@@ -310,6 +310,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_archive:
+    dependency: "direct main"
+    description:
+      name: flutter_archive
+      sha256: "5ca235f304c12bf468979235f400f79846d204169d715939e39197106f5fc970"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "6.0.3"
   flutter_launcher_icons:
     dependency: "direct dev"
     description:
@@ -477,6 +485,14 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "1.0.5"
+  jiffy:
+    dependency: transitive
+    description:
+      name: jiffy
+      sha256: "9bafbfe6d97587048bf449165e050029e716a12438f54a3d39e7e3a256decdac"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "6.4.3"
   json_annotation:
     dependency: "direct main"
     description:
@@ -701,6 +717,14 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "1.5.0"
+  quiver:
+    dependency: transitive
+    description:
+      name: quiver
+      sha256: ea0b925899e64ecdfbf9c7becb60d5b50e706ade44a85b2363be2a22d88117d2
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "3.2.2"
   shared_preferences:
     dependency: "direct main"
     description:
@@ -911,6 +935,22 @@ packages:
     description:
       name: syncfusion_flutter_signaturepad
       sha256: "6e60af61cec5ee7436b01ecb3fd944602aed42887789a67a27314678ad04d38a"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "31.2.5"
+  syncfusion_flutter_xlsio:
+    dependency: "direct main"
+    description:
+      name: syncfusion_flutter_xlsio
+      sha256: "5e74ce6fa0ff99c5f6b3e1ff2a28f8fc150e0f5078eb4610ebee9ddf4576ce54"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "31.2.5"
+  syncfusion_officecore:
+    dependency: transitive
+    description:
+      name: syncfusion_officecore
+      sha256: a97559791aeb1ad26aea55afe48758e91bb40c58d9c6fd4d404c0384d099b93f
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "31.2.5"

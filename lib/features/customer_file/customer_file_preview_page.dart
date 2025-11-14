@@ -12,9 +12,9 @@ import '../../utils/storage_utils.dart';
 
 /// 开户文件预览页面
 class CustomerFilePreviewPage extends StatefulWidget {
-  final String customerName;
-  final String fileName;
-  final String templateName;
+  final String? customerName;
+  final String? fileName;
+  final String? templateName;
   final String? templateAssetPath; // PDF 模板的 asset 路径（可选）
   final String? filePath; // PDF 文件的实际路径（可选，优先使用此路径）
   final bool isEditMode; // 是否为编辑模式
@@ -25,9 +25,9 @@ class CustomerFilePreviewPage extends StatefulWidget {
 
   const CustomerFilePreviewPage({
     super.key,
-    required this.customerName,
-    required this.fileName,
-    required this.templateName,
+    this.customerName,
+    this.fileName,
+    this.templateName,
     this.templateAssetPath,
     this.filePath,
     this.isEditMode = false,
@@ -309,7 +309,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       final accountFile = CustomerAccountFile(
         accountFileUid: widget.accountFileUid!,
         customerUid: widget.customerUid!,
-        accountFileName: widget.fileName,
+        accountFileName: widget.fileName!,
         fileVersion: newFileVersion,
         filePath: savedFilePath,
         templateName: widget.templateName,
@@ -440,7 +440,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
               style: const TextStyle(fontSize: 18),
             ),
             Text(
-              widget.fileName,
+              widget.fileName ?? widget.templateAssetPath!,
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
             ),
           ],
@@ -558,10 +558,12 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
     }
 
     if (_pdfBytes != null) {
+      final bool showInfoBar = widget.customerName != null;
+
       return Column(
         children: [
           // 顶部信息栏
-          Container(
+          if (showInfoBar) Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
