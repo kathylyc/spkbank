@@ -502,11 +502,6 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                     child: const Text('保存'),
                   ),
                 ),
-              // IconButton(
-              //   icon: const Icon(Icons.save),
-              //   tooltip: '保存',
-              //   onPressed: _handleSave,
-              // ),
           ],
         ],
       ),

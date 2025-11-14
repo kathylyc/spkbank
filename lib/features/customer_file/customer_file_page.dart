@@ -3,6 +3,7 @@ import '../../widgets/common_data_table_page.dart';
 import '../../utils/page_transition_animations.dart';
 import '../../data/repositories/customer_repository.dart';
 import 'customer_file_add_page.dart';
+import 'customer_file_add_picture_page.dart';
 import 'customer_file_preview_page.dart';
 
 /// 开户文件管理页面
@@ -144,10 +145,22 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   }
 
   /// 扫描生成PDF
-  void _handleScanToPdf() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('扫描生成PDF')),
+  Future<void> _handleScanToPdf() async {
+    await Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return const CustomerFileAddPicturePage();
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return PageTransitionAnimations.slideFromRight(child, animation);
+        },
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
     );
+    // 返回后刷新数据
+    if (mounted) {
+      _loadData();
+    }
   }
 
   /// 新增开户文件
@@ -507,6 +520,10 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
 
   /// 构建操作按钮
   Widget _buildActions(Map<String, dynamic> row) {
+    // 判断是否为扫描生成的文件
+    final fileSrcType = row['file_src_type']?.toString() ?? '';
+    final isScanGenerated = fileSrcType == '扫描生成';
+    
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -530,16 +547,14 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         
         const SizedBox(width: 8),
         
-        // 修改按钮（灰色）
+        // 修改按钮（如果是扫描生成则灰显不可用）
         ElevatedButton(
-          onPressed: () {
+          onPressed: isScanGenerated ? null : () {
             _navigateToPreviewPage(row, isEditMode: true);
           },
           style: ElevatedButton.styleFrom(
-            // backgroundColor: Colors.grey.shade300,
-            // foregroundColor: Colors.grey.shade800,
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
+            backgroundColor: isScanGenerated ? Colors.grey.shade300 : Colors.blue,
+            foregroundColor: isScanGenerated ? Colors.grey.shade600 : Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(4),
