@@ -6,6 +6,7 @@ import 'package:excel/excel.dart' as excel;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../../data/models/customer.dart';
 import '../../data/models/customer_attachment_file.dart';
@@ -355,10 +356,163 @@ class _CustomerPageState extends State<CustomerPage> {
       }
     }
 
+    // 处理客户附件信息（customer_attachment_info.xlsx 和 files 目录）
+    int attachmentInsertCount = 0;
+    int attachmentUpdateCount = 0;
+    
+    // 查找 customer_attachment_info.xlsx 文件
+    final importDir = Directory(importDirPath);
+    File? attachmentInfoFile;
+    if (await importDir.exists()) {
+      final files = importDir.listSync();
+      for (final file in files) {
+        if (file is File) {
+          final fileName = p.basename(file.path);
+          if (fileName.toLowerCase().startsWith('customer_attachment_info') &&
+              fileName.toLowerCase().endsWith('.xlsx')) {
+            attachmentInfoFile = file;
+            break;
+          }
+        }
+      }
+    }
+    
+    // 如果存在附件信息文件，处理附件
+    if (attachmentInfoFile != null) {
+      // 获取APP缓存附件目录（使用与FileManager相同的目录结构）
+      final cacheDir = await getApplicationCacheDirectory();
+      
+      // 检查是否有files目录
+      final filesDir = Directory(p.join(importDirPath, 'files'));
+      final hasFilesDir = await filesDir.exists();
+      
+      // 读取附件信息Excel文件
+      final attachmentExcelBytes = await attachmentInfoFile.readAsBytes();
+      final attachmentExcelBook = excel.Excel.decodeBytes(attachmentExcelBytes);
+      final attachmentSheetName = attachmentExcelBook.tables.isNotEmpty
+          ? attachmentExcelBook.tables.keys.first
+          : (attachmentExcelBook.sheets.isNotEmpty ? attachmentExcelBook.sheets.keys.first : null);
+      
+      if (attachmentSheetName != null) {
+        final attachmentSheet = attachmentExcelBook[attachmentSheetName];
+        
+        // 获取所有现有附件（用于匹配）
+        final allExistingAttachments = <String, CustomerAttachmentFile>{}; // key: customerUid_attachmentType
+        for (final customerUid in customersByUidMap.keys) {
+          final attachments = await _customerRepository.findAttachmentFiles(customerUid);
+          for (final attachment in attachments) {
+            final key = '${attachment.customerUid}_${attachment.attachmentType}';
+            allExistingAttachments[key] = attachment;
+          }
+        }
+        
+        // 从第二行开始读取附件数据（第一行是表头）
+        for (int i = 1; i < attachmentSheet.rows.length; i++) {
+          final row = attachmentSheet.rows[i];
+          if (row.isEmpty || row[0]?.value == null) {
+            continue; // 跳过空行
+          }
+          
+          final attachmentCustomerUid = (row[0]?.value?.toString() ?? '').trim();
+          final phone = (row[1]?.value?.toString() ?? '').trim();
+          final attachmentType = (row[2]?.value?.toString() ?? '').trim(); // 文件名（文件类型）
+          final relativeFilePath = (row[3]?.value?.toString() ?? '').trim(); // 文件路径（相对路径）
+          
+          if (attachmentCustomerUid.isEmpty || attachmentType.isEmpty) {
+            continue; // 跳过客户编码或附件类型为空的行
+          }
+          
+          // 验证客户是否存在
+          final customer = customersByUidMap[attachmentCustomerUid];
+          if (customer == null) {
+            debugPrint('客户不存在，跳过附件: customerUid=$attachmentCustomerUid, attachmentType=$attachmentType');
+            continue; // 跳过客户不存在的附件
+          }
+          
+          // 处理文件路径：如果Excel中有相对路径，且files目录存在，则复制文件到APP缓存目录
+          String? appCacheFilePath;
+          if (relativeFilePath.isNotEmpty && 
+              relativeFilePath != '-' && 
+              hasFilesDir && 
+              relativeFilePath.startsWith('files/')) {
+            try {
+              // 获取源文件路径（在解压目录中）
+              final sourceFilePath = p.join(importDirPath, relativeFilePath);
+              final sourceFile = File(sourceFilePath);
+              
+              if (await sourceFile.exists()) {
+                // 使用与FileManager相同的目录结构：cache/customer/{customerUid}/
+                final customerAttachmentDir = Directory(p.join(cacheDir.path, 'customer', attachmentCustomerUid));
+                if (!await customerAttachmentDir.exists()) {
+                  await customerAttachmentDir.create(recursive: true);
+                }
+                
+                // 生成目标文件名：使用原始文件名
+                final fileName = p.basename(relativeFilePath);
+                final targetFilePath = p.join(customerAttachmentDir.path, fileName);
+                final targetFile = File(targetFilePath);
+                
+                // 如果目标文件已存在，先删除（替换）
+                if (await targetFile.exists()) {
+                  await targetFile.delete();
+                }
+                
+                // 复制文件到APP缓存目录
+                await sourceFile.copy(targetFilePath);
+                appCacheFilePath = targetFilePath;
+              } else {
+                debugPrint('附件文件不存在，跳过: $sourceFilePath');
+              }
+            } catch (e) {
+              debugPrint('复制附件文件失败: $relativeFilePath, 错误: $e');
+              // 继续处理，不中断导入流程
+            }
+          }
+          
+          // 如果文件路径为空，跳过
+          if (appCacheFilePath == null || appCacheFilePath.isEmpty) {
+            continue;
+          }
+          
+          // 尝试匹配现有附件
+          final key = '${attachmentCustomerUid}_$attachmentType';
+          final existingAttachment = allExistingAttachments[key];
+          
+          if (existingAttachment != null) {
+            // 更新现有附件
+            final updatedAttachment = existingAttachment.copyWith(
+              filePath: appCacheFilePath,
+              updateBy: loginUser?.userName,
+              updateTime: now,
+            );
+            await _customerRepository.addAttachmentFile(updatedAttachment);
+            attachmentUpdateCount++;
+          } else {
+            // 插入新附件
+            final newAttachment = CustomerAttachmentFile(
+              customerUid: attachmentCustomerUid,
+              attachmentType: attachmentType,
+              filePath: appCacheFilePath,
+              createBy: loginUser?.userName,
+              createTime: now,
+              updateBy: loginUser?.userName,
+              updateTime: now,
+            );
+            await _customerRepository.addAttachmentFile(newAttachment);
+            attachmentInsertCount++;
+          }
+        }
+      }
+    }
+    
     // 重新加载数据
     _loadData();
-
-    return '导入成功：新增 $insertCount 条，更新 $updateCount 条';
+    
+    final attachmentMessage = attachmentInsertCount > 0 || attachmentUpdateCount > 0
+        ? '；附件：新增 $attachmentInsertCount 条，更新 $attachmentUpdateCount 条'
+        : '';
+    
+    return '导入成功：新增 $insertCount 条，更新 $updateCount 条$attachmentMessage';
   }
 
   /// 导入客户
