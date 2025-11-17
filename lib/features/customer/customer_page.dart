@@ -328,6 +328,7 @@ class _CustomerPageState extends State<CustomerPage> {
         existingCustomer = customersByNameMap[key];
       }
 
+      Customer? finalCustomer;
       if (existingCustomer != null) {
         // 更新现有客户
         final updatedCustomer = existingCustomer.copyWith(
@@ -338,10 +339,11 @@ class _CustomerPageState extends State<CustomerPage> {
           updateTime: now,
         );
         await _customerRepository.upsert(updatedCustomer);
+        finalCustomer = updatedCustomer;
         updateCount++;
       } else {
         // 插入新客户
-        await _customerRepository.create(
+        final newCustomer = await _customerRepository.create(
           customerUid: customerUid,
           customerName: customerName,
           countryCode: '86', // 默认国家代码
@@ -352,7 +354,13 @@ class _CustomerPageState extends State<CustomerPage> {
           createBy: loginUser?.userName,
           createTime: now,
         );
+        finalCustomer = newCustomer;
         insertCount++;
+      }
+      
+      // 更新 customersByUidMap，确保新插入的客户也能被附件处理逻辑找到
+      if (finalCustomer != null) {
+        customersByUidMap[finalCustomer.customerUid] = finalCustomer;
       }
     }
 
