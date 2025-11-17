@@ -5,15 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:excel/excel.dart' as excel;
-import 'package:archive/archive.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../../data/models/user.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/user_repository.dart';
 import '../../utils/file_manager.dart';
+import '../../utils/import_export_utils.dart';
 import '../../utils/storage_utils.dart';
 import '../../widgets/common_data_table_page.dart';
 import 'account_manager_add_page.dart';
@@ -281,804 +278,184 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
     }
   }
 
-  /// 获取Downloads目录
-  Future<Directory?> _getDownloadsDirectory() async {
-    if (Platform.isAndroid) {
-      try {
-        final externalDir = await getExternalStorageDirectory();
-        if (externalDir != null) {
-          final rootPath = externalDir.path.split('/Android')[0];
-          final downloadsDir = Directory(p.join(rootPath, 'Download'));
-          if (!await downloadsDir.exists()) {
-            final downloadsDirAlt = Directory(p.join(rootPath, 'Downloads'));
-            if (await downloadsDirAlt.exists()) {
-              return downloadsDirAlt;
-            }
-            await downloadsDir.create(recursive: true);
-          }
-          return downloadsDir;
-        }
-      } catch (e) {
-        debugPrint('获取Android Downloads目录失败: $e');
-      }
-    } else if (Platform.isIOS) {
-      try {
-        final documentsDir = await getApplicationDocumentsDirectory();
-        final downloadsDir = Directory(p.join(documentsDir.path, 'Downloads'));
-        if (!await downloadsDir.exists()) {
-          await downloadsDir.create(recursive: true);
-        }
-        return downloadsDir;
-      } catch (e) {
-        debugPrint('获取iOS Downloads目录失败: $e');
-      }
-    }
-    return null;
-  }
 
   /// 下载导入模板 - 将assets中的Excel文件复制到Downloads目录
   void _handleDownloadTemplate() async {
-    const assetPath = 'assets/excel/customer_manager_info.xlsx';
-    const fileName = 'customer_manager_info.xlsx';
-
-    if (mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('正在下载导入模板...'),
-          duration: Duration(seconds: 2),
-        ),
-    );
-    }
-
-    try {
-      final downloadsDir = await _getDownloadsDirectory();
-      if (downloadsDir == null) {
-        throw Exception('无法获取Downloads目录，请检查存储权限');
-      }
-
-      final ByteData data = await rootBundle.load(assetPath);
-      final List<int> bytes = data.buffer.asUint8List();
-
-      final targetPath = p.join(downloadsDir.path, fileName);
-      final targetFile = File(targetPath);
-
-      String finalPath = targetPath;
-      if (await targetFile.exists()) {
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final nameWithoutExt = p.basenameWithoutExtension(fileName);
-        final ext = p.extension(fileName);
-        finalPath = p.join(downloadsDir.path, '${nameWithoutExt}_$timestamp$ext');
-      }
-
-      await File(finalPath).writeAsBytes(bytes);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('导入模板下载成功'),
-                const SizedBox(height: 4),
-                Text(
-                  '保存为: ${p.basename(finalPath)}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('下载导入模板失败: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('下载导入模板失败: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
-
-  /// 提示输入解压密码
-  Future<String?> _promptUnzipPassword() async {
-    final controller = TextEditingController();
-    String? errorText;
-    final result = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('输入解压密码'),
-              content: TextField(
-                controller: controller,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: '解压密码',
-                  hintText: '请输入密码',
-                  errorText: errorText,
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('取消'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    final password = controller.text.trim();
-                    if (password.isEmpty) {
-                      setState(() {
-                        errorText = '密码不能为空';
-                      });
-                      return;
-                    }
-                    Navigator.of(dialogContext).pop(password);
-                  },
-                  child: const Text('确定'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-    // 延迟 dispose，确保 dialog 完全关闭后再清理 controller
-    Future.delayed(const Duration(milliseconds: 300), () {
-      controller.dispose();
-    });
-    return result;
-  }
-
-  /// 导入客户经理
-  Future<void> _handleImportManager() async {
-    try {
-      // 获取下载目录作为初始目录
-      final downloadsDir = await _getDownloadsDirectory();
-      String? initialDirectory;
-      if (downloadsDir != null) {
-        initialDirectory = downloadsDir.path;
-      }
-
-      // 弹出文件浏览器，仅可选择 zip 包
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['zip'],
-        initialDirectory: initialDirectory,
-        allowMultiple: false,
-      );
-
-      if (result == null || result.files.isEmpty) {
-        return;
-      }
-
-      final selectedFile = result.files.single;
-      final String? zipFilePath = selectedFile.path;
-      if (zipFilePath == null) {
-        if (mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('无法获取文件路径，请重试'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      final zipFile = File(zipFilePath);
-      if (!await zipFile.exists()) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('文件不存在，请重新选择'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      // 弹出密码输入对话框
-      final password = await _promptUnzipPassword();
-      if (password == null) {
-        return;
-      }
-
-      // 显示加载对话框
-      if (mounted) {
-        _showLoadingDialog(message: '正在导入客户经理数据...');
-      }
-
-      // 获取 cache/import 目录
-      final cacheDir = await getTemporaryDirectory();
-      final importDir = Directory(p.join(cacheDir.path, 'import'));
-      if (!await importDir.exists()) {
-        await importDir.create(recursive: true);
-      }
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final importCurrentDir = Directory(p.join(importDir.path, '$timestamp'));
-      if (!await importCurrentDir.exists()) {
-        await importCurrentDir.create(recursive: true);
-      }
-
-      // 复制 zip 文件到 cache/import 目录
-      final targetZipName = 'import_$timestamp.zip';
-      final targetZipPath = p.join(importCurrentDir.path, targetZipName);
-      final targetZipFile = File(targetZipPath);
-      await zipFile.copy(targetZipPath);
-
-      // 解压 zip 文件
-      try {
-        final zipBytes = await targetZipFile.readAsBytes();
-        final archive = ZipDecoder().decodeBytes(zipBytes, password: password);
-
-        // 解压到 cache/import 目录
-        for (final file in archive) {
-          final filePath = p.join(importCurrentDir.path, file.name);
-          if (file.isFile) {
-            final outFile = File(filePath);
-            await outFile.create(recursive: true);
-            await outFile.writeAsBytes(file.content as List<int>);
-          } else {
-            await Directory(filePath).create(recursive: true);
-          }
-        }
-
-        // TODO:
-        // 检查是否包含名字以customer_manager_info开头的xlsx文件
-        File? excelFile;
-        final importFiles = importCurrentDir.listSync();
-        for (final file in importFiles) {
-          if (file is File) {
-            final fileName = p.basename(file.path);
-            if (fileName.toLowerCase().startsWith('customer_manager_info') && 
-                fileName.toLowerCase().endsWith('.xlsx')) {
-              excelFile = file;
-              break;
-            }
-          }
-        }
-
-        if (excelFile == null || !await excelFile.exists()) {
-          // 删除临时文件
-          try {
-            if (await targetZipFile.exists()) {
-              await targetZipFile.delete();
-            }
-            if (await importCurrentDir.exists()) {
-              await importCurrentDir.delete(recursive: true);
-            }
-          } catch (deleteError) {
-            debugPrint('删除临时文件失败: $deleteError');
-          }
-
-          _hideLoadingDialog();
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('非标准压缩包，不支持导入1'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-          return;
-        }
-
-        // 读取 Excel 文件并检查表头
-        final excelBytes = await excelFile.readAsBytes();
-        final excelBook = excel.Excel.decodeBytes(excelBytes);
-        final sheetName = excelBook.tables.isNotEmpty
-            ? excelBook.tables.keys.first
-            : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : null);
-        if (sheetName == null) {
-          // 删除临时文件
-          try {
-            if (await targetZipFile.exists()) {
-              await targetZipFile.delete();
-            }
-            if (await importCurrentDir.exists()) {
-              await importCurrentDir.delete(recursive: true);
-            }
-          } catch (deleteError) {
-            debugPrint('删除临时文件失败: $deleteError');
-          }
-
-          _hideLoadingDialog();
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('非标准压缩包，不支持导入2'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-          return;
-        }
-
-        final sheet = excelBook[sheetName];
-        if (sheet == null) {
-          // 删除临时文件
-          try {
-            if (await targetZipFile.exists()) {
-              await targetZipFile.delete();
-            }
-            if (await importCurrentDir.exists()) {
-              await importCurrentDir.delete(recursive: true);
-            }
-          } catch (deleteError) {
-            debugPrint('删除临时文件失败: $deleteError');
-          }
-
-          _hideLoadingDialog();
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('非标准压缩包，不支持导入2'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-          return;
-        }
-
-        // 检查前三列表头
-        const expectedHeaders = ['客户经理编号', '客户经理姓名', '客户经理手机号码'];
-        final headerRow = sheet.rows[0];
-        if (headerRow.length < 3) {
-          // 删除临时文件
-          try {
-            if (await targetZipFile.exists()) {
-              await targetZipFile.delete();
-            }
-            if (await importCurrentDir.exists()) {
-              await importCurrentDir.delete(recursive: true);
-            }
-          } catch (deleteError) {
-            debugPrint('删除临时文件失败: $deleteError');
-          }
-
-          _hideLoadingDialog();
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('非标准压缩包，不支持导入2'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-          return;
-        }
-
-        // 检查表头是否匹配
-        bool headersMatch = true;
-        for (int i = 0; i < 3; i++) {
-          final cellValue = headerRow[i]?.value?.toString() ?? '';
-          if (cellValue != expectedHeaders[i]) {
-            headersMatch = false;
-            break;
-          }
-        }
-
-        if (!headersMatch) {
-          // 删除临时文件
-          try {
-            if (await targetZipFile.exists()) {
-              await targetZipFile.delete();
-            }
-            if (await importCurrentDir.exists()) {
-              await importCurrentDir.delete(recursive: true);
-            }
-          } catch (deleteError) {
-            debugPrint('删除临时文件失败: $deleteError');
-          }
-
-          _hideLoadingDialog();
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('非标准压缩包，不支持导入2'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-          return;
-        }
-
-        // 读取 Excel 数据并导入数据库
-        final loginUser = await StorageUtils.getLoginUser();
-        final now = DateTime.now();
-        int insertCount = 0;
-        int updateCount = 0;
-
-        // 获取数据库中所有 user_type='01' 的用户
-        final existingManagers = await _userRepository.findManagers();
-        final existingManagersMap = {
-          for (final manager in existingManagers) manager.userName: manager,
-        };
-
-        // 从第二行开始读取数据（第一行是表头）
-        for (int i = 1; i < sheet.rows.length; i++) {
-          final row = sheet.rows[i];
-          if (row.isEmpty || row[0]?.value == null) {
-            continue; // 跳过空行
-          }
-
-          final managerCode = row[0]?.value?.toString() ?? '';
-          final managerName = row[1]?.value?.toString() ?? '';
-          final managerPhone = row[2]?.value?.toString() ?? '';
-
-          if (managerCode.isEmpty) {
-            continue; // 跳过客户经理编号为空的行
-          }
-
-          final existingManager = existingManagersMap[managerCode];
-          if (existingManager != null) {
-            // 更新现有用户
-            final updatedManager = existingManager.copyWith(
-              nickName: managerName.isNotEmpty ? managerName : existingManager.nickName,
-              phoneNumber: managerPhone.isNotEmpty ? managerPhone : existingManager.phoneNumber,
-              updateBy: loginUser?.userName,
-              updateTime: now,
-            );
-            await _userRepository.upsert(updatedManager);
-            updateCount++;
-          } else {
-            // 插入新用户
-            // 默认密码为客户经理编号
-            final defaultPassword = BCrypt.hashpw(managerCode, BCrypt.gensalt());
-            final newManager = User(
-              userName: managerCode,
-              nickName: managerName.isNotEmpty ? managerName : managerCode,
-              userType: '01',
-              phoneNumber: managerPhone.isNotEmpty ? managerPhone : null,
-              password: defaultPassword,
-              status: '0',
-              createBy: loginUser?.userName,
-              createTime: now,
-              updateBy: loginUser?.userName,
-              updateTime: now,
-            );
-            await _userRepository.upsert(newManager);
-            insertCount++;
-          }
-        }
-
-        // 删除临时文件
-        try {
-          if (await targetZipFile.exists()) {
-            await targetZipFile.delete();
-          }
-          if (await importDir.exists()) {
-            await importDir.delete(recursive: true);
-          }
-        } catch (deleteError) {
-          debugPrint('删除临时文件失败: $deleteError');
-        }
-
-        // 关闭加载对话框
-        _hideLoadingDialog();
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('导入成功：新增 $insertCount 条，更新 $updateCount 条'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-
-        // 重新加载数据
-        _loadData();
-      } catch (e) {
-        // 解压失败（可能是密码错误）
-        debugPrint('解压失败: $e');
-
-        // 关闭加载对话框
-        _hideLoadingDialog();
-
-        // 删除临时文件
-        try {
-          if (await targetZipFile.exists()) {
-            await targetZipFile.delete();
-          }
-        } catch (deleteError) {
-          debugPrint('删除临时文件失败: $deleteError');
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('解压失败: ${e.toString().contains('password') || e.toString().contains('密码') ? '密码错误' : e.toString()}'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      }
-    } catch (e, s) {
-      debugPrint('导入客户经理失败: $e');
-      debugPrintStack(stackTrace: s);
-
-      // 关闭加载对话框（如果还在显示）
-      _hideLoadingDialog();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('导入失败: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  /// 显示加载对话框
-  void _showLoadingDialog({String message = '正在处理...'}) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        content: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(width: 20),
-            Text(message),
-          ],
-        ),
-      ),
+    await ImportExportUtils.downloadTemplate(
+      context,
+      assetPath: 'assets/excel/customer_manager_info.xlsx',
+      fileName: 'customer_manager_info.xlsx',
     );
   }
 
-  /// 关闭加载对话框
-  void _hideLoadingDialog() {
-    if (mounted && Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
-  }
 
-  /// 导出客户经理
-  Future<void> _handleExportManager() async {
-    if (_tableData.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('当前没有可导出的数据'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-      return;
-    }
-
-    final zipPassword = await _promptZipPassword();
-    if (zipPassword == null) {
-      return;
-    }
-
-    // 显示加载对话框
-    if (mounted) {
-      _showLoadingDialog(message: '正在导出客户经理数据...');
-    }
-
-    // 临时文件变量，用于在 finally 块中清理
-    File? excelFile;
-    File? zipFile;
-
+  /// 验证客户经理Excel文件
+  Future<String?> _validateManagerExcelFile(File excelFile) async {
     try {
-      const templateAsset = 'assets/excel/customer_manager_info.xlsx';
-      final templateData = await rootBundle.load(templateAsset);
-      final templateBytes = templateData.buffer.asUint8List();
-      final excelBook = excel.Excel.decodeBytes(templateBytes);
+      final excelBytes = await excelFile.readAsBytes();
+      final excelBook = excel.Excel.decodeBytes(excelBytes);
       final sheetName = excelBook.tables.isNotEmpty
           ? excelBook.tables.keys.first
           : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : null);
       if (sheetName == null) {
-        throw Exception('模板中未找到可用的工作表');
+        return '非标准压缩包，不支持导入2';
       }
+
       final sheet = excelBook[sheetName];
       if (sheet == null) {
-        throw Exception('无法访问模板工作表: $sheetName');
+        return '非标准压缩包，不支持导入2';
       }
 
-      const startRow = 2; // 模板第一行是表头，从第二行开始写数据
-      for (int i = 0; i < _tableData.length; i++) {
-        final data = _tableData[i];
-        final rowIndex = startRow - 1 + i; // excel包的行索引从0开始
-        sheet
-            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            .value = excel.TextCellValue('${data['managerCode'] ?? ''}');
-        sheet
-            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
-            .value = excel.TextCellValue('${data['managerName'] ?? ''}');
-        sheet
-            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
-            .value = excel.TextCellValue('${data['managerPhone'] ?? ''}');
+      // 检查前三列表头
+      const expectedHeaders = ['客户经理编号', '客户经理姓名', '客户经理手机号码'];
+      final headerRow = sheet.rows[0];
+      if (headerRow.length < 3) {
+        return '非标准压缩包，不支持导入2';
       }
 
-      final excelBytes = excelBook.encode();
-      if (excelBytes == null) {
-        throw Exception('生成Excel数据失败');
-      }
-
-      final cacheDir = await getTemporaryDirectory();
-      final exportDir = Directory(p.join(cacheDir.path, 'export'));
-      if (!await exportDir.exists()) {
-        await exportDir.create(recursive: true);
-      }
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final exportCurrentDir = Directory(p.join(exportDir.path, '$timestamp'));
-      if (!await exportCurrentDir.exists()) {
-        await exportCurrentDir.create(recursive: true);
-      }
-      final excelName = 'customer_manager_info_export_$timestamp.xlsx';
-      final excelPath = p.join(exportCurrentDir.path, excelName);
-      excelFile = File(excelPath);
-      await excelFile.writeAsBytes(excelBytes, flush: true);
-
-      final zipName = 'customer_manager_info_export_$timestamp.zip';
-      final zipPath = p.join(exportCurrentDir.path, zipName);
-      zipFile = File(zipPath);
-      if (await zipFile.exists()) {
-        await zipFile.delete();
-      }
-
-      // 使用 archive 包创建密码保护的 ZIP 文件
-      final archive = Archive();
-      final excelFileBytes = await excelFile.readAsBytes();
-      final excelArchiveFile = ArchiveFile(
-        excelName,
-        excelFileBytes.length,
-        excelFileBytes,
-      );
-      archive.addFile(excelArchiveFile);
-
-      // 编码 ZIP 文件（带密码保护）
-      final zipEncoder = ZipEncoder(password: zipPassword);
-      final zipBytes = zipEncoder.encode(
-        archive,
-        level: Deflate.BEST_COMPRESSION,
-      );
-      
-      if (zipBytes == null) {
-        throw Exception('生成 ZIP 文件失败');
-      }
-      
-      await zipFile.writeAsBytes(zipBytes, flush: true);
-
-      final downloadsDir = await _getDownloadsDirectory();
-      if (downloadsDir == null) {
-        throw Exception('无法获取Downloads目录，请检查存储权限');
-      }
-
-      final targetZipPath = p.join(downloadsDir.path, zipName);
-      final targetZipFile = File(targetZipPath);
-      if (await targetZipFile.exists()) {
-        await targetZipFile.delete();
-      }
-      await zipFile.copy(targetZipPath);
-
-      // 关闭加载对话框
-      _hideLoadingDialog();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('客户经理数据导出成功'),
-                const SizedBox(height: 4),
-                Text(
-                  'ZIP 文件: ${p.basename(targetZipPath)}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e, s) {
-      debugPrint('导出客户经理数据失败: $e');
-      debugPrintStack(stackTrace: s);
-      
-      // 关闭加载对话框
-      _hideLoadingDialog();
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('导出失败: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      // 无论成功还是失败，都清理临时文件
-      try {
-        if (excelFile != null && await excelFile.exists()) {
-          await excelFile.delete();
+      // 检查表头是否匹配
+      for (int i = 0; i < 3; i++) {
+        final cellValue = headerRow[i]?.value?.toString() ?? '';
+        if (cellValue != expectedHeaders[i]) {
+          return '非标准压缩包，不支持导入2';
         }
-        if (zipFile != null && await zipFile.exists()) {
-          await zipFile.delete();
-        }
-      } catch (e) {
-        debugPrint('删除临时文件失败: $e');
-        // 删除临时文件失败不影响主流程，只记录日志
       }
+
+      return null; // 验证通过
+    } catch (e) {
+      return '验证Excel文件失败: $e';
     }
   }
 
-  Future<String?> _promptZipPassword() async {
-    final controller = TextEditingController();
-    String? errorText;
-    final result = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('设置压缩包密码'),
-              content: TextField(
-                controller: controller,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: '压缩包密码',
-                  hintText: '请输入密码',
-                  errorText: errorText,
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('取消'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    final password = controller.text.trim();
-                    if (password.isEmpty) {
-                      setState(() {
-                        errorText = '密码不能为空';
-                      });
-                      return;
-                    }
-                    Navigator.of(dialogContext).pop(password);
-                  },
-                  child: const Text('确定'),
-                ),
-              ],
-            );
-          },
+  /// 处理客户经理Excel数据
+  Future<String?> _processManagerExcelData(File excelFile) async {
+    final excelBytes = await excelFile.readAsBytes();
+    final excelBook = excel.Excel.decodeBytes(excelBytes);
+    final sheetName = excelBook.tables.isNotEmpty
+        ? excelBook.tables.keys.first
+        : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : null);
+    if (sheetName == null) {
+      throw Exception('无法读取Excel工作表');
+    }
+
+    final sheet = excelBook[sheetName];
+    if (sheet == null) {
+      throw Exception('无法访问Excel工作表');
+    }
+
+    // 读取 Excel 数据并导入数据库
+    final loginUser = await StorageUtils.getLoginUser();
+    final now = DateTime.now();
+    int insertCount = 0;
+    int updateCount = 0;
+
+    // 获取数据库中所有 user_type='01' 的用户
+    final existingManagers = await _userRepository.findManagers();
+    final existingManagersMap = {
+      for (final manager in existingManagers) manager.userName: manager,
+    };
+
+    // 从第二行开始读取数据（第一行是表头）
+    for (int i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.isEmpty || row[0]?.value == null) {
+        continue; // 跳过空行
+      }
+
+      final managerCode = row[0]?.value?.toString() ?? '';
+      final managerName = row[1]?.value?.toString() ?? '';
+      final managerPhone = row[2]?.value?.toString() ?? '';
+
+      if (managerCode.isEmpty) {
+        continue; // 跳过客户经理编号为空的行
+      }
+
+      final existingManager = existingManagersMap[managerCode];
+      if (existingManager != null) {
+        // 更新现有用户
+        final updatedManager = existingManager.copyWith(
+          nickName: managerName.isNotEmpty ? managerName : existingManager.nickName,
+          phoneNumber: managerPhone.isNotEmpty ? managerPhone : existingManager.phoneNumber,
+          updateBy: loginUser?.userName,
+          updateTime: now,
         );
+        await _userRepository.upsert(updatedManager);
+        updateCount++;
+      } else {
+        // 插入新用户
+        // 默认密码为客户经理编号
+        final defaultPassword = BCrypt.hashpw(managerCode, BCrypt.gensalt());
+        final newManager = User(
+          userName: managerCode,
+          nickName: managerName.isNotEmpty ? managerName : managerCode,
+          userType: '01',
+          phoneNumber: managerPhone.isNotEmpty ? managerPhone : null,
+          password: defaultPassword,
+          status: '0',
+          createBy: loginUser?.userName,
+          createTime: now,
+          updateBy: loginUser?.userName,
+          updateTime: now,
+        );
+        await _userRepository.upsert(newManager);
+        insertCount++;
+      }
+    }
+
+    // 重新加载数据
+    _loadData();
+
+    return '导入成功：新增 $insertCount 条，更新 $updateCount 条';
+  }
+
+  /// 导入客户经理
+  Future<void> _handleImportManager() async {
+    await ImportExportUtils.importFromZip(
+      context,
+      excelFileNamePrefix: 'customer_manager_info',
+      validateExcelFile: _validateManagerExcelFile,
+      processExcelData: _processManagerExcelData,
+      loadingMessage: '正在导入客户经理数据...',
+      onSuccess: (_) {
+        // 数据已在 processExcelData 中重新加载
+      },
+      onError: (error) {
+        debugPrint('导入客户经理失败: $error');
       },
     );
-    // 延迟 dispose，确保 dialog 完全关闭后再清理 controller
-    // 这样可以避免在 dialog 关闭动画期间 controller 被 dispose 导致的错误
-    Future.delayed(const Duration(milliseconds: 300), () {
-    controller.dispose();
-    });
-    return result;
   }
+
+
+  /// 导出客户经理
+  Future<void> _handleExportManager() async {
+    await ImportExportUtils.exportToZip(
+      context,
+      templateAssetPath: 'assets/excel/customer_manager_info.xlsx',
+      zipFileName: 'customer_manager_info_export',
+      excelFileName: 'customer_manager_info_export',
+      data: _tableData,
+      loadingMessage: '正在导出客户经理数据...',
+      successMessage: '客户经理数据导出成功',
+      dataToExcelRows: (sheet, rowData, rowIndex) {
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+            .value = excel.TextCellValue('${rowData['managerCode'] ?? ''}');
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
+            .value = excel.TextCellValue('${rowData['managerName'] ?? ''}');
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
+            .value = excel.TextCellValue('${rowData['managerPhone'] ?? ''}');
+      },
+      onSuccess: () {
+        // 导出成功，无需额外操作
+      },
+      onError: (error) {
+        debugPrint('导出客户经理数据失败: $error');
+      },
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
