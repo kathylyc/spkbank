@@ -255,6 +255,7 @@ class ImportExportUtils {
   /// [excelFileName] Excel文件名（不含扩展名）
   /// [data] 要导出的数据列表
   /// [dataToExcelRows] 将数据转换为Excel行的函数
+  /// [headers] 表头列表（如果模板加载失败，将使用此表头创建新文件）
   /// [loadingMessage] 加载对话框消息
   /// [successMessage] 成功消息（如果为null，使用默认消息）
   /// [onSuccess] 成功回调
@@ -266,6 +267,7 @@ class ImportExportUtils {
     required String excelFileName,
     required List<Map<String, dynamic>> data,
     required void Function(excel.Sheet sheet, Map<String, dynamic> rowData, int rowIndex) dataToExcelRows,
+    List<String>? headers,
     String loadingMessage = '正在导出数据...',
     String? successMessage,
     VoidCallback? onSuccess,
@@ -299,23 +301,44 @@ class ImportExportUtils {
     File? zipFile;
 
     try {
-      // 加载模板
-      final templateData = await rootBundle.load(templateAssetPath);
-      final templateBytes = templateData.buffer.asUint8List();
-      final excelBook = excel.Excel.decodeBytes(templateBytes);
-      final sheetName = excelBook.tables.isNotEmpty
-          ? excelBook.tables.keys.first
-          : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : null);
-      if (sheetName == null) {
-        throw Exception('模板中未找到可用的工作表');
-      }
-      final sheet = excelBook[sheetName];
-      if (sheet == null) {
-        throw Exception('无法访问模板工作表: $sheetName');
+      excel.Excel excelBook;
+      String sheetName;
+      excel.Sheet sheet;
+
+      bool useTemplate = true;
+      // 尝试加载模板，如果失败则创建新的Excel文件
+      try {
+        final templateData = await rootBundle.load(templateAssetPath);
+        final templateBytes = templateData.buffer.asUint8List();
+        excelBook = excel.Excel.decodeBytes(templateBytes);
+        sheetName = excelBook.tables.isNotEmpty
+            ? excelBook.tables.keys.first
+            : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : 'Sheet1');
+        if (sheetName.isEmpty) {
+          throw Exception('模板中未找到可用的工作表');
+        }
+        sheet = excelBook[sheetName] ?? excelBook['Sheet1']!;
+        // 如果使用模板，从第二行开始填充数据（第一行是表头）
+      } catch (templateError) {
+        // 模板加载失败，创建新的Excel文件
+        debugPrint('模板加载失败，创建新的Excel文件: $templateError');
+        useTemplate = false;
+        excelBook = excel.Excel.createExcel();
+        sheetName = 'Sheet1';
+        sheet = excelBook[sheetName];
+        
+        // 如果提供了表头，添加表头
+        if (headers != null && headers.isNotEmpty) {
+          for (int i = 0; i < headers.length; i++) {
+            sheet
+                .cell(excel.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
+                .value = excel.TextCellValue(headers[i]);
+          }
+        }
       }
 
       // 填充数据（从第二行开始，第一行是表头）
-      const startRow = 2;
+      final startRow = useTemplate ? 2 : (headers != null && headers.isNotEmpty ? 2 : 1);
       for (int i = 0; i < data.length; i++) {
         final rowData = data[i];
         final rowIndex = startRow - 1 + i;

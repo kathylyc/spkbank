@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:excel/excel.dart' as excel;
 import 'package:flutter/material.dart';
 
 import '../../data/models/customer.dart';
@@ -5,6 +8,7 @@ import '../../data/models/user.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/user_repository.dart';
 import '../../utils/common_const.dart';
+import '../../utils/import_export_utils.dart';
 import '../../utils/storage_utils.dart';
 import '../../widgets/common_data_table_page.dart';
 import 'customer_add_page.dart';
@@ -126,6 +130,7 @@ class _CustomerPageState extends State<CustomerPage> {
           'attachments': attachments.map((file) => file.attachmentType).toList(),
           'managerCode': customer.managerAccount,
           'managerName': _resolveManagerName(manager, customer.managerAccount),
+          'updateTime': customer.updateTime?.toIso8601String() ?? '-',
         });
       }
 
@@ -203,6 +208,230 @@ class _CustomerPageState extends State<CustomerPage> {
     }
   }
 
+  /// 下载导入模板
+  void _handleDownloadTemplate() async {
+    await ImportExportUtils.downloadTemplate(
+      context,
+      assetPath: 'assets/excel/customer_info.xlsx',
+      fileName: 'customer_info.xlsx',
+    );
+  }
+
+  /// 验证客户Excel文件
+  Future<String?> _validateCustomerExcelFile(File excelFile) async {
+    try {
+      final excelBytes = await excelFile.readAsBytes();
+      final excelBook = excel.Excel.decodeBytes(excelBytes);
+      final sheetName = excelBook.tables.isNotEmpty
+          ? excelBook.tables.keys.first
+          : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : null);
+      if (sheetName == null) {
+        return '非标准压缩包，不支持导入2';
+      }
+
+      final sheet = excelBook[sheetName];
+
+      const expectedHeaders = ['客户编号', '客户姓名', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'];
+      final headerRow = sheet.rows[0];
+      if (headerRow.length < expectedHeaders.length) {
+        return '非标准压缩包，不支持导入2';
+      }
+
+      // 检查表头是否匹配
+      for (int i = 0; i < expectedHeaders.length; i++) {
+        final cellValue = headerRow[i]?.value?.toString() ?? '';
+        if (cellValue != expectedHeaders[i]) {
+          return '非标准压缩包，不支持导入2';
+        }
+      }
+
+      return null; // 验证通过
+    } catch (e) {
+      return '验证Excel文件失败: $e';
+    }
+  }
+
+  /// 处理客户Excel数据
+  Future<String?> _processCustomerExcelData(File excelFile) async {
+    final excelBytes = await excelFile.readAsBytes();
+    final excelBook = excel.Excel.decodeBytes(excelBytes);
+    final sheetName = excelBook.tables.isNotEmpty
+        ? excelBook.tables.keys.first
+        : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : null);
+    if (sheetName == null) {
+      throw Exception('无法读取Excel工作表');
+    }
+
+      final sheet = excelBook[sheetName];
+
+    // 读取 Excel 数据并导入数据库
+    final loginUser = await StorageUtils.getLoginUser();
+    final now = DateTime.now();
+    int insertCount = 0;
+    int updateCount = 0;
+
+    // 获取所有现有客户，优先使用customerUid匹配，其次使用customerName和managerAccount匹配
+    final allCustomers = await _customerRepository.search(
+      limit: 10000, // 获取所有客户用于匹配
+    );
+    final customersByUidMap = <String, Customer>{}; // key: customerUid
+    final customersByNameMap = <String, Customer>{}; // key: customerName_managerAccount
+    for (final customer in allCustomers) {
+      customersByUidMap[customer.customerUid] = customer;
+      final key = '${customer.customerName}_${customer.managerAccount}';
+      customersByNameMap[key] = customer;
+    }
+
+    // 从第二行开始读取数据（第一行是表头）
+    for (int i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.isEmpty || row[0]?.value == null) {
+        continue; // 跳过空行
+      }
+
+      final customerUid = (row[0]?.value?.toString() ?? '').trim();
+      final customerName = (row[1]?.value?.toString() ?? '').trim();
+      final phone = row[2]?.value?.toString()?.trim();
+      final address = row[3]?.value?.toString()?.trim();
+      final customerTag = row[4]?.value?.toString()?.trim();
+      final managerName = (row[5]?.value?.toString() ?? '').trim();
+      final managerAccount = (row[6]?.value?.toString() ?? '').trim();
+      final updateTime = (row[7]?.value?.toString() ?? '').trim();
+
+      if (customerName.isEmpty) {
+        continue; // 跳过客户姓名为空的行
+      }
+
+      if (managerAccount.isEmpty) {
+        continue; // 跳过客户经理编码为空的行
+      }
+
+      // 验证客户经理是否存在
+      final manager = await _userRepository.findByUserName(managerAccount);
+      if (manager == null) {
+        continue; // 跳过客户经理不存在的行
+      }
+
+      // 尝试匹配现有客户（优先使用customerUid，其次使用客户姓名和客户经理编码）
+      Customer? existingCustomer;
+      if (customerUid.isNotEmpty) {
+        existingCustomer = customersByUidMap[customerUid];
+      }
+      if (existingCustomer == null) {
+        final key = '${customerName}_$managerAccount';
+        existingCustomer = customersByNameMap[key];
+      }
+
+      if (existingCustomer != null) {
+        // 更新现有客户
+        final updatedCustomer = existingCustomer.copyWith(
+          phone: phone?.isNotEmpty == true ? phone : existingCustomer.phone,
+          address: address?.isNotEmpty == true ? address : existingCustomer.address,
+          customerTag: customerTag?.isNotEmpty == true ? customerTag : existingCustomer.customerTag,
+          updateBy: loginUser?.userName,
+          updateTime: now,
+        );
+        await _customerRepository.upsert(updatedCustomer);
+        updateCount++;
+      } else {
+        // 插入新客户
+        await _customerRepository.create(
+          customerName: customerName,
+          countryCode: '86', // 默认国家代码
+          managerAccount: managerAccount,
+          phone: phone?.isNotEmpty == true ? phone : null,
+          address: address?.isNotEmpty == true ? address : null,
+          customerTag: customerTag?.isNotEmpty == true ? customerTag : null,
+          createBy: loginUser?.userName,
+          createTime: now,
+        );
+        insertCount++;
+      }
+    }
+
+    // 重新加载数据
+    _loadData();
+
+    return '导入成功：新增 $insertCount 条，更新 $updateCount 条';
+  }
+
+  /// 导入客户
+  Future<void> _handleImportCustomer() async {
+    await ImportExportUtils.importFromZip(
+      context,
+      excelFileNamePrefix: 'customer_info',
+      validateExcelFile: _validateCustomerExcelFile,
+      processExcelData: _processCustomerExcelData,
+      loadingMessage: '正在导入客户数据...',
+      onSuccess: (_) {
+        // 数据已在 processExcelData 中重新加载
+      },
+      onError: (error) {
+        debugPrint('导入客户失败: $error');
+      },
+    );
+  }
+
+  /// 导出客户
+  Future<void> _handleExportCustomer() async {
+    await ImportExportUtils.exportToZip(
+      context,
+      templateAssetPath: 'assets/excel/customer_info.xlsx',
+      zipFileName: 'customer_info_export',
+      excelFileName: 'customer_info_export',
+      data: _tableData,
+      headers: const ['客户编号', '客户姓名', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'],
+      loadingMessage: '正在导出客户数据...',
+      successMessage: '客户数据导出成功',
+      dataToExcelRows: (sheet, rowData, rowIndex) {
+        final customer = rowData['customer'] as Customer?;
+        if (customer == null) return;
+
+        // 客户编号
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+            .value = excel.TextCellValue(customer.customerUid);
+        // 客户姓名
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
+            .value = excel.TextCellValue(customer.customerName);
+        // 电话号码
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
+            .value = excel.TextCellValue(customer.phone ?? '');
+        // 客户地址
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
+            .value = excel.TextCellValue(customer.address ?? '');
+        // 客户标签
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
+            .value = excel.TextCellValue(customer.customerTag ?? '');
+        // 客户经理姓名
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIndex))
+            .value = excel.TextCellValue(rowData['managerName'] ?? '');
+        // 客户经理编码
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex))
+            .value = excel.TextCellValue(customer.managerAccount);
+        // 最后更新时间
+        final updateTimeStr = customer.updateTime != null
+            ? customer.updateTime!.toIso8601String()
+            : '';
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIndex))
+            .value = excel.TextCellValue(updateTimeStr);
+      },
+      onSuccess: () {
+        // 导出成功，无需额外操作
+      },
+      onError: (error) {
+        debugPrint('导出客户数据失败: $error');
+      },
+    );
+  }
+
   List<String> _resolveTags(Customer customer) {
     final raw = customer.customerTag;
     if (raw == null || raw.trim().isEmpty) {
@@ -241,22 +470,16 @@ class _CustomerPageState extends State<CustomerPage> {
           onPressed: _handleAddCustomer,
         ),
         ActionButton(
+          label: '下载导入模板',
+          onPressed: _handleDownloadTemplate,
+        ),
+        ActionButton(
           label: '导入客户',
-          onPressed: () {
-            // TODO: 实现导入客户
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('导入客户')),
-            );
-          },
+          onPressed: _handleImportCustomer,
         ),
         ActionButton(
           label: '导出客户',
-          onPressed: () {
-            // TODO: 实现导出客户
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('导出客户')),
-            );
-          },
+          onPressed: _handleExportCustomer,
         ),
       ],
       
