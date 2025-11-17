@@ -8,6 +8,19 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+/// 额外的Excel文件信息
+class ExtraExcelFile {
+  final String fileName;
+  final List<int> bytes;
+  final String? templateAssetPath; // 模板文件路径（可选）
+  
+  ExtraExcelFile({
+    required this.fileName,
+    required this.bytes,
+    this.templateAssetPath,
+  });
+}
+
 /// 导入导出工具类
 /// 提供通用的导入导出功能，包括密码保护、文件选择、压缩解压等
 class ImportExportUtils {
@@ -257,6 +270,7 @@ class ImportExportUtils {
   /// [dataToExcelRows] 将数据转换为Excel行的函数
   /// [headers] 表头列表（如果模板加载失败，将使用此表头创建新文件）
   /// [beforeDataToExcelRows] 在填充Excel数据之前执行的回调，用于复制文件等操作，返回相对路径映射（key: 原始路径, value: 相对路径）
+    /// [generateExtraExcelFiles] 生成额外Excel文件的回调，返回额外的Excel文件列表。参数：exportDirPath, filePathMap, timestamp
   /// [loadingMessage] 加载对话框消息
   /// [successMessage] 成功消息（如果为null，使用默认消息）
   /// [onSuccess] 成功回调
@@ -270,6 +284,7 @@ class ImportExportUtils {
     required void Function(excel.Sheet sheet, Map<String, dynamic> rowData, int rowIndex, Map<String, String>? filePathMap) dataToExcelRows,
     List<String>? headers,
     Future<Map<String, String>> Function(String exportDirPath)? beforeDataToExcelRows,
+    Future<List<ExtraExcelFile>> Function(String exportDirPath, Map<String, String>? filePathMap, int timestamp)? generateExtraExcelFiles,
     String loadingMessage = '正在导出数据...',
     String? successMessage,
     VoidCallback? onSuccess,
@@ -377,6 +392,12 @@ class ImportExportUtils {
       excelFile = File(excelPath);
       await excelFile.writeAsBytes(excelBytes, flush: true);
 
+      // 生成额外的Excel文件（如附件信息）
+      List<ExtraExcelFile> extraExcelFiles = [];
+      if (generateExtraExcelFiles != null) {
+        extraExcelFiles = await generateExtraExcelFiles(exportCurrentDir.path, filePathMap, timestamp);
+      }
+
       // 创建ZIP文件
       final zipName = '${zipFileName}_$timestamp.zip';
       final zipPath = p.join(exportCurrentDir.path, zipName);
@@ -394,6 +415,16 @@ class ImportExportUtils {
         excelFileBytes,
       );
       archive.addFile(excelArchiveFile);
+
+      // 添加额外的Excel文件
+      for (final extraExcel in extraExcelFiles) {
+        final extraExcelArchiveFile = ArchiveFile(
+          extraExcel.fileName,
+          extraExcel.bytes.length,
+          extraExcel.bytes,
+        );
+        archive.addFile(extraExcelArchiveFile);
+      }
 
       // 添加files目录下的所有文件到ZIP
       final filesDir = Directory(p.join(exportCurrentDir.path, 'files'));

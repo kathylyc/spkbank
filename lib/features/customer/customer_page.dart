@@ -1,9 +1,14 @@
 import 'dart:io';
+import 'dart:convert';
 
+import 'package:archive/archive.dart';
 import 'package:excel/excel.dart' as excel;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 
 import '../../data/models/customer.dart';
+import '../../data/models/customer_attachment_file.dart';
 import '../../data/models/user.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/user_repository.dart';
@@ -375,6 +380,16 @@ class _CustomerPageState extends State<CustomerPage> {
 
   /// 导出客户
   Future<void> _handleExportCustomer() async {
+    // 收集所有客户的附件数据
+    final allAttachments = <CustomerAttachmentFile>[];
+    for (final rowData in _tableData) {
+      final customer = rowData['customer'] as Customer?;
+      if (customer != null) {
+        final attachments = await _customerRepository.findAttachmentFiles(customer.customerUid);
+        allAttachments.addAll(attachments);
+      }
+    }
+
     await ImportExportUtils.exportToZip(
       context,
       templateAssetPath: 'assets/excel/customer_info.xlsx',
@@ -382,6 +397,166 @@ class _CustomerPageState extends State<CustomerPage> {
       excelFileName: 'customer_info_export',
       data: _tableData,
       headers: const ['客户编号', '客户姓名', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'],
+      beforeDataToExcelRows: (exportDirPath) async {
+        // 复制附件文件到files文件夹，并返回相对路径映射
+        final filesDir = Directory(p.join(exportDirPath, 'files'));
+        if (!await filesDir.exists()) {
+          await filesDir.create(recursive: true);
+        }
+
+        final filePathMap = <String, String>{}; // key: 原始路径, value: 相对路径
+
+        // 复制所有附件文件
+        for (final attachment in allAttachments) {
+          final originalFilePath = attachment.filePath;
+          if (originalFilePath.isEmpty) {
+            continue;
+          }
+
+          try {
+            final sourceFile = File(originalFilePath);
+            if (!await sourceFile.exists()) {
+              debugPrint('附件文件不存在，跳过: $originalFilePath');
+              continue;
+            }
+
+            // 为每个客户创建单独的子目录：files/customerUid/
+            final customerFilesDir = Directory(p.join(filesDir.path, attachment.customerUid));
+            if (!await customerFilesDir.exists()) {
+              await customerFilesDir.create(recursive: true);
+            }
+
+            // 生成文件名
+            final fileName = p.basename(originalFilePath);
+            final nameWithoutExt = p.basenameWithoutExtension(fileName);
+            final ext = p.extension(fileName);
+            final targetFileName = fileName;
+            final targetFilePath = p.join(customerFilesDir.path, targetFileName);
+            final targetFile = File(targetFilePath);
+
+            // 如果文件名已存在，添加时间戳
+            String finalFileName = targetFileName;
+            if (await targetFile.exists()) {
+              final timestamp = DateTime.now().millisecondsSinceEpoch;
+              finalFileName = '${nameWithoutExt}_$timestamp$ext';
+              final uniqueTargetPath = p.join(customerFilesDir.path, finalFileName);
+              await sourceFile.copy(uniqueTargetPath);
+            } else {
+              await sourceFile.copy(targetFilePath);
+            }
+
+            // 相对路径：files/customerUid/文件名
+            filePathMap[originalFilePath] = 'files/${attachment.customerUid}/$finalFileName';
+          } catch (e) {
+            debugPrint('复制附件文件失败: $originalFilePath, 错误: $e');
+            // 继续处理其他文件
+          }
+        }
+
+        return filePathMap;
+      },
+      generateExtraExcelFiles: (exportDirPath, filePathMap, timestamp) async {
+        // 如果有附件数据，生成附件信息Excel文件
+        if (allAttachments.isEmpty) {
+          return [];
+        }
+
+        // 查询所有相关客户的手机号，建立映射
+        final customerUids = allAttachments.map((a) => a.customerUid).toSet();
+        final customerPhoneMap = <String, String>{}; // key: customerUid, value: phone
+        for (final customerUid in customerUids) {
+          final customer = await _customerRepository.findByUid(customerUid);
+          if (customer != null) {
+            customerPhoneMap[customerUid] = customer.phone ?? '';
+          }
+        }
+
+        final attachmentExcelName = 'customer_attachment_info_$timestamp.xlsx';
+        
+        // 尝试加载模板，如果失败则创建新的Excel文件（使用模板的表头结构）
+        excel.Excel attachmentExcelBook;
+        String attachmentSheetName;
+        excel.Sheet attachmentSheet;
+        bool useTemplate = true;
+        const attachmentHeaders = ['客户编码', '电话号码', '文件名（文件类型）', '文件路径'];
+
+        try {
+          // 加载模板文件并修复 numFmtId 问题
+          final templateData = await rootBundle.load('assets/excel/customer_attachment_info.xlsx');
+          final templateBytes = templateData.buffer.asUint8List();
+          
+          // 修复模板文件中的 numFmtId 问题
+          final fixedBytes = _fixExcelNumFmtId(templateBytes);
+          
+          attachmentExcelBook = excel.Excel.decodeBytes(fixedBytes);
+          
+          // 获取所有 sheet 名称用于调试
+          final allSheetNames = attachmentExcelBook.tables.isNotEmpty
+              ? attachmentExcelBook.tables.keys.toList()
+              : attachmentExcelBook.sheets.keys.toList();
+          debugPrint('模板文件中的所有 sheet: $allSheetNames');
+          
+          attachmentSheetName = allSheetNames.isNotEmpty
+              ? allSheetNames.first
+              : 'Sheet1';
+          if (attachmentSheetName.isEmpty) {
+            throw Exception('模板中未找到可用的工作表');
+          }
+          
+          debugPrint('使用 sheet: $attachmentSheetName');
+          
+          // 直接使用找到的第一个 sheet，确保使用模板中的原始 sheet
+          attachmentSheet = attachmentExcelBook[attachmentSheetName];
+          if (attachmentSheet == null) {
+            throw Exception('无法访问工作表: $attachmentSheetName');
+          }
+        } catch (templateError, s) {
+          // 模板加载失败，抛出错误（不允许加载失败）
+          debugPrint('附件模板加载失败: $templateError');
+          debugPrintStack(stackTrace: s);
+          throw Exception('无法加载附件信息模板文件，请检查模板文件格式: $templateError');
+        }
+
+        // 填充附件数据（从第二行开始，第一行是表头）
+        final startRow = 2; // 始终从第2行开始，因为第1行是表头
+        for (int i = 0; i < allAttachments.length; i++) {
+          final attachment = allAttachments[i];
+          final rowIndex = startRow - 1 + i;
+          
+          // 客户编码
+          attachmentSheet
+              .cell(excel.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+              .value = excel.TextCellValue(attachment.customerUid);
+          // 电话号码（根据customerUid查询）
+          final phone = customerPhoneMap[attachment.customerUid] ?? '';
+          attachmentSheet
+              .cell(excel.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
+              .value = excel.TextCellValue(phone);
+          // 文件名（文件类型）
+          attachmentSheet
+              .cell(excel.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
+              .value = excel.TextCellValue(attachment.attachmentType);
+          // 文件路径（相对路径）
+          final relativePath = filePathMap?[attachment.filePath] ?? attachment.filePath;
+          attachmentSheet
+              .cell(excel.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
+              .value = excel.TextCellValue(relativePath);
+        }
+
+        // 生成Excel字节
+        final attachmentExcelBytes = attachmentExcelBook.encode();
+        if (attachmentExcelBytes == null) {
+          throw Exception('生成附件信息Excel失败');
+        }
+
+        return [
+          ExtraExcelFile(
+            fileName: attachmentExcelName,
+            bytes: attachmentExcelBytes,
+            templateAssetPath: 'assets/excel/customer_attachment_info.xlsx',
+          ),
+        ];
+      },
       loadingMessage: '正在导出客户数据...',
       successMessage: '客户数据导出成功',
       dataToExcelRows: (sheet, rowData, rowIndex, filePathMap) {
@@ -858,6 +1033,146 @@ class _CustomerPageState extends State<CustomerPage> {
         ),
       ],
     );
+  }
+
+  /// 修复 Excel 文件中的 numFmtId 问题
+  /// Excel 文件中的自定义数字格式 ID 必须从 164 开始
+  /// 此方法会解压 Excel 文件，修复 styles.xml 中的 numFmtId，然后重新压缩
+  List<int> _fixExcelNumFmtId(List<int> excelBytes) {
+    try {
+      // 解压 Excel 文件（.xlsx 实际上是一个 ZIP 文件）
+      final archive = ZipDecoder().decodeBytes(excelBytes);
+      
+      // 查找并修复 styles.xml 文件
+      ArchiveFile? stylesFile;
+      for (final file in archive) {
+        if (file.name == 'xl/styles.xml' || file.name == 'xl\\styles.xml') {
+          stylesFile = file;
+          break;
+        }
+      }
+      
+      if (stylesFile != null) {
+        // 读取 styles.xml 内容
+        final stylesContent = utf8.decode(stylesFile.content as List<int>);
+        
+        // 使用两个正则表达式分别匹配双引号和单引号格式
+        final doubleQuotePattern = RegExp(r'numFmtId="(\d+)"');
+        final singleQuotePattern = RegExp(r"numFmtId='(\d+)'");
+        final numFmtDefPattern = RegExp(r'<numFmt\s+numFmtId="(\d+)"');
+        final numFmtDefPatternSingle = RegExp(r"<numFmt\s+numFmtId='(\d+)'");
+        
+        // 第一步：收集所有格式定义中的 numFmtId
+        final definedIds = <int>{};
+        for (final match in numFmtDefPattern.allMatches(stylesContent)) {
+          final id = int.tryParse(match.group(1) ?? '');
+          if (id != null) {
+            definedIds.add(id);
+          }
+        }
+        for (final match in numFmtDefPatternSingle.allMatches(stylesContent)) {
+          final id = int.tryParse(match.group(1) ?? '');
+          if (id != null) {
+            definedIds.add(id);
+          }
+        }
+        
+        // 第二步：收集所有引用中的 numFmtId
+        final referencedIds = <int>{};
+        for (final match in doubleQuotePattern.allMatches(stylesContent)) {
+          final id = int.tryParse(match.group(1) ?? '');
+          if (id != null) {
+            referencedIds.add(id);
+          }
+        }
+        for (final match in singleQuotePattern.allMatches(stylesContent)) {
+          final id = int.tryParse(match.group(1) ?? '');
+          if (id != null) {
+            referencedIds.add(id);
+          }
+        }
+        
+        // 第三步：找到所有需要修复的 numFmtId（小于 164 的，且在格式定义中存在的）
+        final idsToFix = <int>{};
+        for (final id in definedIds) {
+          if (id >= 0 && id < 164) {
+            idsToFix.add(id);
+          }
+        }
+        
+        // 第四步：为每个需要修复的 ID 分配一个新的唯一 ID（从 164 开始）
+        final idMapping = <int, int>{};
+        final allExistingIds = <int>{...definedIds, ...referencedIds};
+        int nextId = 164;
+        for (final oldId in idsToFix) {
+          // 找到一个不冲突的新 ID
+          while (allExistingIds.contains(nextId)) {
+            nextId++;
+          }
+          idMapping[oldId] = nextId;
+          allExistingIds.add(nextId); // 标记为已使用
+          nextId++;
+        }
+        
+        // 第五步：替换所有需要修复的 numFmtId（包括格式定义和引用）
+        // 注意：需要按从大到小的顺序替换，避免替换冲突
+        String fixedContent = stylesContent;
+        final sortedMappings = idMapping.entries.toList()
+          ..sort((a, b) => b.key.compareTo(a.key)); // 从大到小排序
+        
+        for (final entry in sortedMappings) {
+          final oldId = entry.key;
+          final newId = entry.value;
+          debugPrint('修复 numFmtId: $oldId -> $newId');
+          
+          // 替换格式定义中的 numFmtId（<numFmt numFmtId="..."/>）
+          fixedContent = fixedContent.replaceAll(
+            '<numFmt numFmtId="$oldId"',
+            '<numFmt numFmtId="$newId"',
+          );
+          fixedContent = fixedContent.replaceAll(
+            "<numFmt numFmtId='$oldId'",
+            "<numFmt numFmtId='$newId'",
+          );
+          
+          // 替换引用中的 numFmtId（numFmtId="..."）
+          fixedContent = fixedContent.replaceAll(
+            'numFmtId="$oldId"',
+            'numFmtId="$newId"',
+          );
+          // 替换单引号格式
+          fixedContent = fixedContent.replaceAll(
+            "numFmtId='$oldId'",
+            "numFmtId='$newId'",
+          );
+        }
+        
+        // 更新 archive 中的文件
+        final fixedStylesBytes = utf8.encode(fixedContent);
+        archive.removeFile(stylesFile);
+        archive.addFile(ArchiveFile(
+          stylesFile.name,
+          fixedStylesBytes.length,
+          fixedStylesBytes,
+        ));
+      }
+      
+      // 重新压缩为 Excel 文件
+      final encoder = ZipEncoder();
+      final fixedBytes = encoder.encode(archive);
+      
+      if (fixedBytes == null) {
+        debugPrint('重新压缩 Excel 文件失败，返回原始字节');
+        return excelBytes;
+      }
+      
+      return fixedBytes;
+    } catch (e, s) {
+      debugPrint('修复 Excel numFmtId 失败: $e');
+      debugPrintStack(stackTrace: s);
+      // 如果修复失败，返回原始字节，让后续的错误处理来处理
+      return excelBytes;
+    }
   }
 }
 
