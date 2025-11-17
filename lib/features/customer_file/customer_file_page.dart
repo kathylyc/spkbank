@@ -1,9 +1,17 @@
+import 'dart:io';
+
+import 'package:excel/excel.dart' as excel;
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
+import 'package:sqflite/sqflite.dart';
 import '../../widgets/common_data_table_page.dart';
 import '../../utils/page_transition_animations.dart';
 import '../../utils/storage_utils.dart';
+import '../../utils/import_export_utils.dart';
 import '../../data/models/user.dart';
+import '../../data/models/customer_account_file.dart';
 import '../../data/repositories/customer_repository.dart';
+import '../../data/repositories/user_repository.dart';
 import 'customer_file_add_page.dart';
 import 'customer_file_add_picture_page.dart';
 import 'customer_file_preview_page.dart';
@@ -32,6 +40,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   
   // Repository
   final CustomerRepository _repository = CustomerRepository();
+  final UserRepository _userRepository = UserRepository();
   
   User? _loginUser;
   
@@ -296,10 +305,334 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     }
   }
 
-  /// 导出压缩包
-  void _handleExportZip() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('导出压缩包')),
+  /// 下载导入模板
+  void _handleDownloadTemplate() async {
+    await ImportExportUtils.downloadTemplate(
+      context,
+      assetPath: 'assets/excel/account_file_info.xlsx',
+      fileName: 'account_file_info.xlsx',
+    );
+  }
+
+  /// 验证开户文件Excel文件
+  Future<String?> _validateAccountFileExcelFile(File excelFile) async {
+    try {
+      final excelBytes = await excelFile.readAsBytes();
+      final excelBook = excel.Excel.decodeBytes(excelBytes);
+      final sheetName = excelBook.tables.isNotEmpty
+          ? excelBook.tables.keys.first
+          : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : null);
+      if (sheetName == null) {
+        return '非标准压缩包，不支持导入2';
+      }
+
+      final sheet = excelBook[sheetName];
+
+      const expectedHeaders = [
+        '开户文件编号',
+        '客户编码',
+        '开户文件名',
+        '文件版本',
+        '签署状态',
+        '开户方式',
+        '使用模板',
+        '客户经理编号'
+      ];
+      final headerRow = sheet.rows[0];
+      if (headerRow.length < expectedHeaders.length) {
+        return '非标准压缩包，不支持导入2';
+      }
+
+      // 检查表头是否匹配
+      for (int i = 0; i < expectedHeaders.length; i++) {
+        final cellValue = headerRow[i]?.value?.toString() ?? '';
+        if (cellValue != expectedHeaders[i]) {
+          return '非标准压缩包，不支持导入2';
+        }
+      }
+
+      return null; // 验证通过
+    } catch (e) {
+      return '验证Excel文件失败: $e';
+    }
+  }
+
+  /// 处理开户文件Excel数据
+  Future<String?> _processAccountFileExcelData(File excelFile) async {
+    final excelBytes = await excelFile.readAsBytes();
+    final excelBook = excel.Excel.decodeBytes(excelBytes);
+    final sheetName = excelBook.tables.isNotEmpty
+        ? excelBook.tables.keys.first
+        : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : null);
+    if (sheetName == null) {
+      throw Exception('无法读取Excel工作表');
+    }
+
+    final sheet = excelBook[sheetName];
+
+    // 读取 Excel 数据并导入数据库
+    final loginUser = await StorageUtils.getLoginUser();
+    final now = DateTime.now();
+    int insertCount = 0;
+    int updateCount = 0;
+
+    // 获取所有现有客户（用于匹配）
+    final allCustomers = await _repository.search(limit: 10000);
+    final customersByNameMap = <String, String>{}; // key: customerName, value: customerUid
+    final customersByPhoneMap = <String, String>{}; // key: phone, value: customerUid
+    for (final customer in allCustomers) {
+      customersByNameMap[customer.customerName] = customer.customerUid;
+      if (customer.phone != null && customer.phone!.isNotEmpty) {
+        customersByPhoneMap[customer.phone!] = customer.customerUid;
+      }
+    }
+
+    // 获取所有现有开户文件（用于匹配）
+    // 先获取所有唯一的accountFileUid
+    final allAccountFiles = await _repository.findAccountFilesWithDetails(limit: 10000);
+    final accountFileUids = <String>{};
+    for (final fileData in allAccountFiles) {
+      final accountFileUid = fileData['account_file_uid']?.toString() ?? '';
+      if (accountFileUid.isNotEmpty) {
+        accountFileUids.add(accountFileUid);
+      }
+    }
+    
+    // 批量获取所有开户文件
+    final accountFilesMap = <String, CustomerAccountFile>{}; // key: accountFileUid_fileVersion
+    for (final accountFileUid in accountFileUids) {
+      final files = await _repository.findAccountFilesByAccountFileUid(accountFileUid);
+      for (final file in files) {
+        final key = '${file.accountFileUid}_${file.fileVersion ?? ''}';
+        accountFilesMap[key] = file;
+      }
+    }
+
+    // 从第二行开始读取数据（第一行是表头）
+    for (int i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.isEmpty || row[0]?.value == null) {
+        continue; // 跳过空行
+      }
+
+      final accountFileUid = (row[0]?.value?.toString() ?? '').trim();
+      final customerUid = (row[1]?.value?.toString() ?? '').trim();
+      final accountFileName = (row[2]?.value?.toString() ?? '').trim();
+      final fileVersion = (row[3]?.value?.toString() ?? '').trim();
+      final signStatus = row[4]?.value?.toString()?.trim();
+      final fileSrcType = row[5]?.value?.toString()?.trim();
+      final templateName = row[6]?.value?.toString()?.trim();
+      final managerAccount = (row[7]?.value?.toString() ?? '').trim();
+
+      if (accountFileName.isEmpty) {
+        continue; // 跳过开户文件名为空的行
+      }
+
+      // 查找客户UID
+      if (customerUid.isEmpty) {
+        continue; // 跳过客户编码为空的行
+      }
+
+      // 验证客户经理是否存在
+      if (managerAccount.isNotEmpty) {
+        final manager = await _userRepository.findByUserName(managerAccount);
+        if (manager == null) {
+          continue; // 跳过客户经理不存在的行
+        }
+      }
+
+      // 尝试匹配现有开户文件
+      final key = accountFileUid.isNotEmpty
+          ? '${accountFileUid}_$fileVersion'
+          : '${customerUid}_${accountFileName}_$fileVersion';
+      final existingFile = accountFilesMap[key];
+
+      if (existingFile != null) {
+        // 更新现有开户文件
+        final updatedFile = existingFile.copyWith(
+          accountFileName: accountFileName.isNotEmpty ? accountFileName : existingFile.accountFileName,
+          fileVersion: fileVersion.isNotEmpty ? fileVersion : existingFile.fileVersion,
+          signStatus: signStatus?.isNotEmpty == true ? signStatus : existingFile.signStatus,
+          fileSrcType: fileSrcType?.isNotEmpty == true ? fileSrcType : existingFile.fileSrcType,
+          templateName: templateName?.isNotEmpty == true ? templateName : existingFile.templateName,
+          updateBy: loginUser?.userName,
+          updateTime: now,
+        );
+        await _repository.addAccountFile(
+          updatedFile,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        updateCount++;
+      } else {
+        // 插入新开户文件
+        // 注意：这里无法导入文件路径，因为实际文件不在Excel中
+        // 如果需要导入文件，需要额外的处理逻辑
+        final newFile = CustomerAccountFile(
+          accountFileUid: accountFileUid.isNotEmpty
+              ? accountFileUid
+              : '${customerUid}_${DateTime.now().millisecondsSinceEpoch}',
+          customerUid: customerUid,
+          accountFileName: accountFileName,
+          fileVersion: fileVersion.isNotEmpty ? fileVersion : '1',
+          filePath: '', // 文件路径需要单独处理
+          signStatus: signStatus,
+          fileSrcType: fileSrcType,
+          templateName: templateName,
+          createBy: loginUser?.userName,
+          createTime: now,
+          updateBy: loginUser?.userName,
+          updateTime: now,
+        );
+        await _repository.addAccountFile(newFile);
+        insertCount++;
+      }
+    }
+
+    // 重新加载数据
+    _loadData();
+
+    return '导入成功：新增 $insertCount 条，更新 $updateCount 条';
+  }
+
+  /// 导入开户文件
+  Future<void> _handleImportAccountFile() async {
+    await ImportExportUtils.importFromZip(
+      context,
+      excelFileNamePrefix: 'account_file_info',
+      validateExcelFile: _validateAccountFileExcelFile,
+      processExcelData: _processAccountFileExcelData,
+      loadingMessage: '正在导入开户文件数据...',
+      onSuccess: (_) {
+        // 数据已在 processExcelData 中重新加载
+      },
+      onError: (error) {
+        debugPrint('导入开户文件失败: $error');
+      },
+    );
+  }
+
+  /// 导出开户文件
+  Future<void> _handleExportAccountFile() async {
+    await ImportExportUtils.exportToZip(
+      context,
+      templateAssetPath: 'assets/excel/account_file_info.xlsx',
+      zipFileName: 'account_file_info_export',
+      excelFileName: 'account_file_info_export',
+      data: _data,
+      headers: const [
+        '开户文件编号',
+        '客户编码',
+        '开户文件名',
+        '文件版本',
+        '文件路径',
+        '签署状态',
+        '开户方式',
+        '使用模板',
+        '客户经理编号'
+      ],
+      beforeDataToExcelRows: (exportDirPath) async {
+        // 复制文件到files文件夹，并返回相对路径映射
+        final filesDir = Directory(p.join(exportDirPath, 'files'));
+        if (!await filesDir.exists()) {
+          await filesDir.create(recursive: true);
+        }
+
+        final filePathMap = <String, String>{}; // key: 原始路径, value: 相对路径
+
+        for (final rowData in _data) {
+          final originalFilePath = rowData['filePath']?.toString();
+          if (originalFilePath == null || originalFilePath.isEmpty || originalFilePath == '-') {
+            continue;
+          }
+
+          try {
+            final sourceFile = File(originalFilePath);
+            if (!await sourceFile.exists()) {
+              debugPrint('文件不存在，跳过: $originalFilePath');
+              continue;
+            }
+
+            // 获取文件名
+            final fileName = p.basename(originalFilePath);
+            // 如果文件名已存在，添加时间戳前缀
+            final targetFileName = fileName;
+            final targetFilePath = p.join(filesDir.path, targetFileName);
+            final targetFile = File(targetFilePath);
+
+            // 如果目标文件已存在，添加时间戳
+            if (await targetFile.exists()) {
+              final nameWithoutExt = p.basenameWithoutExtension(fileName);
+              final ext = p.extension(fileName);
+              final timestamp = DateTime.now().millisecondsSinceEpoch;
+              final uniqueFileName = '${nameWithoutExt}_$timestamp$ext';
+              final uniqueTargetPath = p.join(filesDir.path, uniqueFileName);
+              await sourceFile.copy(uniqueTargetPath);
+              // 相对路径：files/文件名
+              filePathMap[originalFilePath] = 'files/$uniqueFileName';
+            } else {
+              await sourceFile.copy(targetFilePath);
+              // 相对路径：files/文件名
+              filePathMap[originalFilePath] = 'files/$fileName';
+            }
+          } catch (e) {
+            debugPrint('复制文件失败: $originalFilePath, 错误: $e');
+            // 继续处理其他文件
+          }
+        }
+
+        return filePathMap;
+      },
+      loadingMessage: '正在导出开户文件数据...',
+      successMessage: '开户文件数据导出成功',
+      dataToExcelRows: (sheet, rowData, rowIndex, filePathMap) {
+        // 开户文件uid
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+            .value = excel.TextCellValue(rowData['account_file_uid']?.toString() ?? '');
+        // 客户编码
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
+            .value = excel.TextCellValue(rowData['customerUid']?.toString() ?? '');
+        // 开户文件名
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
+            .value = excel.TextCellValue(rowData['fileName']?.toString() ?? '');
+        // 文件版本
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
+            .value = excel.TextCellValue(rowData['version']?.toString() ?? '-');
+        // 文件路径（相对路径，如 files/xxx.pdf）
+        String localPath = rowData['filePath']?.toString() ?? '-';
+        String? relativePath = localPath;
+        if (filePathMap != null && filePathMap.containsKey(localPath)) {
+          relativePath = filePathMap[localPath];
+        }
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
+            .value = excel.TextCellValue(relativePath!);
+        // 签署状态
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIndex))
+            .value = excel.TextCellValue(rowData['status']?.toString() ?? '-');
+        // 开户方式
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex))
+            .value = excel.TextCellValue(rowData['file_src_type']?.toString() ?? '');
+        // 使用模板
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIndex))
+            .value = excel.TextCellValue(rowData['template']?.toString() ?? '-');
+        // 客户经理编号
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: rowIndex))
+            .value = excel.TextCellValue(rowData['managerCode']?.toString() ?? '');
+      },
+      onSuccess: () {
+        // 导出成功，无需额外操作
+      },
+      onError: (error) {
+        debugPrint('导出开户文件数据失败: $error');
+      },
     );
   }
 
@@ -322,9 +655,17 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           label: '新增开户文件',
           onPressed: _handleAddFile,
         ),
+        // ActionButton(
+        //   label: '下载导入模板',
+        //   onPressed: _handleDownloadTemplate,
+        // ),
         ActionButton(
-          label: '导出压缩包',
-          onPressed: _handleExportZip,
+          label: '导入开户文件',
+          onPressed: _handleImportAccountFile,
+        ),
+        ActionButton(
+          label: '导出开户文件',
+          onPressed: _handleExportAccountFile,
         ),
       ],
       

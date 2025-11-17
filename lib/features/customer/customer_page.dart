@@ -383,7 +383,7 @@ class _CustomerPageState extends State<CustomerPage> {
       headers: const ['客户编号', '客户姓名', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'],
       loadingMessage: '正在导出客户数据...',
       successMessage: '客户数据导出成功',
-      dataToExcelRows: (sheet, rowData, rowIndex) {
+      dataToExcelRows: (sheet, rowData, rowIndex, filePathMap) {
         final customer = rowData['customer'] as Customer?;
         if (customer == null) return;
 

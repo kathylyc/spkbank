@@ -436,7 +436,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
       data: _tableData,
       loadingMessage: '正在导出客户经理数据...',
       successMessage: '客户经理数据导出成功',
-      dataToExcelRows: (sheet, rowData, rowIndex) {
+      dataToExcelRows: (sheet, rowData, rowIndex, filePathMap) {
         sheet
             .cell(excel.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
             .value = excel.TextCellValue('${rowData['managerCode'] ?? ''}');

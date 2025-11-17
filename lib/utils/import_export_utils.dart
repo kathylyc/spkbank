@@ -256,6 +256,7 @@ class ImportExportUtils {
   /// [data] 要导出的数据列表
   /// [dataToExcelRows] 将数据转换为Excel行的函数
   /// [headers] 表头列表（如果模板加载失败，将使用此表头创建新文件）
+  /// [beforeDataToExcelRows] 在填充Excel数据之前执行的回调，用于复制文件等操作，返回相对路径映射（key: 原始路径, value: 相对路径）
   /// [loadingMessage] 加载对话框消息
   /// [successMessage] 成功消息（如果为null，使用默认消息）
   /// [onSuccess] 成功回调
@@ -266,8 +267,9 @@ class ImportExportUtils {
     required String zipFileName,
     required String excelFileName,
     required List<Map<String, dynamic>> data,
-    required void Function(excel.Sheet sheet, Map<String, dynamic> rowData, int rowIndex) dataToExcelRows,
+    required void Function(excel.Sheet sheet, Map<String, dynamic> rowData, int rowIndex, Map<String, String>? filePathMap) dataToExcelRows,
     List<String>? headers,
+    Future<Map<String, String>> Function(String exportDirPath)? beforeDataToExcelRows,
     String loadingMessage = '正在导出数据...',
     String? successMessage,
     VoidCallback? onSuccess,
@@ -299,6 +301,7 @@ class ImportExportUtils {
     // 临时文件变量，用于在 finally 块中清理
     File? excelFile;
     File? zipFile;
+    Directory? exportCurrentDir;
 
     try {
       excel.Excel excelBook;
@@ -337,12 +340,30 @@ class ImportExportUtils {
         }
       }
 
+      // 保存到临时目录
+      final cacheDir = await getTemporaryDirectory();
+      final exportDir = Directory(p.join(cacheDir.path, 'export'));
+      if (!await exportDir.exists()) {
+        await exportDir.create(recursive: true);
+      }
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      exportCurrentDir = Directory(p.join(exportDir.path, '$timestamp'));
+      if (!await exportCurrentDir.exists()) {
+        await exportCurrentDir.create(recursive: true);
+      }
+
+      // 在填充Excel数据之前执行文件复制等操作
+      Map<String, String>? filePathMap = null; // key: 原始路径, value: 相对路径
+      if (beforeDataToExcelRows != null) {
+        filePathMap = await beforeDataToExcelRows(exportCurrentDir.path);
+      }
+
       // 填充数据（从第二行开始，第一行是表头）
       final startRow = useTemplate ? 2 : (headers != null && headers.isNotEmpty ? 2 : 1);
       for (int i = 0; i < data.length; i++) {
         final rowData = data[i];
         final rowIndex = startRow - 1 + i;
-        dataToExcelRows(sheet, rowData, rowIndex);
+        dataToExcelRows(sheet, rowData, rowIndex, filePathMap);
       }
 
       // 生成Excel文件
@@ -351,17 +372,6 @@ class ImportExportUtils {
         throw Exception('生成Excel数据失败');
       }
 
-      // 保存到临时目录
-      final cacheDir = await getTemporaryDirectory();
-      final exportDir = Directory(p.join(cacheDir.path, 'export'));
-      if (!await exportDir.exists()) {
-        await exportDir.create(recursive: true);
-      }
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final exportCurrentDir = Directory(p.join(exportDir.path, '$timestamp'));
-      if (!await exportCurrentDir.exists()) {
-        await exportCurrentDir.create(recursive: true);
-      }
       final excelName = '${excelFileName}_$timestamp.xlsx';
       final excelPath = p.join(exportCurrentDir.path, excelName);
       excelFile = File(excelPath);
@@ -384,6 +394,24 @@ class ImportExportUtils {
         excelFileBytes,
       );
       archive.addFile(excelArchiveFile);
+
+      // 添加files目录下的所有文件到ZIP
+      final filesDir = Directory(p.join(exportCurrentDir.path, 'files'));
+      if (await filesDir.exists()) {
+        final files = filesDir.listSync(recursive: true);
+        for (final file in files) {
+          if (file is File) {
+            final relativePath = p.relative(file.path, from: exportCurrentDir.path);
+            final fileBytes = await file.readAsBytes();
+            final archiveFile = ArchiveFile(
+              relativePath.replaceAll('\\', '/'), // 统一使用正斜杠
+              fileBytes.length,
+              fileBytes,
+            );
+            archive.addFile(archiveFile);
+          }
+        }
+      }
 
       // 编码 ZIP 文件（带密码保护）
       final zipEncoder = ZipEncoder(password: zipPassword);
@@ -460,11 +488,8 @@ class ImportExportUtils {
     } finally {
       // 无论成功还是失败，都清理临时文件
       try {
-        if (excelFile != null && await excelFile.exists()) {
-          await excelFile.delete();
-        }
-        if (zipFile != null && await zipFile.exists()) {
-          await zipFile.delete();
+        if (exportCurrentDir != null && await exportCurrentDir.exists()) {
+          await exportCurrentDir.delete(recursive: true);
         }
       } catch (e) {
         debugPrint('删除临时文件失败: $e');
