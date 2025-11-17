@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../db/db_provider.dart';
@@ -24,6 +25,7 @@ class CustomerRepository {
   final DbProvider _provider;
 
   Future<Customer> create({
+    String? customerUid,
     required String customerName,
     required String countryCode,
     required String managerAccount,
@@ -35,7 +37,7 @@ class CustomerRepository {
   }) async {
     final now = createTime ?? DateTime.now();
     final customer = Customer(
-      customerUid: generateCustomerUid(customerName: customerName, createTime: now),
+      customerUid: customerUid ?? generateCustomerUid(customerName: customerName, createTime: now),
       customerName: customerName,
       customerTag: customerTag,
       countryCode: countryCode,
@@ -45,6 +47,8 @@ class CustomerRepository {
       createBy: createBy,
       createTime: now,
     );
+    debugPrint('customer_repository.create()==>customerUid=$customerUid, genCustomerUid=${customer
+        .customerUid}');
     final id = await _provider.customerDao.insert(customer, conflictAlgorithm: ConflictAlgorithm.abort);
     return customer.copyWith(id: id);
   }

@@ -252,7 +252,7 @@ class _CustomerPageState extends State<CustomerPage> {
   }
 
   /// 处理客户Excel数据
-  Future<String?> _processCustomerExcelData(File excelFile) async {
+  Future<String?> _processCustomerExcelData(File excelFile, String importDirPath) async {
     final excelBytes = await excelFile.readAsBytes();
     final excelBook = excel.Excel.decodeBytes(excelBytes);
     final sheetName = excelBook.tables.isNotEmpty
@@ -336,6 +336,7 @@ class _CustomerPageState extends State<CustomerPage> {
       } else {
         // 插入新客户
         await _customerRepository.create(
+          customerUid: customerUid,
           customerName: customerName,
           countryCode: '86', // 默认国家代码
           managerAccount: managerAccount,
@@ -485,6 +486,10 @@ class _CustomerPageState extends State<CustomerPage> {
       
       // 表格列定义
       columns: [
+        DataTableColumn(
+          label: '客户编号',
+          builder: (row, context) => Text(row['customerUid']),
+        ),
         DataTableColumn(
           label: '客户姓名',
           builder: (row, context) => Text(row['name']),

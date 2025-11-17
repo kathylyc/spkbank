@@ -3,12 +3,14 @@ import 'dart:io';
 import 'package:excel/excel.dart' as excel;
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../widgets/common_data_table_page.dart';
 import '../../utils/page_transition_animations.dart';
 import '../../utils/storage_utils.dart';
 import '../../utils/import_export_utils.dart';
 import '../../data/models/user.dart';
+import '../../data/models/customer.dart';
 import '../../data/models/customer_account_file.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/user_repository.dart';
@@ -333,6 +335,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         '客户编码',
         '开户文件名',
         '文件版本',
+        '文件路径',
         '签署状态',
         '开户方式',
         '使用模板',
@@ -352,13 +355,14 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       }
 
       return null; // 验证通过
-    } catch (e) {
+    } catch (e, s) {
+      debugPrintStack(stackTrace: s);
       return '验证Excel文件失败: $e';
     }
   }
 
   /// 处理开户文件Excel数据
-  Future<String?> _processAccountFileExcelData(File excelFile) async {
+  Future<String?> _processAccountFileExcelData(File excelFile, String importDirPath) async {
     final excelBytes = await excelFile.readAsBytes();
     final excelBook = excel.Excel.decodeBytes(excelBytes);
     final sheetName = excelBook.tables.isNotEmpty
@@ -370,17 +374,30 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
 
     final sheet = excelBook[sheetName];
 
+    // 获取APP缓存账户目录
+    final cacheDir = await getApplicationCacheDirectory();
+    final accountDir = Directory(p.join(cacheDir.path, 'account'));
+    if (!await accountDir.exists()) {
+      await accountDir.create(recursive: true);
+    }
+
+    // 检查是否有files目录
+    final filesDir = Directory(p.join(importDirPath, 'files'));
+    final hasFilesDir = await filesDir.exists();
+
     // 读取 Excel 数据并导入数据库
     final loginUser = await StorageUtils.getLoginUser();
     final now = DateTime.now();
     int insertCount = 0;
     int updateCount = 0;
 
-    // 获取所有现有客户（用于匹配）
+    // 获取所有现有客户（用于匹配和验证）
     final allCustomers = await _repository.search(limit: 10000);
+    final customersByUidMap = <String, Customer>{}; // key: customerUid, value: Customer
     final customersByNameMap = <String, String>{}; // key: customerName, value: customerUid
     final customersByPhoneMap = <String, String>{}; // key: phone, value: customerUid
     for (final customer in allCustomers) {
+      customersByUidMap[customer.customerUid] = customer;
       customersByNameMap[customer.customerName] = customer.customerUid;
       if (customer.phone != null && customer.phone!.isNotEmpty) {
         customersByPhoneMap[customer.phone!] = customer.customerUid;
@@ -419,25 +436,72 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       final customerUid = (row[1]?.value?.toString() ?? '').trim();
       final accountFileName = (row[2]?.value?.toString() ?? '').trim();
       final fileVersion = (row[3]?.value?.toString() ?? '').trim();
-      final signStatus = row[4]?.value?.toString()?.trim();
-      final fileSrcType = row[5]?.value?.toString()?.trim();
-      final templateName = row[6]?.value?.toString()?.trim();
-      final managerAccount = (row[7]?.value?.toString() ?? '').trim();
+      final relativeFilePath = (row[4]?.value?.toString() ?? '').trim(); // 第5列：文件路径（相对路径）
+      final signStatus = row[5]?.value?.toString()?.trim();
+      final fileSrcType = row[6]?.value?.toString()?.trim();
+      final templateName = row[7]?.value?.toString()?.trim();
+      final managerAccount = (row[8]?.value?.toString() ?? '').trim();
 
       if (accountFileName.isEmpty) {
         continue; // 跳过开户文件名为空的行
       }
 
-      // 查找客户UID
+      // 验证客户UID是否存在
       if (customerUid.isEmpty) {
         continue; // 跳过客户编码为空的行
+      }
+
+      // 验证客户是否存在（外键约束检查）
+      final customer = customersByUidMap[customerUid];
+      if (customer == null) {
+        debugPrint('客户不存在，跳过: customerUid=$customerUid, accountFileName=$accountFileName');
+        continue; // 跳过客户不存在的行
       }
 
       // 验证客户经理是否存在
       if (managerAccount.isNotEmpty) {
         final manager = await _userRepository.findByUserName(managerAccount);
         if (manager == null) {
+          debugPrint('客户经理不存在，跳过: managerAccount=$managerAccount, accountFileName=$accountFileName');
           continue; // 跳过客户经理不存在的行
+        }
+      }
+
+      // 处理文件路径：如果Excel中有相对路径，且files目录存在，则复制文件到APP缓存目录
+      String? appCacheFilePath;
+      if (relativeFilePath.isNotEmpty && 
+          relativeFilePath != '-' && 
+          hasFilesDir && 
+          relativeFilePath.startsWith('files/')) {
+        try {
+          // 获取源文件路径（在解压目录中）
+          final sourceFilePath = p.join(importDirPath, relativeFilePath);
+          final sourceFile = File(sourceFilePath);
+          
+          if (await sourceFile.exists()) {
+            // 生成目标文件名：使用accountFileUid和fileVersion，如果不存在则使用UUID
+            final finalAccountFileUid = accountFileUid.isNotEmpty
+                ? accountFileUid
+                : '${customerUid}_${DateTime.now().millisecondsSinceEpoch}';
+            final finalFileVersion = fileVersion.isNotEmpty ? fileVersion : '1';
+            final targetFileName = '${finalAccountFileUid}_$finalFileVersion.pdf';
+            final targetFilePath = p.join(accountDir.path, targetFileName);
+            final targetFile = File(targetFilePath);
+            
+            // 如果目标文件已存在，先删除（替换）
+            if (await targetFile.exists()) {
+              await targetFile.delete();
+            }
+            
+            // 复制文件到APP缓存目录
+            await sourceFile.copy(targetFilePath);
+            appCacheFilePath = targetFilePath;
+          } else {
+            debugPrint('文件不存在，跳过: $sourceFilePath');
+          }
+        } catch (e) {
+          debugPrint('复制文件失败: $relativeFilePath, 错误: $e');
+          // 继续处理，不中断导入流程
         }
       }
 
@@ -452,6 +516,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         final updatedFile = existingFile.copyWith(
           accountFileName: accountFileName.isNotEmpty ? accountFileName : existingFile.accountFileName,
           fileVersion: fileVersion.isNotEmpty ? fileVersion : existingFile.fileVersion,
+          filePath: appCacheFilePath ?? existingFile.filePath, // 如果有新文件路径则更新，否则保持原路径
           signStatus: signStatus?.isNotEmpty == true ? signStatus : existingFile.signStatus,
           fileSrcType: fileSrcType?.isNotEmpty == true ? fileSrcType : existingFile.fileSrcType,
           templateName: templateName?.isNotEmpty == true ? templateName : existingFile.templateName,
@@ -465,16 +530,15 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         updateCount++;
       } else {
         // 插入新开户文件
-        // 注意：这里无法导入文件路径，因为实际文件不在Excel中
-        // 如果需要导入文件，需要额外的处理逻辑
+        final finalAccountFileUid = accountFileUid.isNotEmpty
+            ? accountFileUid
+            : '${customerUid}_${DateTime.now().millisecondsSinceEpoch}';
         final newFile = CustomerAccountFile(
-          accountFileUid: accountFileUid.isNotEmpty
-              ? accountFileUid
-              : '${customerUid}_${DateTime.now().millisecondsSinceEpoch}',
+          accountFileUid: finalAccountFileUid,
           customerUid: customerUid,
           accountFileName: accountFileName,
           fileVersion: fileVersion.isNotEmpty ? fileVersion : '1',
-          filePath: '', // 文件路径需要单独处理
+          filePath: appCacheFilePath ?? '', // 使用复制后的APP缓存路径
           signStatus: signStatus,
           fileSrcType: fileSrcType,
           templateName: templateName,

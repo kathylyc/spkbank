@@ -328,7 +328,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
   }
 
   /// 处理客户经理Excel数据
-  Future<String?> _processManagerExcelData(File excelFile) async {
+  Future<String?> _processManagerExcelData(File excelFile, String importDirPath) async {
     final excelBytes = await excelFile.readAsBytes();
     final excelBook = excel.Excel.decodeBytes(excelBytes);
     final sheetName = excelBook.tables.isNotEmpty

@@ -488,9 +488,9 @@ class ImportExportUtils {
     } finally {
       // 无论成功还是失败，都清理临时文件
       try {
-        if (exportCurrentDir != null && await exportCurrentDir.exists()) {
-          await exportCurrentDir.delete(recursive: true);
-        }
+        // if (exportCurrentDir != null && await exportCurrentDir.exists()) {
+        //   await exportCurrentDir.delete(recursive: true);
+        // }
       } catch (e) {
         debugPrint('删除临时文件失败: $e');
       }
@@ -509,7 +509,7 @@ class ImportExportUtils {
     BuildContext context, {
     required String excelFileNamePrefix,
     Future<String?> Function(File excelFile)? validateExcelFile,
-    required Future<String?> Function(File excelFile) processExcelData,
+    required Future<String?> Function(File excelFile, String importDirPath) processExcelData,
     String loadingMessage = '正在导入数据...',
     Function(String? successMessage)? onSuccess,
     Function(String error)? onError,
@@ -611,11 +611,13 @@ class ImportExportUtils {
         File? excelFile;
         final importFiles = importCurrentDir.listSync();
         for (final file in importFiles) {
+          debugPrint('importFiles...file=${file.path}');
           if (file is File) {
             final fileName = p.basename(file.path);
             if (fileName.toLowerCase().startsWith(excelFileNamePrefix.toLowerCase()) &&
                 fileName.toLowerCase().endsWith('.xlsx')) {
               excelFile = file;
+              debugPrint('importFiles...excelFile=${excelFile.path}');
               break;
             }
           }
@@ -624,12 +626,9 @@ class ImportExportUtils {
         if (excelFile == null || !await excelFile.exists()) {
           // 删除临时文件
           try {
-            if (await targetZipFile.exists()) {
-              await targetZipFile.delete();
-            }
-            if (await importCurrentDir.exists()) {
-              await importCurrentDir.delete(recursive: true);
-            }
+            // if (await importCurrentDir.exists()) {
+            //   await importCurrentDir.delete(recursive: true);
+            // }
           } catch (deleteError) {
             debugPrint('删除临时文件失败: $deleteError');
           }
@@ -680,7 +679,7 @@ class ImportExportUtils {
         }
 
         // 处理Excel数据
-        final successMessage = await processExcelData(excelFile);
+        final successMessage = await processExcelData(excelFile, importCurrentDir.path);
 
         // 删除临时文件
         try {
