@@ -63,5 +63,7 @@ class UserRepository {
         nameKeyword: nameKeyword,
         phoneKeyword: phoneKeyword,
       );
+
+  Future<int> deleteById(int id) => _provider.userDao.deleteById(id);
 }
 
