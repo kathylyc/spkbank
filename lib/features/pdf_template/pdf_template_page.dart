@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../../utils/context_extensions.dart';
 import '../../utils/page_transition_animations.dart';
+import '../../utils/pdf_template_utils.dart';
 import '../../widgets/common_data_table_page.dart';
 import '../customer_file/customer_file_preview_page.dart';
 
@@ -34,35 +34,15 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
     _loadData();
   }
 
-  /// 加载数据 - 从assets/pdf目录读取所有PDF文件
+  /// 加载数据 - 从工具类获取PDF模板列表
   Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // 读取AssetManifest.json获取所有assets文件
-      final manifestContent = await rootBundle.loadString('AssetManifest.json');
-      final Map<String, dynamic> manifestMap = json.decode(manifestContent);
-      
-      // 过滤出assets/pdf/目录下的PDF文件
-      final pdfFiles = manifestMap.keys
-          .where((key) => key.startsWith('assets/pdf/') && key.endsWith('.pdf'))
-          .toList();
-      
-      // 构建数据列表
-      _allPdfData = pdfFiles.asMap().entries.map((entry) {
-        final index = entry.key;
-        final assetPath = entry.value;
-        final fileName = assetPath.split('/').last;
-        
-        return {
-          'id': index + 1,
-          'name': fileName,
-          'assetPath': assetPath,
-          'count': 0, // 引用次数暂时设为0，后续可以从数据库获取
-        };
-      }).toList();
+      // 从工具类获取PDF模板列表
+      _allPdfData = PdfTemplateUtils.getPdfTemplateList();
       
       // 更新总数
       _totalItems = _allPdfData.length;

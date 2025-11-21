@@ -1630,6 +1630,10 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
       final PdfField field = _document!.form.fields[i];
 
       final PdfPage? page = _document!.form.fields[i].page;
+      if (page == null) {
+        // 20251121 ADD
+        continue;
+      }
       final int pageIndex = _document!.pages.indexOf(page!);
 
       // Retrieve the text box field details
@@ -2288,7 +2292,7 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
             _plugin.getPagesWidth(),
           );
       _originalWidth = await _getWidthCancellableOperation?.value;
-    } catch (e) {
+    } catch (e, s) {
       _pdfViewerController._reset();
       _hasError = true;
       _textExtractionEngine?.dispose();
@@ -2360,9 +2364,10 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
           widget.onDocumentLoadFailed!(
             PdfDocumentLoadFailedDetails(
               'Error',
-              'There was an error opening this document.',
+              'There was an error opening this document. ${errorMessage}',
             ),
           );
+          debugPrintStack(stackTrace: s);
         }
       }
     } finally {

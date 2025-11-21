@@ -1525,10 +1525,10 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
             child: SfPdfViewer.memory(
               _pdfBytes!,
               controller: _pdfViewerController,
-              enableDoubleTapZooming: true,
-              enableTextSelection: true,
-              canShowScrollHead: true,
-              canShowScrollStatus: true,
+              enableDoubleTapZooming: false,
+              enableTextSelection: false,
+              canShowScrollHead: false,
+              canShowScrollStatus: false,
               canShowSignaturePadDialog: true,
               onDocumentLoaded: (PdfDocumentLoadedDetails details) async {
                 debugPrint('PDF文档已加载，共 ${details.document.pages.count} 页');
@@ -1538,6 +1538,9 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                 _printAllFormFieldsProperties(details.document);
                 // 文档加载后，再次为所有表单字段设置中文字体
                 await _setFormFieldsFontAfterLoad(details.document);
+              },
+              onDocumentLoadFailed: (PdfDocumentLoadFailedDetails details)  {
+                debugPrint('PDF文档加载出错，error= ${details.error}, description= ${details.description}');
               },
               onPageChanged: (details) {
                 debugPrint('当前页面: ${details.newPageNumber}');
