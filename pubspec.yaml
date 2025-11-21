@@ -58,8 +58,15 @@ dependencies:
   sqlite3_flutter_libs: ^0.5.24
   crypto: ^3.0.6
   bcrypt: ^1.1.3
-  syncfusion_flutter_pdf: ^31.2.4
-  syncfusion_flutter_pdfviewer: ^31.2.4
+  syncfusion_flutter_pdf:
+    path: ./lib/thridPackages/syncfusion_flutter_pdf
+  # syncfusion_flutter_pdfviewer: ^31.1.17
+  # 使用本地路径的 syncfusion_flutter_pdfviewer
+  # 将下面的路径替换为您的本地库的实际路径（相对于项目根目录或绝对路径）
+  syncfusion_flutter_pdfviewer:
+    path: ./lib/thridPackages/syncfusion_flutter_pdfviewer
+  syncfusion_flutter_signaturepad:
+    path: ./lib/thridPackages/syncfusion_flutter_signaturepad
   excel: ^4.0.6
   flutter_archive: ^6.0.3
   archive: ^3.4.10
