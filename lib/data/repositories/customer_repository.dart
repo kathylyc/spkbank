@@ -79,6 +79,7 @@ class CustomerRepository {
     String? nameKeyword,
     String? phoneKeyword,
     String? managerAccount,
+    List<String>? managerAccounts,
     String? tag,
   }) =>
       _provider.customerDao.search(
@@ -87,6 +88,7 @@ class CustomerRepository {
         nameKeyword: nameKeyword,
         phoneKeyword: phoneKeyword,
         managerAccount: managerAccount,
+        managerAccounts: managerAccounts,
         tag: tag,
       );
 
@@ -94,12 +96,14 @@ class CustomerRepository {
     String? nameKeyword,
     String? phoneKeyword,
     String? managerAccount,
+    List<String>? managerAccounts,
     String? tag,
   }) =>
       _provider.customerDao.count(
         nameKeyword: nameKeyword,
         phoneKeyword: phoneKeyword,
         managerAccount: managerAccount,
+        managerAccounts: managerAccounts,
         tag: tag,
       );
 

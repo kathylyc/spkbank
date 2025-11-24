@@ -126,5 +126,17 @@ class UserDao {
     );
     return Sqflite.firstIntValue(result) ?? 0;
   }
+
+  /// 根据团队编码查找客户经理
+  Future<List<User>> findManagersByGroupCode(String groupCode) async {
+    final db = await _manager.database;
+    final rows = await db.query(
+      User.tableName,
+      where: 'user_type = ? AND group_code = ?',
+      whereArgs: ['01', groupCode],
+      orderBy: 'create_time DESC',
+    );
+    return rows.map(User.fromMap).toList();
+  }
 }
 

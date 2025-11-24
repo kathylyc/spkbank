@@ -106,6 +106,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
           'id': displayIndex,
           'managerAccount': manager.userName,
           'managerCode': manager.userName,
+          'groupCode': manager.groupCode.isEmpty ? '-' : manager.groupCode,
           'managerName': displayName,
           'managerPhone': (phone != null && phone.isNotEmpty) ? phone : '-',
           'customerCount': stats?.customerCount ?? 0,
@@ -375,6 +376,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
       if (existingManager != null) {
         // 更新现有用户
         final updatedManager = existingManager.copyWith(
+          groupCode: '', // 从 Excel 导入时，group_code 默认为空字符串
           nickName: managerName.isNotEmpty ? managerName : existingManager.nickName,
           phoneNumber: managerPhone.isNotEmpty ? managerPhone : existingManager.phoneNumber,
           updateBy: loginUser?.userName,
@@ -393,6 +395,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
           phoneNumber: managerPhone.isNotEmpty ? managerPhone : null,
           password: defaultPassword,
           status: '0',
+          groupCode: '', // 从 Excel 导入时，group_code 默认为空字符串
           createBy: loginUser?.userName,
           createTime: now,
           updateBy: loginUser?.userName,
@@ -496,6 +499,10 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
         DataTableColumn(
           label: '客户经理编码',
           builder: (row, context) => Text(row['managerCode']),
+        ),
+        DataTableColumn(
+          label: '团队编码',
+          builder: (row, context) => Text(row['groupCode']),
         ),
         DataTableColumn(
           label: '客户经理姓名',

@@ -87,6 +87,7 @@ class CustomerDao {
     String? nameKeyword,
     String? phoneKeyword,
     String? managerAccount,
+    List<String>? managerAccounts,
     String? tag,
   }) async {
     final db = await _manager.database;
@@ -101,7 +102,11 @@ class CustomerDao {
       whereClauses.add('phone LIKE ?');
       whereArgs.add('%$phoneKeyword%');
     }
-    if (managerAccount != null && managerAccount.isNotEmpty) {
+    if (managerAccounts != null && managerAccounts.isNotEmpty) {
+      final placeholders = List.filled(managerAccounts.length, '?').join(', ');
+      whereClauses.add('manager_account IN ($placeholders)');
+      whereArgs.addAll(managerAccounts);
+    } else if (managerAccount != null && managerAccount.isNotEmpty) {
       whereClauses.add('manager_account = ?');
       whereArgs.add(managerAccount);
     }
@@ -125,6 +130,7 @@ class CustomerDao {
     String? nameKeyword,
     String? phoneKeyword,
     String? managerAccount,
+    List<String>? managerAccounts,
     String? tag,
   }) async {
     final db = await _manager.database;
@@ -139,7 +145,11 @@ class CustomerDao {
       whereClauses.add('phone LIKE ?');
       whereArgs.add('%$phoneKeyword%');
     }
-    if (managerAccount != null && managerAccount.isNotEmpty) {
+    if (managerAccounts != null && managerAccounts.isNotEmpty) {
+      final placeholders = List.filled(managerAccounts.length, '?').join(', ');
+      whereClauses.add('manager_account IN ($placeholders)');
+      whereArgs.addAll(managerAccounts);
+    } else if (managerAccount != null && managerAccount.isNotEmpty) {
       whereClauses.add('manager_account = ?');
       whereArgs.add(managerAccount);
     }

@@ -81,10 +81,18 @@ class _CustomerPageState extends State<CustomerPage> {
     final tagKeyword = _selectedTag?.trim();
 
     try {
+      // 如果是客户经理，获取同一团队的所有客户经理账号
+      List<String>? teamManagerAccounts;
+      if (_isAccountManager && _loginUser != null && _loginUser!.groupCode.isNotEmpty) {
+        final teamManagers = await _userRepository.findManagersByGroupCode(_loginUser!.groupCode);
+        teamManagerAccounts = teamManagers.map((manager) => manager.userName).toList();
+      }
+
       final totalItems = await _customerRepository.count(
         nameKeyword: nameKeyword.isEmpty ? null : nameKeyword,
         phoneKeyword: phoneKeyword.isEmpty ? null : phoneKeyword,
-        managerAccount: _managerAccount,
+        managerAccount: teamManagerAccounts == null ? _managerAccount : null,
+        managerAccounts: teamManagerAccounts,
         tag: tagKeyword != null && tagKeyword.isNotEmpty ? tagKeyword : null,
       );
       final totalPages = (totalItems / _itemsPerPage).ceil();
@@ -103,7 +111,8 @@ class _CustomerPageState extends State<CustomerPage> {
               offset: offset,
               nameKeyword: nameKeyword.isEmpty ? null : nameKeyword,
               phoneKeyword: phoneKeyword.isEmpty ? null : phoneKeyword,
-              managerAccount: _managerAccount,
+              managerAccount: teamManagerAccounts == null ? _managerAccount : null,
+              managerAccounts: teamManagerAccounts,
               tag: tagKeyword != null && tagKeyword.isNotEmpty ? tagKeyword : null,
             );
 
@@ -135,6 +144,7 @@ class _CustomerPageState extends State<CustomerPage> {
           'address': customer.address ?? '-',
           'tags': _resolveTags(customer),
           'attachments': attachments.map((file) => file.attachmentType).toList(),
+          'groupCode': manager?.groupCode.isEmpty ?? true ? '-' : manager!.groupCode,
           'managerCode': customer.managerAccount,
           'managerName': _resolveManagerName(manager, customer.managerAccount),
           'updateTime': customer.updateTime?.toIso8601String() ?? '-',
@@ -853,6 +863,11 @@ class _CustomerPageState extends State<CustomerPage> {
           label: '客户信息附件',
           builder: (row, context) => _buildAttachments(row),
         ),
+        if (!_isAccountManager)
+          DataTableColumn(
+            label: '团队编码',
+            builder: (row, context) => Text(row['groupCode']),
+          ),
         DataTableColumn(
           label: '客户经理编码',
           builder: (row, context) => Text(row['managerCode']),

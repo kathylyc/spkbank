@@ -13,6 +13,7 @@ class User {
     this.avatar,
     required this.password,
     this.status,
+    required this.groupCode,
     this.loginDate,
     this.pwdUpdateDate,
     this.isFirstLogin,
@@ -36,6 +37,7 @@ class User {
   final String? avatar;
   final String password;
   final String? status;
+  final String groupCode;
   final DateTime? loginDate;
   final DateTime? pwdUpdateDate;
   final bool? isFirstLogin;
@@ -69,6 +71,7 @@ class User {
       avatar: map['avatar'] as String?,
       password: map['password'] as String? ?? '',
       status: map['status'] as String?,
+      groupCode: map['group_code'] as String? ?? '',
       loginDate: parseDate(map['login_date']),
       pwdUpdateDate: parseDate(map['pwd_update_date']),
       isFirstLogin: parseBool(map['is_first_login']),
@@ -97,6 +100,7 @@ class User {
       'avatar': avatar,
       'password': password,
       'status': status,
+      'group_code': groupCode,
       'login_date': formatDate(loginDate),
       'pwd_update_date': formatDate(pwdUpdateDate),
       'is_first_login': formatBool(isFirstLogin),
@@ -120,6 +124,7 @@ class User {
     String? avatar,
     String? password,
     String? status,
+    String? groupCode,
     DateTime? loginDate,
     DateTime? pwdUpdateDate,
     bool? isFirstLogin,
@@ -141,6 +146,7 @@ class User {
       avatar: avatar ?? this.avatar,
       password: password ?? this.password,
       status: status ?? this.status,
+      groupCode: groupCode ?? this.groupCode,
       loginDate: loginDate ?? this.loginDate,
       pwdUpdateDate: pwdUpdateDate ?? this.pwdUpdateDate,
       isFirstLogin: isFirstLogin ?? this.isFirstLogin,

@@ -23,6 +23,7 @@ class AccountManagerAddPage extends StatefulWidget {
 class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _managerAccountController = TextEditingController();
+  final TextEditingController _groupCodeController = TextEditingController();
   final TextEditingController _managerNameController = TextEditingController();
   final TextEditingController _managerPhoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -45,6 +46,7 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
     _initialManager = widget.manager;
     if (_initialManager != null) {
       _managerAccountController.text = _initialManager!.userName;
+      _groupCodeController.text = _initialManager!.groupCode;
       _managerNameController.text = _initialManager!.nickName;
       _managerPhoneController.text = _initialManager!.phoneNumber ?? '';
     }
@@ -64,6 +66,7 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
   @override
   void dispose() {
     _managerAccountController.dispose();
+    _groupCodeController.dispose();
     _managerNameController.dispose();
     _managerPhoneController.dispose();
     _passwordController.dispose();
@@ -80,6 +83,7 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
           _confirmPasswordController.text.isNotEmpty;
     }
     return _managerAccountController.text.trim() != (_initialManager?.userName ?? '') ||
+        _groupCodeController.text.trim() != (_initialManager?.groupCode ?? '') ||
         _managerNameController.text.trim() != (_initialManager?.nickName ?? '') ||
         _managerPhoneController.text.trim() != (_initialManager?.phoneNumber ?? '');
   }
@@ -128,6 +132,7 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
     }
 
     final managerAccount = _managerAccountController.text.trim();
+    final groupCode = _groupCodeController.text.trim();
     final managerName = _managerNameController.text.trim();
     final managerPhone = _managerPhoneController.text.trim();
 
@@ -154,6 +159,7 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
       if (_isEdit) {
         final existing = _initialManager!;
         final updated = existing.copyWith(
+          groupCode: groupCode,
           nickName: managerName,
           phoneNumber: managerPhone.isEmpty ? null : managerPhone,
           updateBy: _loginUser?.userName ?? existing.updateBy,
@@ -173,6 +179,8 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
           phoneNumber: managerPhone.isEmpty ? null : managerPhone,
           password: passwordHash,
           status: '0',
+          groupCode: groupCode,
+          lockUntil: DateTime.now(),
           createBy: _loginUser?.userName,
           createTime: now,
         );
@@ -239,6 +247,11 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
                             inputFormatters: [
                               FilteringTextInputFormatter.deny(_chineseCharacterRegExp),
                             ],
+                          ),
+                          _buildRequiredField(
+                            label: '团队编码',
+                            hint: '请输入团队编码',
+                            controller: _groupCodeController,
                           ),
                           _buildRequiredField(
                             label: '客户经理姓名',

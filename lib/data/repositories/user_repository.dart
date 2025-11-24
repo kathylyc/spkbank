@@ -65,6 +65,10 @@ class UserRepository {
         phoneKeyword: phoneKeyword,
       );
 
+  /// 根据团队编码查找客户经理
+  Future<List<User>> findManagersByGroupCode(String groupCode) =>
+      _provider.userDao.findManagersByGroupCode(groupCode);
+
   Future<int> deleteById(int id) => _provider.userDao.deleteById(id);
 
   /// 增加登录失败次数
@@ -95,7 +99,7 @@ class UserRepository {
     await _provider.userDao.update(
       existing.copyWith(
         loginFailCount: 0,
-        lockUntil: null,
+        lockUntil: DateTime.now(),
       ),
     );
   }
