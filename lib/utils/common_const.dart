@@ -74,10 +74,13 @@ const Map<String, PdfTemplateInfo> ConstPdfTemplateMap = {
       signFields: ['Signature']
   ),
   "8": PdfTemplateInfo(
-      signCode: 'TODO',// 与Account Mandate for BusinessAccount_201908.pdf一致了
+      signCode: 'n6a9g46q9g4gfqr3',
       assetsPath: 'assets/pdf/Telephone & Fax Instructions andIndemnity_(For Business Account)_201908.pdf',
       signFields: ['Signature']
   ),
 };
+
+
+
 
 
