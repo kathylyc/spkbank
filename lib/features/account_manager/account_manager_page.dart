@@ -11,6 +11,7 @@ import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/user_repository.dart';
 import '../../utils/file_manager.dart';
 import '../../utils/import_export_utils.dart';
+import '../../utils/password_utils.dart';
 import '../../utils/storage_utils.dart';
 import '../../widgets/common_data_table_page.dart';
 import 'account_manager_add_page.dart';
@@ -509,6 +510,10 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
           builder: (row, context) => Text(row['customerCount'].toString()),
         ),
         DataTableColumn(
+          label: '密码状态',
+          builder: (row, context) => _buildPasswordStatus(row),
+        ),
+        DataTableColumn(
           label: '录入时间',
           builder: (row, context) => Text(row['entryTime']),
         ),
@@ -695,9 +700,9 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
           ),
           child: const Text('修改', style: TextStyle(fontSize: 13)),
         ),
-        
+
         const SizedBox(width: 8),
-        
+
         // 重置密码按钮（蓝色）
         ElevatedButton(
           onPressed: () {
@@ -716,10 +721,11 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
                     onPressed: () async {
                       Navigator.pop(context);
                       if (managerAccount == null || managerAccount.isEmpty) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('无法获取客户经理编号')),
-                        );
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('无法获取客户经理编号')),
+                          );
+                        }
                         return;
                       }
                       try {
@@ -730,18 +736,25 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
                           passwordHash,
                           DateTime.now(),
                         );
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('已重置密码: ${row['managerName']}'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
+                        // 重置密码时设置为首次登录
+                        await _userRepository.setFirstLogin(managerAccount, true);
+                        // 重置密码成功后自动解锁账号
+                        await _userRepository.unlockAccount(managerAccount);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('已重置密码: ${row['managerName']}'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                          _loadData(); // 重新加载数据以更新状态
+                        }
                       } catch (error) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('重置密码失败: $error')),
-                        );
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('重置密码失败: $error')),
+                          );
+                        }
                       }
                     },
                     child: const Text('确认'),
@@ -762,9 +775,9 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
           ),
           child: const Text('重置密码', style: TextStyle(fontSize: 13)),
         ),
-        
+
         const SizedBox(width: 8),
-        
+
         // 删除按钮（红色）
         ElevatedButton(
           onPressed: () => _handleDeleteManager(row),
@@ -781,6 +794,86 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
           child: const Text('删除', style: TextStyle(fontSize: 13)),
         ),
       ],
+    );
+  }
+
+  /// 构建密码状态显示
+  Widget _buildPasswordStatus(Map<String, dynamic> row) {
+    final managerAccount = row['managerAccount'] as String?;
+    if (managerAccount == null || managerAccount.isEmpty) {
+      return const Text('未知');
+    }
+
+    return FutureBuilder<User?>(
+      future: _userRepository.findByUserName(managerAccount),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Text('加载中...');
+        }
+
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+          return const Text('未知', style: TextStyle(color: Colors.grey));
+        }
+
+        final user = snapshot.data!;
+        final List<String> statusItems = [];
+
+        // 检查账号锁定状态
+        if (PasswordUtils.isAccountLocked(user.lockUntil)) {
+          final remainingMinutes = PasswordUtils.getLockMinutesRemaining(user.lockUntil);
+          statusItems.add('已锁定(${remainingMinutes}分钟)');
+        }
+
+        // 检查首次登录状态
+        else if (user.isFirstLogin == true) {
+          statusItems.add('未修改默认密码');
+        }
+
+        // 检查密码过期状态
+        else if (PasswordUtils.isPasswordExpired(user.pwdUpdateDate)) {
+          statusItems.add('已过期');
+        }
+        else {
+          final remainingDays = PasswordUtils.getPasswordExpiryDays(user.pwdUpdateDate);
+          if (remainingDays <= 7) {
+            statusItems.add('即将过期(${remainingDays}天)');
+          }
+        }
+
+        if (statusItems.isEmpty) {
+          return Text(
+            '正常',
+            style: TextStyle(
+              color: Colors.green.shade600,
+              fontWeight: FontWeight.w500,
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: statusItems.map((status) {
+            Color statusColor = Colors.grey;
+            if (status.contains('已锁定')) {
+              statusColor = Colors.red;
+            } else if (status.contains('首次登录') || status.contains('已过期')) {
+              statusColor = Colors.orange;
+            } else if (status.contains('即将过期')) {
+              statusColor = Colors.amber.shade700;
+            }
+
+            return Text(
+              status,
+              style: TextStyle(
+                color: statusColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 }

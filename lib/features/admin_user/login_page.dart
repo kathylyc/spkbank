@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../../utils/screen_utils.dart';
 import '../../utils/context_extensions.dart';
 import '../../utils/storage_utils.dart';
+import '../../utils/password_utils.dart';
 import '../../data/models/user.dart';
 import '../../data/repositories/user_repository.dart';
 import '../account_manager/account_manager_add_page.dart';
+import 'force_reset_pwd.dart';
 
 class LoginPage extends StatefulWidget {
   final VoidCallback onLoginSuccess;
@@ -36,7 +38,7 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _handleLogin() async {
     final username = _usernameController.text;
     final password = _passwordController.text;
-    
+
     if (username.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -49,17 +51,8 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final userRepo = UserRepository();
-      List<User> listUser = await userRepo.findAll();
-      // User? user = await userRepo.findByUserName(username);
-      debugPrint('读取user：${listUser.length}');
-      User? foundUser;
-      for (int i = 0; i < listUser.length; i++) {
-        User user = listUser[i];
-        if (user.userName == username) {
-          foundUser = user;
-          break;
-        }
-      }
+      User? foundUser = await userRepo.findByUserName(username);
+
       if (foundUser == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -69,20 +62,89 @@ class _LoginPageState extends State<LoginPage> {
         );
         return;
       }
-      // 校验密码
-      bool isMatch = BCrypt.checkpw(password, foundUser.password);
-      if (!isMatch) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('密码不正确'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
+
+      // 超级管理员账号的特殊处理逻辑
+      if (foundUser.userType == '00') {
+        // 超级管理员只验证密码正确性，跳过所有其他安全检查
+        bool isMatch = BCrypt.checkpw(password, foundUser.password);
+        if (!isMatch) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('密码不正确'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        // 更新登录时间（记录登录行为）
+        await userRepo.updateLoginDate(username, DateTime.now());
+      } else {
+        // 普通用户的完整安全检查流程
+
+        // 检查账号是否被锁定
+        final isLocked = await userRepo.isAccountLocked(username);
+        if (isLocked) {
+          final lockMinutes = PasswordUtils.getLockMinutesRemaining(foundUser.lockUntil);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('账号已被锁定，请 $lockMinutes 分钟后再试'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        // 校验密码
+        bool isMatch = BCrypt.checkpw(password, foundUser.password);
+        if (!isMatch) {
+          // 增加登录失败次数
+          await userRepo.incrementLoginFailCount(username);
+          final updatedUser = await userRepo.findByUserName(username);
+          final remainingAttempts = PasswordUtils.maxLoginFailCount - (updatedUser?.loginFailCount ?? 0);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('密码不正确，剩余尝试次数：$remainingAttempts'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        // 登录成功，重置失败次数
+        await userRepo.resetLoginFailCount(username);
+
+        // 更新登录时间
+        await userRepo.updateLoginDate(username, DateTime.now());
+
+        // 检查是否需要修改密码
+        final shouldUpdatePassword = await userRepo.shouldUpdatePassword(username);
+        if (shouldUpdatePassword) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => ForceResetPwdPage(
+                user: foundUser,
+                onPasswordChanged: () {
+                  Navigator.of(context).pop();
+                  // 修改密码后重新登录
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('密码修改成功，请重新登录'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+          return;
+        }
       }
+
       // 保存当前登录的user_name到kv中
       StorageUtils.login(foundUser.toMap());
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -116,6 +178,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  
   @override
   Widget build(BuildContext context) {
     // 判断是否为手机竖屏
@@ -504,4 +567,5 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
+
 

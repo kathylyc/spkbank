@@ -5,6 +5,7 @@ import '../../data/repositories/user_repository.dart';
 import '../../utils/screen_utils.dart';
 import '../../utils/context_extensions.dart';
 import '../../utils/storage_utils.dart';
+import '../../utils/password_utils.dart';
 import '../dashboard/dashboard_page.dart';
 import '../pdf_template/pdf_template_page.dart';
 import '../customer/customer_page.dart';
@@ -142,68 +143,105 @@ class _RouterPageState extends State<RouterPage> {
           builder: (context, setState) {
             return AlertDialog(
               title: Text(context.S.changePassword),
-              content: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextFormField(
-                      controller: _oldPasswordController,
-                      obscureText: oldObscure,
-                      decoration: InputDecoration(
-                        labelText: context.S.oldPassword,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            oldObscure ? Icons.visibility_off : Icons.visibility,
+              content: SizedBox(
+                width: 400,
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: _oldPasswordController,
+                        obscureText: oldObscure,
+                        decoration: InputDecoration(
+                          labelText: context.S.oldPassword,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              oldObscure ? Icons.visibility_off : Icons.visibility,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                oldObscure = !oldObscure;
+                              });
+                            },
                           ),
-                          onPressed: () {
-                            setState(() {
-                              oldObscure = !oldObscure;
-                            });
-                          },
                         ),
+                        validator: (value) {
+                          if ((value ?? '').isEmpty) {
+                            return context.S.oldPasswordRequired;
+                          }
+                          if (value == _newPasswordController.text) {
+                            return context.S.oldNewPasswordSame;
+                          }
+                          if (!BCrypt.checkpw(value!, _loginUser!.password)) {
+                            return context.S.oldPasswordIncorrect;
+                          }
+                          return null;
+                        },
                       ),
-                      validator: (value) {
-                        if ((value ?? '').isEmpty) {
-                          return context.S.oldPasswordRequired;
-                        }
-                        if (value == _newPasswordController.text) {
-                          return context.S.oldNewPasswordSame;
-                        }
-                        if (!BCrypt.checkpw(value!, _loginUser!.password)) {
-                          return context.S.oldPasswordIncorrect;
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _newPasswordController,
-                      obscureText: newObscure,
-                      decoration: InputDecoration(
-                        labelText: context.S.newPassword,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            newObscure ? Icons.visibility_off : Icons.visibility,
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _newPasswordController,
+                        obscureText: newObscure,
+                        decoration: InputDecoration(
+                          labelText: context.S.newPassword,
+                          helperText: '8位+大小写字母+数字+特殊字符',
+                          helperStyle: TextStyle(fontSize: 12),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              newObscure ? Icons.visibility_off : Icons.visibility,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                newObscure = !newObscure;
+                              });
+                            },
                           ),
-                          onPressed: () {
-                            setState(() {
-                              newObscure = !newObscure;
-                            });
-                          },
                         ),
+                        validator: (value) {
+                          if ((value ?? '').isEmpty) {
+                            return context.S.newPasswordRequired;
+                          }
+                          if (value == _oldPasswordController.text) {
+                            return context.S.oldNewPasswordSame;
+                          }
+
+                          // 验证密码格式
+                          final formatError = PasswordUtils.validatePasswordFormat(value!);
+                          if (formatError != null) {
+                            return formatError;
+                          }
+
+                          return null;
+                        },
                       ),
-                      validator: (value) {
-                        if ((value ?? '').isEmpty) {
-                          return context.S.newPasswordRequired;
-                        }
-                        if (value == _oldPasswordController.text) {
-                          return context.S.oldNewPasswordSame;
-                        }
-                        return null;
-                      },
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      // 显示密码过期提醒
+                      if (_loginUser?.pwdUpdateDate != null)
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.blue.shade600, size: 16),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '密码有效期：${PasswordUtils.getPasswordExpiryDays(_loginUser?.pwdUpdateDate)}天',
+                                  style: TextStyle(
+                                    color: Colors.blue.shade600,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
               actions: [
@@ -234,10 +272,14 @@ class _RouterPageState extends State<RouterPage> {
       // 保存新密码
       final newPwdEncrypt = BCrypt.hashpw(_newPasswordController.text, BCrypt.gensalt());
       final userRepo = UserRepository();
-      userRepo.updatePassword(_loginUser!.userName, newPwdEncrypt, DateTime.now());
+      final updateTime = DateTime.now();
+      userRepo.updatePassword(_loginUser!.userName, newPwdEncrypt, updateTime);
       if (mounted) {
         setState(() {
-          _loginUser = _loginUser?.copyWith(password: newPwdEncrypt);
+          _loginUser = _loginUser?.copyWith(
+            password: newPwdEncrypt,
+            pwdUpdateDate: updateTime,
+          );
         });
       }
       ScaffoldMessenger.of(context).showSnackBar(

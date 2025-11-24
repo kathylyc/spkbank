@@ -15,6 +15,9 @@ class User {
     this.status,
     this.loginDate,
     this.pwdUpdateDate,
+    this.isFirstLogin,
+    this.loginFailCount,
+    this.lockUntil,
     this.createBy,
     this.createTime,
     this.updateBy,
@@ -35,6 +38,9 @@ class User {
   final String? status;
   final DateTime? loginDate;
   final DateTime? pwdUpdateDate;
+  final bool? isFirstLogin;
+  final int? loginFailCount;
+  final DateTime? lockUntil;
   final String? createBy;
   final DateTime? createTime;
   final String? updateBy;
@@ -43,6 +49,14 @@ class User {
   factory User.fromMap(Map<String, Object?> map) {
     DateTime? parseDate(Object? value) =>
         value == null ? null : DateTime.tryParse(value as String);
+    
+    // 将 int 值（0 或 1）转换为 bool?
+    bool? parseBool(Object? value) {
+      if (value == null) return null;
+      if (value is bool) return value;
+      if (value is int) return value != 0;
+      return null;
+    }
 
     return User(
       id: map['id'] as int?,
@@ -57,6 +71,9 @@ class User {
       status: map['status'] as String?,
       loginDate: parseDate(map['login_date']),
       pwdUpdateDate: parseDate(map['pwd_update_date']),
+      isFirstLogin: parseBool(map['is_first_login']),
+      loginFailCount: map['login_fail_count'] as int?,
+      lockUntil: parseDate(map['lock_until']),
       createBy: map['create_by'] as String?,
       createTime: parseDate(map['create_time']),
       updateBy: map['update_by'] as String?,
@@ -66,6 +83,8 @@ class User {
 
   Map<String, Object?> toMap() {
     String? formatDate(DateTime? value) => value?.toIso8601String();
+    // 将 bool? 转换为 int（0 或 1）
+    int? formatBool(bool? value) => value == null ? null : (value ? 1 : 0);
 
     return {
       'id': id,
@@ -80,6 +99,9 @@ class User {
       'status': status,
       'login_date': formatDate(loginDate),
       'pwd_update_date': formatDate(pwdUpdateDate),
+      'is_first_login': formatBool(isFirstLogin),
+      'login_fail_count': loginFailCount,
+      'lock_until': formatDate(lockUntil),
       'create_by': createBy,
       'create_time': formatDate(createTime),
       'update_by': updateBy,
@@ -100,6 +122,9 @@ class User {
     String? status,
     DateTime? loginDate,
     DateTime? pwdUpdateDate,
+    bool? isFirstLogin,
+    int? loginFailCount,
+    DateTime? lockUntil,
     String? createBy,
     DateTime? createTime,
     String? updateBy,
@@ -118,6 +143,9 @@ class User {
       status: status ?? this.status,
       loginDate: loginDate ?? this.loginDate,
       pwdUpdateDate: pwdUpdateDate ?? this.pwdUpdateDate,
+      isFirstLogin: isFirstLogin ?? this.isFirstLogin,
+      loginFailCount: loginFailCount ?? this.loginFailCount,
+      lockUntil: lockUntil ?? this.lockUntil,
       createBy: createBy ?? this.createBy,
       createTime: createTime ?? this.createTime,
       updateBy: updateBy ?? this.updateBy,

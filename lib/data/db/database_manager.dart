@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 
 import 'migrations/migration.dart';
 import 'migrations/migration_v1.dart';
+import 'migrations/migration_v2.dart';
 
 class DatabaseManager {
   DatabaseManager._internal();
@@ -16,6 +17,7 @@ class DatabaseManager {
   /// 如果增加新的迁移，请在这里补充，并确保按版本升序排列。
   final List<MigrationStep> _migrations = [
     MigrationV1(),
+    MigrationV2(),
   ];
 
   Database? _database;
