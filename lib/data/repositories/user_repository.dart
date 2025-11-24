@@ -144,8 +144,13 @@ class UserRepository {
     // 首次登录需要修改密码
     if (user.isFirstLogin == true) return true;
 
-    // 密码过期需要修改密码
-    return PasswordUtils.isPasswordExpired(user.pwdUpdateDate);
+    // 客户经理（userType == '01'）需要检查90天密码过期
+    if (user.userType == '01') {
+      return PasswordUtils.isPasswordExpired(user.pwdUpdateDate);
+    }
+
+    // 其他用户类型不需要检查密码过期
+    return false;
   }
 }
 

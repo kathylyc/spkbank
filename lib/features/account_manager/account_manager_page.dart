@@ -396,6 +396,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
           password: defaultPassword,
           status: '0',
           groupCode: '', // 从 Excel 导入时，group_code 默认为空字符串
+          pwdUpdateDate: now, // 导入客户经理时，设置密码更新日期为当前时间
           createBy: loginUser?.userName,
           createTime: now,
           updateBy: loginUser?.userName,
