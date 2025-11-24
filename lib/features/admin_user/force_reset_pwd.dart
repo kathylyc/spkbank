@@ -4,6 +4,9 @@ import '../../utils/password_utils.dart';
 import '../../data/models/user.dart';
 import '../../data/repositories/user_repository.dart';
 
+// 密码强度枚举
+enum PasswordStrength { weak, medium, strong }
+
 class ForceResetPwdPage extends StatefulWidget {
   final User user;
   final VoidCallback onPasswordChanged;
@@ -28,6 +31,61 @@ class _ForceResetPwdPageState extends State<ForceResetPwdPage> {
   bool _confirmObscure = true;
   bool _isSaving = false;
   String? _errorMessage;
+
+  // 计算密码强度
+  PasswordStrength _calculatePasswordStrength(String password) {
+    if (password.isEmpty) return PasswordStrength.weak;
+
+    // 优先检查长度，如果位数小于8位，直接返回弱
+    if (password.length < 8) return PasswordStrength.weak;
+
+    int criteriaCount = 0;
+
+    // 检查包含小写字母
+    if (RegExp(r'[a-z]').hasMatch(password)) criteriaCount++;
+
+    // 检查包含大写字母
+    if (RegExp(r'[A-Z]').hasMatch(password)) criteriaCount++;
+
+    // 检查包含数字
+    if (RegExp(r'[0-9]').hasMatch(password)) criteriaCount++;
+
+    // 检查包含特殊字符
+    if (RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password)) criteriaCount++;
+
+    // 长度>=8的基础上，计算其他条件
+    if (criteriaCount == 4) {
+      return PasswordStrength.strong;  // 8位+包含所有4种字符类型
+    } else if (criteriaCount >= 2) {
+      return PasswordStrength.medium;  // 8位+包含2-3种字符类型
+    } else {
+      return PasswordStrength.weak;    // 8位+只包含1种字符类型
+    }
+  }
+
+  // 获取密码强度显示文本和颜色
+  Map<String, dynamic> _getPasswordStrengthInfo(PasswordStrength strength) {
+    switch (strength) {
+      case PasswordStrength.weak:
+        return {
+          'text': '弱',
+          'color': Colors.red,
+          'backgroundColor': Colors.red.shade50,
+        };
+      case PasswordStrength.medium:
+        return {
+          'text': '中',
+          'color': Colors.yellow.shade700,
+          'backgroundColor': Colors.yellow.shade50,
+        };
+      case PasswordStrength.strong:
+        return {
+          'text': '强',
+          'color': Colors.green,
+          'backgroundColor': Colors.green.shade50,
+        };
+    }
+  }
 
   @override
   void dispose() {
@@ -131,12 +189,153 @@ class _ForceResetPwdPageState extends State<ForceResetPwdPage> {
     }
   }
 
+  // 构建密码强度指示器
+  Widget _buildPasswordStrengthIndicator(String password) {
+    final strength = _calculatePasswordStrength(password);
+    final strengthInfo = _getPasswordStrengthInfo(strength);
+
+    // 计算进度条宽度比例
+    double progressRatio = 0.0;
+    Color progressColor = Colors.grey.shade300;
+    switch (strength) {
+      case PasswordStrength.weak:
+        progressRatio = 1/3;
+        progressColor = Colors.red;
+        break;
+      case PasswordStrength.medium:
+        progressRatio = 2/3;
+        progressColor = Colors.orange;
+        break;
+      case PasswordStrength.strong:
+        progressRatio = 1.0;
+        progressColor = Colors.green;
+        break;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      width: 400,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 标签和强度文字
+          Row(
+            children: [
+              Text(
+                '密码强度：',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                strengthInfo['text'],
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: strengthInfo['color'],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+
+          // 进度条容器
+          Row(
+            children: [
+              // 第一段 - 弱
+              Expanded(
+                child: Container(
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: progressRatio >= 1/3 ? progressColor : Colors.grey.shade200,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(2),
+                      bottomLeft: Radius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4), // 间距
+
+              // 第二段 - 中
+              Expanded(
+                child: Container(
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: progressRatio >= 2/3 ? progressColor : Colors.grey.shade200,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4), // 间距
+
+              // 第三段 - 强
+              Expanded(
+                child: Container(
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: progressRatio >= 1.0 ? progressColor : Colors.grey.shade200,
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(2),
+                      bottomRight: Radius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // 强度说明文字
+          const SizedBox(height: 4),
+          Text(
+            '密码需包含：8位以上、大小写字母、数字、特殊字符',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('修改密码'),
-        automaticallyImplyLeading: false, // 禁用返回按钮，强制用户修改密码
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            // 显示确认对话框
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: const Text('确认退出'),
+                  content: const Text('您必须修改密码才能继续使用系统'),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(); // 关闭对话框
+                      },
+                      child: const Text('继续修改'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(); // 关闭对话框
+                        Navigator.of(context).pop(); // 关闭当前页面
+                      },
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                      child: const Text('返回'),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
       ),
       body: SafeArea(
         child: Padding(
@@ -216,13 +415,18 @@ class _ForceResetPwdPageState extends State<ForceResetPwdPage> {
                           controller: _newPasswordController,
                           obscure: _newObscure,
                           validator: _validateNewPassword,
-                          helperText: '8位+大小写字母+数字+特殊字符',
                           onObscureChanged: () {
                             setState(() {
                               _newObscure = !_newObscure;
                             });
                           },
+                          onChanged: (value) {
+                            setState(() {}); // 触发重新构建以更新密码强度指示器
+                          },
                         ),
+
+                        // 密码强度指示器
+                        _buildPasswordStrengthIndicator(_newPasswordController.text),
 
                         _buildPasswordField(
                           label: '确认新密码',
@@ -278,9 +482,10 @@ class _ForceResetPwdPageState extends State<ForceResetPwdPage> {
     required String? Function(String?) validator,
     String? helperText,
     required VoidCallback onObscureChanged,
+    Function(String)? onChanged,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -309,6 +514,8 @@ class _ForceResetPwdPageState extends State<ForceResetPwdPage> {
             controller: controller,
             obscureText: obscure,
             validator: validator,
+            onChanged: onChanged,
+            maxLength: label.contains('新密码') ? 20 : null, // 新密码和确认新密码限制20位
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: TextStyle(color: Colors.grey.shade400),
@@ -338,6 +545,7 @@ class _ForceResetPwdPageState extends State<ForceResetPwdPage> {
                 horizontal: 12,
                 vertical: 12,
               ),
+              counterText: '', // 隐藏字符计数器
               suffixIcon: IconButton(
                 icon: Icon(
                   obscure ? Icons.visibility_off : Icons.visibility,

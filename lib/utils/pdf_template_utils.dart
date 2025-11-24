@@ -16,14 +16,17 @@ class PdfTemplateUtils {
     return ConstPdfTemplateMap.entries.map((entry) {
       final id = int.parse(entry.key);
       final templateInfo = entry.value;
+      final signCode = templateInfo.signCode;
       final assetPath = templateInfo.assetsPath;
       final fileName = assetPath.split('/').last;
+      final signFields = templateInfo.signFields;
       
       return {
         'id': id,
+        'signCode': signCode,
         'name': fileName,
         'assetPath': assetPath,
-        'count': 0, // 引用次数暂时设为0，后续可以从数据库获取
+        'signFields': signFields
       };
     }).toList();
   }

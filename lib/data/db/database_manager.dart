@@ -6,6 +6,7 @@ import 'package:sqflite/sqflite.dart';
 import 'migrations/migration.dart';
 import 'migrations/migration_v1.dart';
 import 'migrations/migration_v2.dart';
+import 'migrations/migration_v3.dart';
 
 class DatabaseManager {
   DatabaseManager._internal();
@@ -18,6 +19,7 @@ class DatabaseManager {
   final List<MigrationStep> _migrations = [
     MigrationV1(),
     MigrationV2(),
+    MigrationV3(),
   ];
 
   Database? _database;
