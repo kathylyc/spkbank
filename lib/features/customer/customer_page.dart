@@ -130,6 +130,7 @@ class _CustomerPageState extends State<CustomerPage> {
           'id': offset + index + 1,
           'customerUid': customer.customerUid,
           'name': customer.customerName,
+          'company': customer.company.isEmpty ? '-' : customer.company,
           'phone': customer.phone ?? '-',
           'address': customer.address ?? '-',
           'tags': _resolveTags(customer),
@@ -350,6 +351,7 @@ class _CustomerPageState extends State<CustomerPage> {
           managerAccount: managerAccount,
           phone: phone?.isNotEmpty == true ? phone : null,
           address: address?.isNotEmpty == true ? address : null,
+          company: '', // 从 Excel 导入时，company 默认为空字符串
           customerTag: customerTag?.isNotEmpty == true ? customerTag : null,
           createBy: loginUser?.userName,
           createTime: now,
@@ -830,6 +832,10 @@ class _CustomerPageState extends State<CustomerPage> {
         DataTableColumn(
           label: '客户姓名',
           builder: (row, context) => Text(row['name']),
+        ),
+        DataTableColumn(
+          label: '公司名称',
+          builder: (row, context) => Text(row['company']),
         ),
         DataTableColumn(
           label: '电话号码',

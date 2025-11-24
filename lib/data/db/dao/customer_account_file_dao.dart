@@ -147,6 +147,7 @@ class CustomerAccountFileDao {
         f.update_by,
         f.update_time,
         c.customer_name,
+        c.company,
         c.phone,
         c.manager_account,
         u.user_name AS manager_code,

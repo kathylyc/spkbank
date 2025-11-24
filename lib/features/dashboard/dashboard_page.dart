@@ -125,6 +125,7 @@ class _DashboardPageState extends State<DashboardPage> {
     return {
       'id': row['id'] ?? 0,
       'customerName': row['customer_name'] ?? '-',
+      'company': (row['company'] as String?)?.isEmpty ?? true ? '-' : (row['company'] as String),
       'accountFileName': row['account_file_name'] ?? '-',
       'fileVersion': row['file_version'] ?? '-',
       'templateUsed': row['template_name'] ?? '-',
@@ -272,8 +273,8 @@ class _DashboardPageState extends State<DashboardPage> {
         // 表格列定义
         columns: [
           DataTableColumn(
-            label: context.S.customerName,
-            builder: (row, context) => Text(row['customerName']),
+            label: '公司名称',
+            builder: (row, context) => Text(row['company']),
           ),
           DataTableColumn(
             label: context.S.accountFileName,

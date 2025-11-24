@@ -23,6 +23,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
   final TextEditingController _managerAccountController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _companyController = TextEditingController();
   final CustomerRepository _customerRepository = CustomerRepository();
   final UserRepository _userRepository = UserRepository();
   bool get _isAccountManager => _loginUser?.userType == '01';
@@ -61,6 +62,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
       _managerAccountController.text = _initialCustomer!.managerAccount;
       _phoneController.text = _initialCustomer!.phone ?? '';
       _addressController.text = _initialCustomer!.address ?? '';
+      _companyController.text = _initialCustomer!.company;
       _selectedCountryCode = _resolveCountryCode(_initialCustomer!.countryCode);
       _selectedTags
         ..clear()
@@ -77,6 +79,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
     _managerAccountController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
+    _companyController.dispose();
     super.dispose();
   }
 
@@ -102,6 +105,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
         _selectedCountryCode != initialCountryCode ||
         _phoneController.text.trim() != (_initialCustomer?.phone ?? '') ||
         _addressController.text.trim() != (_initialCustomer?.address ?? '') ||
+        _companyController.text.trim() != (_initialCustomer?.company ?? '') ||
         currentTagString != initialTagString;
   }
 
@@ -153,6 +157,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
     final String countryCode = _selectedCountryCode;
     final String phone = _phoneController.text.trim();
     final String address = _addressController.text.trim();
+    final String company = _companyController.text.trim();
     final String? customerTag = _selectedTags.isEmpty ? null : _joinTags(_selectedTags);
 
     setState(() {
@@ -182,6 +187,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
           countryCode: countryCode,
           phone: phone.isEmpty ? null : phone,
           address: address.isEmpty ? null : address,
+          company: company,
           customerTag: customerTag,
           updateBy: _loginUser?.userName ?? existing.updateBy,
           updateTime: now,
@@ -194,6 +200,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
           managerAccount: managerAccount,
           phone: phone.isEmpty ? null : phone,
           address: address.isEmpty ? null : address,
+          company: company,
           customerTag: customerTag,
           createBy: _loginUser?.userName,
           createTime: now,
@@ -238,6 +245,16 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          _buildField(
+                            label: '客户经理编号',
+                            hint: '请输入客户经理编号',
+                            controller: _managerAccountController,
+                            requiredField: true,
+                            enabled: !_isAccountManager && !_isEdit,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                            ],
+                          ),
                           if (_isEdit)
                             _buildReadOnlyField(
                               label: '客户编号',
@@ -258,14 +275,10 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
                             requiredField: true,
                           ),
                           _buildField(
-                            label: '客户经理编号',
-                            hint: '请输入客户经理编号',
-                            controller: _managerAccountController,
+                            label: '公司名称',
+                            hint: '请输入公司名称',
+                            controller: _companyController,
                             requiredField: true,
-                            enabled: !_isAccountManager && !_isEdit,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.deny(RegExp(r'\s')),
-                            ],
                           ),
                           _buildPhoneField(),
                           _buildField(
@@ -404,13 +417,25 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '联系电话',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade800,
-              fontWeight: FontWeight.w500,
-            ),
+          Row(
+            children: [
+              Text(
+                '联系电话',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade800,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                '*',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.red,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Row(
@@ -488,6 +513,13 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
                         vertical: 12,
                       ),
                     ),
+                    validator: (value) {
+                      final String phone = value?.trim() ?? '';
+                      if (phone.isEmpty) {
+                        return '请输入联系电话';
+                      }
+                      return null;
+                    },
                   ),
                 ),
               ),
