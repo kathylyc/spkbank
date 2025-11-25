@@ -317,6 +317,32 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
       String fileVersion;
       
       if (existingFile != null) {
+        // 如果存在，先做一个Dialog确认，如果用户点击确定，则继续往下走，否则退出该流程；Dialog的空白区域不可关闭
+        final shouldContinue = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false, // Dialog的空白区域不可关闭
+          builder: (context) => AlertDialog(
+            title: const Text('提示'),
+            content: const Text('该开户文件已存在，是否生成最新版本？'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: TextButton.styleFrom(foregroundColor: Colors.blue),
+                child: const Text('确定'),
+              ),
+            ],
+          ),
+        );
+        
+        // 如果用户取消或点击取消，退出该流程
+        if (shouldContinue != true) {
+          return;
+        }
+        
         // 如果存在，使用现有的 account_file_uid，查询该 account_file_uid 的最大版本号并加一
         accountFileUid = existingFile.accountFileUid;
         final maxVersion = await _repository.findMaxVersionByAccountFileUid(accountFileUid);
@@ -349,6 +375,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
         templateName: templateName,
         templateSignCode: templateSignCode,
         fileSrcType: isTemplateTab ? '模板生成' : '上传PDF',
+        signStatus: 0,// 新建的数据行默认为失效
         createBy: loginUser?.userName,
         createTime: now,
         updateBy: loginUser?.userName,
