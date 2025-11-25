@@ -11,6 +11,7 @@ import '../../data/models/customer_account_file.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../utils/file_manager.dart';
 import '../../utils/storage_utils.dart';
+import '../../utils/common_const.dart';
 
 /// PDF扁平化配置枚举
 enum PdfFlattenConfig {
@@ -532,6 +533,101 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
     }
   }
 
+  /// 计算文档签署状态
+  int? _calculateSigningStatus() {
+    try {
+      // 1. 获取当前文档的signCode
+      final currentSignCode = widget.templateSignCode;
+      if (currentSignCode == null || currentSignCode.isEmpty) {
+        debugPrint('⚠ 无法计算签署状态：signCode为空');
+        return 0;
+      }
+
+      debugPrint('🔍 开始计算签署状态，当前signCode: $currentSignCode');
+
+      // 2. 在ConstPdfTemplateMap中查找匹配的模板
+      PdfTemplateInfo? matchingTemplate;
+      for (final entry in ConstPdfTemplateMap.entries) {
+        if (entry.value.signCode == currentSignCode) {
+          matchingTemplate = entry.value;
+          debugPrint('📋 找到匹配模板: ID=${entry.key}, signCode=${entry.value.signCode}');
+          break;
+        }
+      }
+
+      if (matchingTemplate == null) {
+        debugPrint('⚠ 无法计算签署状态：未找到匹配的模板，signCode=$currentSignCode');
+        return 0;
+      }
+
+      // 3. 从模板获取期望的签名字段
+      final expectedSignFields = matchingTemplate.signFields;
+      if (expectedSignFields == null || expectedSignFields.isEmpty) {
+        debugPrint('ℹ 模板未定义签名字段，视为无需签署，sign_status=1');
+        return 0; // 无签名域，视为未签署
+      }
+
+      debugPrint('📝 期望签名数量: ${expectedSignFields.length} 个');
+
+      // 4. 检查当前文档中的实际签名字段
+      if (_currentDocument == null) {
+        debugPrint('⚠ 无法计算签署状态：当前文档为空');
+        return 0;
+      }
+
+      final pdfForm = _currentDocument!.form;
+
+      // 获取文档中所有的签名字段
+      List<PdfSignatureField> signatureFields = [];
+      for (int i = 0; i < pdfForm.fields.count; i++) {
+        final field = pdfForm.fields[i];
+        if (field is PdfSignatureField) {
+          signatureFields.add(field);
+        }
+      }
+
+      int signedFieldCount = 0;
+      for (int i = 0; i < expectedSignFields.length; i++) {
+        final fieldName = expectedSignFields[i];
+
+        bool isSigned = false;
+        bool isFoundField = false;
+
+        for (int j = 0; j < signatureFields.length; j++) {
+          final field = signatureFields[i];
+          if (field.name == fieldName) {
+            isFoundField = true;
+
+            dynamic fieldDynamic = field;
+            final signature = fieldDynamic.signature;
+            if (signature != null && signature.isNotEmpty) {
+              isSigned = true;
+              break;
+            }
+          }
+        }
+
+        if (isFoundField) {
+          if (isSigned) {
+            signedFieldCount++;
+          }
+        } else {
+          // 字段未找到，说明是当前文档之前已经签过了一个字段的签名，视为成功
+          signedFieldCount++;
+        }
+      }
+      // 5. 确定签署状态，已签的数量==常量定义的签名域的数量，视为已签署
+      if (signedFieldCount == expectedSignFields.length) {
+        return 1;
+      } else {
+        return 0;
+      }
+    } catch (e) {
+      debugPrint('💥 计算签署状态时发生异常: $e');
+      return 0; // 异常情况下返回未签署状态
+    }
+  }
+
   /// 保存PDF文件（支持选择扁平化配置）
   Future<void> _handleSave({PdfFlattenConfig flattenConfig = PdfFlattenConfig.none}) async {
     // 验证必要参数
@@ -598,6 +694,11 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       final savedFile = File(savedFilePath);
       await savedFile.writeAsBytes(savedBytes);
 
+      // 计算文档签署状态
+      // 根据当前pdf文档的signCode，与常量定义的ConstPdfTemplateMap进行遍历匹配，获取当前文档对应的signFields字段；
+      // 判断当前pdf文件的PdfSignatureField类型字段是否已签名；假如常量定义中有2个signFields，当前文档也有2个PdfSignatureField类型字段已签名，则签署状态sign_status=1，否则sign_status=0
+      final int? signStatus = _calculateSigningStatus();
+
       // 4. 保存到数据库
       final accountFile = CustomerAccountFile(
         accountFileUid: widget.accountFileUid!,
@@ -605,6 +706,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         accountFileName: widget.fileName!,
         fileVersion: newFileVersion,
         filePath: savedFilePath,
+        signStatus: signStatus,
         templateName: widget.templateName,
         templateSignCode: widget.templateSignCode,
         fileSrcType: widget.fileSrcType ?? '模板生成',
@@ -1506,59 +1608,59 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
           if (_pdfViewerController != null && _pdfBytes != null) ...[
             // 编辑模式下显示保存选项
             if (widget.isEditMode) ...[
-              // 保存选项菜单
-              Padding(
-                padding: const EdgeInsets.only(left: 8),
-                child: PopupMenuButton<PdfFlattenConfig>(
-                  icon: const Icon(Icons.save),
-                  tooltip: '保存选项',
-                  itemBuilder: (BuildContext context) => [
-                    PopupMenuItem<PdfFlattenConfig>(
-                      value: PdfFlattenConfig.none,
-                      child: Row(
-                        children: [
-                          const Icon(Icons.edit_document, size: 16),
-                          const SizedBox(width: 8),
-                          Text(PdfFlattenConfig.none.description),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem<PdfFlattenConfig>(
-                      value: PdfFlattenConfig.nonSignatureOnly,
-                      child: Row(
-                        children: [
-                          const Icon(Icons.text_snippet, size: 16),
-                          const SizedBox(width: 8),
-                          Text(PdfFlattenConfig.nonSignatureOnly.description),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem<PdfFlattenConfig>(
-                      value: PdfFlattenConfig.signedOnly,
-                      child: Row(
-                        children: [
-                          const Icon(Icons.draw, size: 16),
-                          const SizedBox(width: 8),
-                          Text(PdfFlattenConfig.signedOnly.description),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem<PdfFlattenConfig>(
-                      value: PdfFlattenConfig.all,
-                      child: Row(
-                        children: [
-                          const Icon(Icons.picture_as_pdf, size: 16),
-                          const SizedBox(width: 8),
-                          Text(PdfFlattenConfig.all.description),
-                        ],
-                      ),
-                    ),
-                  ],
-                  onSelected: (PdfFlattenConfig config) {
-                    _handleSave(flattenConfig: config);
-                  },
-                ),
-              ),
+              // // 保存选项菜单
+              // Padding(
+              //   padding: const EdgeInsets.only(left: 8),
+              //   child: PopupMenuButton<PdfFlattenConfig>(
+              //     icon: const Icon(Icons.save),
+              //     tooltip: '保存选项',
+              //     itemBuilder: (BuildContext context) => [
+              //       PopupMenuItem<PdfFlattenConfig>(
+              //         value: PdfFlattenConfig.none,
+              //         child: Row(
+              //           children: [
+              //             const Icon(Icons.edit_document, size: 16),
+              //             const SizedBox(width: 8),
+              //             Text(PdfFlattenConfig.none.description),
+              //           ],
+              //         ),
+              //       ),
+              //       PopupMenuItem<PdfFlattenConfig>(
+              //         value: PdfFlattenConfig.nonSignatureOnly,
+              //         child: Row(
+              //           children: [
+              //             const Icon(Icons.text_snippet, size: 16),
+              //             const SizedBox(width: 8),
+              //             Text(PdfFlattenConfig.nonSignatureOnly.description),
+              //           ],
+              //         ),
+              //       ),
+              //       PopupMenuItem<PdfFlattenConfig>(
+              //         value: PdfFlattenConfig.signedOnly,
+              //         child: Row(
+              //           children: [
+              //             const Icon(Icons.draw, size: 16),
+              //             const SizedBox(width: 8),
+              //             Text(PdfFlattenConfig.signedOnly.description),
+              //           ],
+              //         ),
+              //       ),
+              //       PopupMenuItem<PdfFlattenConfig>(
+              //         value: PdfFlattenConfig.all,
+              //         child: Row(
+              //           children: [
+              //             const Icon(Icons.picture_as_pdf, size: 16),
+              //             const SizedBox(width: 8),
+              //             Text(PdfFlattenConfig.all.description),
+              //           ],
+              //         ),
+              //       ),
+              //     ],
+              //     onSelected: (PdfFlattenConfig config) {
+              //       _handleSave(flattenConfig: config);
+              //     },
+              //   ),
+              // ),
 
               // 快速保存按钮（默认不扁平化）
               Padding(
@@ -1566,9 +1668,9 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                 child: ElevatedButton.icon(
                   onPressed: () => _handleSave(flattenConfig: PdfFlattenConfig.none),
                   icon: const Icon(Icons.save, size: 16),
-                  label: const Text('快速保存'),
+                  label: const Text('保存'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
+                    backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
