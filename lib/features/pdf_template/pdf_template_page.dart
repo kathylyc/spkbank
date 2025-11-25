@@ -28,6 +28,7 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
   List<Map<String, dynamic>> _allPdfData = [];
   List<Map<String, dynamic>> _pdfData = [];
 
+  final bool _showRemarkColumn = false; // 控制是否显示备注
   bool _isLoading = true;
   final PdfTemplateInfoRepository _pdfTemplateRepository = PdfTemplateInfoRepository();
 
@@ -281,48 +282,20 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
       showCheckbox: false,
       
       // 表格列定义
-      columns: [
-        DataTableColumn(
-          label: 'id',
-          builder: (row, context) => Text(row['id'].toString()),
-        ),
-        DataTableColumn(
-          label: '模板名称',
-          builder: (row, context) => Text(row['name']),
-        ),
-        DataTableColumn(
-          label: '引用次数',
-          builder: (row, context) => Text(row['count'].toString()),
-        ),
-        DataTableColumn(
-          label: '备注',
-          builder: (row, context) => Text(
-            row['remark']?.toString() ?? '',
-            style: const TextStyle(fontSize: 13),
-          ),
-        ),
-        DataTableColumn(
-          label: '操作',
-          builder: (row, context) => Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildPreviewButton(row),
-                const SizedBox(width: 8),
-                _buildModifyRemarkButton(row),
-                const SizedBox(width: 8),
-                _buildDownloadButton(row),
-              ]
-          ),
-        )
-      ],
+      columns: _buildTableColumns(),
       
       // 自定义列宽
-      columnWidths: const [
+      columnWidths: _showRemarkColumn ? const [
         80,   // id
         300,  // 模板名称
         100,  // 引用次数
         100,  // 备注
         250,  // 操作
+      ] : const [
+        80,   // id
+        400,  // 模板名称
+        120,  // 引用次数
+        150,  // 操作
       ],
       
       // 数据
@@ -336,6 +309,64 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
     );
   }
 
+  /// 构建表格列
+  List<DataTableColumn> _buildTableColumns() {
+    // 基础列定义
+    List<DataTableColumn> columns = [
+      DataTableColumn(
+        label: 'id',
+        builder: (row, context) => Text(row['id'].toString()),
+      ),
+      DataTableColumn(
+        label: '模板名称',
+        builder: (row, context) => Text(row['name']),
+      ),
+      DataTableColumn(
+        label: '引用次数',
+        builder: (row, context) => Text(row['count'].toString()),
+      ),
+    ];
+
+    // 根据是否显示备注列来添加
+    if (_showRemarkColumn) {
+      columns.add(DataTableColumn(
+        label: '备注',
+        builder: (row, context) => Text(
+          row['remark']?.toString() ?? '',
+          style: const TextStyle(fontSize: 13),
+        ),
+      ));
+    }
+
+    // 添加操作列
+    columns.add(DataTableColumn(
+      label: '操作',
+      builder: (row, context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: _buildActionButtons(row),
+      ),
+    ));
+
+    return columns;
+  }
+
+  /// 构建操作按钮列表
+  List<Widget> _buildActionButtons(Map<String, dynamic> row) {
+    List<Widget> buttons = [
+      _buildPreviewButton(row),
+      const SizedBox(width: 8),
+    ];
+
+    // 根据是否显示备注列来添加修改备注按钮
+    if (_showRemarkColumn) {
+      buttons.add(_buildModifyRemarkButton(row));
+      buttons.add(const SizedBox(width: 8));
+    }
+
+    buttons.add(_buildDownloadButton(row));
+
+    return buttons;
+  }
 
   /// 导航到预览页面
   Future<void> _navigateToPreviewPage(Map<String, dynamic> row, {required bool isEditMode}) async {

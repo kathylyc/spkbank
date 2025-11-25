@@ -122,6 +122,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       _data = rawData.map((row) {
         return {
           'account_file_uid': row['account_file_uid'] ?? '-',
+          'company': row['company'] ?? '-',
           'customerName': row['customer_name'] ?? '',
           'phone': row['phone'] ?? '',
           'fileName': row['account_file_name'] ?? '',
@@ -738,6 +739,10 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         DataTableColumn(
           label: '开户文件uid',
           builder: (row, context) => Text(row['account_file_uid'].toString()),
+        ),
+        DataTableColumn(
+          label: '公司名称',
+          builder: (row, context) => Text(row['company']?.toString() ?? '-'),
         ),
         DataTableColumn(
           label: '客户姓名',

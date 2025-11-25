@@ -14,6 +14,7 @@ import '../../data/models/user.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/user_repository.dart';
 import '../../utils/common_const.dart';
+import '../../utils/file_manager.dart';
 import '../../utils/import_export_utils.dart';
 import '../../utils/storage_utils.dart';
 import '../../widgets/common_data_table_page.dart';
@@ -222,6 +223,97 @@ class _CustomerPageState extends State<CustomerPage> {
     );
     if (hasChanged == true) {
       _loadData();
+    }
+  }
+
+  /// 删除客户
+  Future<void> _handleDeleteCustomer(Map<String, dynamic> row) async {
+    final Customer customer = row['customer'] as Customer;
+    final String customerUid = customer.customerUid;
+    final String customerName = customer.customerName;
+
+    try {
+      // 检查客户的开户文件数量
+      final accountFiles = await _customerRepository.findAccountFiles(customerUid);
+      final accountFileCount = accountFiles.length;
+
+      if (accountFileCount > 0) {
+        // 存在关联信息，不可删除
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('存在关联信息，不可删除'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
+      // 开户文件数量为0，提示确认删除
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('确认删除'),
+          content: const Text('该操作不可逆，是否确认删除。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('确认'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) {
+        return;
+      }
+
+      // 删除客户的所有附件文件
+      final attachmentFiles = await _customerRepository.findAttachmentFiles(customerUid);
+      for (final attachmentFile in attachmentFiles) {
+        try {
+          // 删除本机附件文件
+          await FileManager.deleteCustomerAttachment(attachmentFile.filePath);
+          // 删除数据库记录
+          if (attachmentFile.id != null) {
+            await _customerRepository.deleteAttachmentFile(attachmentFile.id!);
+          }
+        } catch (e) {
+          debugPrint('删除客户附件文件失败: ${attachmentFile.filePath}, 错误: $e');
+          // 继续删除其他文件，不中断流程
+        }
+      }
+
+      // 删除客户信息
+      await _customerRepository.deleteByUid(customerUid);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('已删除: $customerName'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // 重新加载数据
+        _loadData();
+      }
+    } catch (error) {
+      debugPrint('删除客户失败: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('删除失败: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -1176,32 +1268,7 @@ class _CustomerPageState extends State<CustomerPage> {
         
         // 删除按钮
         ElevatedButton(
-          onPressed: () {
-            // TODO: 实现删除功能
-            showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('确认删除'),
-                content: Text('确定要删除客户"${row['name']}"吗？'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('取消'),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('已删除: ${row['name']}')),
-                      );
-                    },
-                    style: TextButton.styleFrom(foregroundColor: Colors.red),
-                    child: const Text('删除'),
-                  ),
-                ],
-              ),
-            );
-          },
+          onPressed: () => _handleDeleteCustomer(row),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.red,
             foregroundColor: Colors.white,
