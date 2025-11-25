@@ -4,11 +4,14 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'dart:async';
 import 'package:uuid/uuid.dart';
 import '../../utils/page_transition_animations.dart';
 import '../../utils/file_manager.dart';
 import '../../utils/storage_utils.dart';
 import '../../utils/pdf_template_utils.dart';
+import '../../utils/common_const.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/models/customer.dart';
 import '../../data/models/customer_account_file.dart';
@@ -36,8 +39,10 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
   // 表单控制器
   String? _selectedCustomerUid; // 存储选中的客户 UID
   final TextEditingController _fileNameController = TextEditingController();
-  final TextEditingController _templateSignCodeController = TextEditingController();
   int? _selectedTemplateId; // 存储选中的模板 ID
+  
+  // 从PDF文件中读取的签名代码
+  String? _pdfSignCode;
 
   // 客户列表（从数据库获取）
   List<Customer> _customers = [];
@@ -120,7 +125,6 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
   void dispose() {
     _tabController.dispose();
     _fileNameController.dispose();
-    _templateSignCodeController.dispose();
     // 清理 file_picker 生成的临时文件
     FilePicker.platform.clearTemporaryFiles().catchError((error) {
       debugPrint('清理 file_picker 临时文件失败: $error');
@@ -274,11 +278,11 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
         );
         return;
       }
-      // 验证模板签名代码
-      templateSignCode = _templateSignCodeController.text.trim();
-      if (templateSignCode.isEmpty) {
+      // 使用从PDF中读取的signCode
+      templateSignCode = _pdfSignCode;
+      if (templateSignCode == null || templateSignCode.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请输入模板签名代码')),
+          const SnackBar(content: Text('PDF文件验证失败，请重新选择')),
         );
         return;
       }
@@ -384,29 +388,170 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
       final selected = result.files.single;
       final String? path = selected.path;
       if (path == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('无法获取文件路径，请重试')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('无法获取文件路径，请重试')),
+          );
+        }
         return;
       }
       if (!await File(path).exists()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('文件不存在，请重新选择')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('文件不存在，请重新选择')),
+          );
+        }
         return;
       }
-      setState(() {
-        _selectedPdfPath = path;
-        _selectedPdfName = selected.name;
-      });
+
+      // 显示loading对话框
+      if (!mounted) return;
+      
+      // 显示loading对话框 - 使用Dialog确保强提示
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.black54,
+        builder: (BuildContext dialogContext) {
+          return WillPopScope(
+            onWillPop: () async => false, // 阻止返回键关闭
+            child: Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 20),
+                    const Text(
+                      '正在验证PDF文件...',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '请稍候',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+
+      // 延迟关闭函数 - 确保延迟500ms后关闭
+      Future<void> closeLoadingDialog() async {
+        if (mounted) {
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted && Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+        }
+      }
+
+      try {
+        // 读取PDF文件
+        final pdfFile = File(path);
+        final pdfBytes = await pdfFile.readAsBytes();
+
+        // 使用syncfusion_flutter_pdf库读取PDF表单域
+        final PdfDocument document = PdfDocument(inputBytes: pdfBytes);
+        
+        // 查找名为signCode的表单域
+        String? signCodeFromPdf;
+        final PdfForm form = document.form;
+        
+        for (int i = 0; i < form.fields.count; i++) {
+          final PdfField field = form.fields[i];
+          if (field.name == 'signCode') {
+            if (field is PdfTextBoxField) {
+              signCodeFromPdf = field.text;
+              break;
+            } else if (field is PdfComboBoxField) {
+              signCodeFromPdf = field.selectedValue;
+              break;
+            }
+          }
+        }
+
+        // 延迟关闭loading对话框
+        await closeLoadingDialog();
+
+        // 验证signCode
+        if (signCodeFromPdf == null || signCodeFromPdf.isEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('PDF文件不合法：未找到signCode表单域'), backgroundColor: Colors.red,),
+            );
+          }
+          document.dispose();
+          return;
+        }
+
+        // 检查signCode是否在常量中存在
+        bool isValidSignCode = false;
+        for (final entry in ConstPdfTemplateMap.entries) {
+          if (entry.value.signCode == signCodeFromPdf) {
+            isValidSignCode = true;
+            break;
+          }
+        }
+
+        if (!isValidSignCode) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('PDF文件不合法：signCode "$signCodeFromPdf" 不在允许的模板列表中'), backgroundColor: Colors.red,),
+            );
+          }
+          document.dispose();
+          return;
+        }
+
+        // 验证通过，保存文件信息和signCode
+        setState(() {
+          _selectedPdfPath = path;
+          _selectedPdfName = selected.name;
+          _pdfSignCode = signCodeFromPdf;
+        });
+
+        document.dispose();
+      } catch (e) {
+        // 延迟关闭loading对话框
+        await closeLoadingDialog();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('读取PDF文件失败: $e'), backgroundColor: Colors.red,),
+          );
+        }
+      }
     } catch (error, stackTrace) {
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) {
         return;
       }
-    ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('选择文件失败: $error')),
-      );
+      // 确保关闭loading对话框（如果有），延迟500ms
+      if (Navigator.of(context).canPop()) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('选择文件失败: $error'), backgroundColor: Colors.red,),
+        );
+      }
     }
   }
 
@@ -415,6 +560,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
     setState(() {
       _selectedPdfPath = null;
       _selectedPdfName = null;
+      _pdfSignCode = null;
     });
   }
 
@@ -658,16 +804,6 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
 
             // 上传PDF文件
             _buildPdfUploadTile(),
-
-            const SizedBox(height: 24),
-
-            // 模板签名代码（上传PDF时必填）
-            _buildTextField(
-              label: '模板签名代码',
-              controller: _templateSignCodeController,
-              hint: '请输入模板签名代码',
-              required: true,
-            ),
 
             const SizedBox(height: 32),
 
