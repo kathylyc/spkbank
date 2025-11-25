@@ -29,6 +29,44 @@ class CustomerAccountFileDao {
     );
   }
 
+  /// 更新同一开户文件uid下所有版本的生效状态
+  /// 将指定版本设为生效（enable_status = 1），其他版本设为失效（enable_status = 0）
+  Future<void> updateEnableStatusByAccountFileUid(
+    String accountFileUid,
+    String fileVersion,
+    String updateBy,
+    DateTime updateTime,
+  ) async {
+    final db = await _manager.database;
+    
+    // 使用事务确保原子性
+    await db.transaction((txn) async {
+      // 1. 将同一开户文件uid下的所有版本设为失效（enable_status = 0）
+      await txn.update(
+        CustomerAccountFile.tableName,
+        {
+          'enable_status': 0,
+          'update_by': updateBy,
+          'update_time': updateTime.toIso8601String(),
+        },
+        where: 'account_file_uid = ?',
+        whereArgs: [accountFileUid],
+      );
+
+      // 2. 将指定版本设为生效（enable_status = 1）
+      await txn.update(
+        CustomerAccountFile.tableName,
+        {
+          'enable_status': 1,
+          'update_by': updateBy,
+          'update_time': updateTime.toIso8601String(),
+        },
+        where: 'account_file_uid = ? AND file_version = ?',
+        whereArgs: [accountFileUid, fileVersion],
+      );
+    });
+  }
+
   Future<int> deleteByAccountFileUidAndVersion(String accountFileUid, String fileVersion) async {
     final db = await _manager.database;
     return db.delete(
@@ -145,6 +183,7 @@ class CustomerAccountFileDao {
         f.file_version,
         f.file_path,
         f.sign_status,
+        f.enable_status,
         f.file_src_type,
         f.template_name,
         f.template_sign_code,
@@ -245,7 +284,7 @@ class CustomerAccountFileDao {
   /// 统计已签署文档数量
   Future<int> countSignedDocuments({String? managerAccount}) async {
     final db = await _manager.database;
-    final whereClauses = <String>["sign_status = '1' OR sign_status = '已签署'"];
+    final whereClauses = <String>['sign_status = 1'];
     final whereArgs = <Object?>[];
     
     if (managerAccount != null && managerAccount.isNotEmpty) {
@@ -268,7 +307,7 @@ class CustomerAccountFileDao {
   /// 统计待签署文档数量
   Future<int> countPendingDocuments({String? managerAccount}) async {
     final db = await _manager.database;
-    final whereClauses = <String>["sign_status IS NULL OR sign_status = '' OR sign_status = '2' OR sign_status = '未签署'"];
+    final whereClauses = <String>['sign_status IS NULL OR sign_status = 0'];
     final whereArgs = <Object?>[];
     
     if (managerAccount != null && managerAccount.isNotEmpty) {

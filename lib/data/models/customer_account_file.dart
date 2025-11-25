@@ -10,6 +10,7 @@ class CustomerAccountFile {
     this.fileVersion,
     required this.filePath,
     this.signStatus,
+    this.enableStatus,
     this.fileSrcType,
     this.templateName,
     this.templateSignCode,
@@ -27,7 +28,8 @@ class CustomerAccountFile {
   final String accountFileName;
   final String? fileVersion;
   final String filePath;
-  final String? signStatus;
+  final int? signStatus;
+  final int? enableStatus;
   final String? fileSrcType;
   final String? templateName;
   final String? templateSignCode;
@@ -40,6 +42,21 @@ class CustomerAccountFile {
     DateTime? parseDate(Object? value) =>
         value == null ? null : DateTime.tryParse(value as String);
 
+    // 处理 signStatus
+    int? parseSignStatus(Object? value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      return null;
+    }
+
+    // 处理 enableStatus：可能是 int 或 null
+    int? parseEnableStatus(Object? value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value);
+      return null;
+    }
+
     return CustomerAccountFile(
       id: map['id'] as int?,
       accountFileUid: map['account_file_uid'] as String,
@@ -47,7 +64,8 @@ class CustomerAccountFile {
       accountFileName: map['account_file_name'] as String,
       fileVersion: map['file_version'] as String?,
       filePath: map['file_path'] as String,
-      signStatus: map['sign_status'] as String?,
+      signStatus: parseSignStatus(map['sign_status']),
+      enableStatus: parseEnableStatus(map['enable_status']),
       fileSrcType: map['file_src_type'] as String?,
       templateName: map['template_name'] as String?,
       templateSignCode: map['template_sign_code'] as String?,
@@ -69,6 +87,7 @@ class CustomerAccountFile {
       'file_version': fileVersion,
       'file_path': filePath,
       'sign_status': signStatus,
+      'enable_status': enableStatus,
       'file_src_type': fileSrcType,
       'template_name': templateName,
       'template_sign_code': templateSignCode,
@@ -86,7 +105,8 @@ class CustomerAccountFile {
     String? accountFileName,
     String? fileVersion,
     String? filePath,
-    String? signStatus,
+    int? signStatus,
+    int? enableStatus,
     String? fileSrcType,
     String? templateName,
     String? templateSignCode,
@@ -103,6 +123,7 @@ class CustomerAccountFile {
       fileVersion: fileVersion ?? this.fileVersion,
       filePath: filePath ?? this.filePath,
       signStatus: signStatus ?? this.signStatus,
+      enableStatus: enableStatus ?? this.enableStatus,
       fileSrcType: fileSrcType ?? this.fileSrcType,
       templateName: templateName ?? this.templateName,
       templateSignCode: templateSignCode ?? this.templateSignCode,

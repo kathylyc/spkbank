@@ -144,6 +144,22 @@ class CustomerRepository {
 
   Future<int> deleteByAccountFileUidAndVersion(String accountFileUid, String fileVersion) => _provider.customerAccountFileDao.deleteByAccountFileUidAndVersion(accountFileUid, fileVersion);
 
+  /// 更新同一开户文件uid下所有版本的生效状态
+  /// 将指定版本设为生效，其他版本设为失效
+  Future<void> updateEnableStatusByAccountFileUid(
+    String accountFileUid,
+    String fileVersion,
+    String? updateBy,
+    DateTime updateTime,
+  ) async {
+    await _provider.customerAccountFileDao.updateEnableStatusByAccountFileUid(
+      accountFileUid,
+      fileVersion,
+      updateBy ?? '',
+      updateTime,
+    );
+  }
+
   /// 查询开户文件列表，关联客户信息和客户经理信息
   Future<List<Map<String, Object?>>> findAccountFilesWithDetails({
     int? limit,

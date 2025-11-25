@@ -10,6 +10,7 @@ import 'migrations/migration_v3.dart';
 import 'migrations/migration_v4.dart';
 import 'migrations/migration_v5.dart';
 import 'migrations/migration_v6.dart';
+import 'migrations/migration_v7.dart';
 
 class DatabaseManager {
   DatabaseManager._internal();
@@ -26,6 +27,7 @@ class DatabaseManager {
     MigrationV4(),
     MigrationV5(),
     MigrationV6(),
+    MigrationV7(),
   ];
 
   Database? _database;

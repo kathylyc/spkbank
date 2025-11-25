@@ -150,7 +150,8 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           'phone': row['phone'] ?? '',
           'fileName': row['account_file_name'] ?? '',
           'version': row['file_version'] ?? '-',
-          'status': row['sign_status'] ?? '-',
+          'status': _formatSignStatus(row['sign_status']),
+          'enableStatus': row['enable_status'],
           'file_src_type': row['file_src_type'] ?? '',
           'template': row['template_name'] ?? '-',
           'templateSignCode': row['template_sign_code'],
@@ -464,7 +465,16 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       final accountFileName = (row[2]?.value?.toString() ?? '').trim();
       final fileVersion = (row[3]?.value?.toString() ?? '').trim();
       final relativeFilePath = (row[4]?.value?.toString() ?? '').trim(); // 第5列：文件路径（相对路径）
-      final signStatus = row[5]?.value?.toString()?.trim();
+      final signStatusStr = row[5]?.value?.toString()?.trim();
+      // 将 Excel 中的 signStatus 字符串转换为 int
+      int? signStatus;
+      if (signStatusStr != null && signStatusStr.isNotEmpty) {
+        if (signStatusStr == '已签署' || signStatusStr == '1') {
+          signStatus = 1;
+        } else {
+          signStatus = int.tryParse(signStatusStr) ?? 0;
+        }
+      }
       final fileSrcType = row[6]?.value?.toString()?.trim();
       final templateName = row[7]?.value?.toString()?.trim();
       final templateSignCode = row[8]?.value?.toString()?.trim();
@@ -545,7 +555,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           accountFileName: accountFileName.isNotEmpty ? accountFileName : existingFile.accountFileName,
           fileVersion: fileVersion.isNotEmpty ? fileVersion : existingFile.fileVersion,
           filePath: appCacheFilePath ?? existingFile.filePath, // 如果有新文件路径则更新，否则保持原路径
-          signStatus: signStatus?.isNotEmpty == true ? signStatus : existingFile.signStatus,
+          signStatus: signStatus ?? existingFile.signStatus,
           fileSrcType: fileSrcType?.isNotEmpty == true ? fileSrcType : existingFile.fileSrcType,
           templateName: templateName?.isNotEmpty == true ? templateName : existingFile.templateName,
           templateSignCode: templateSignCode?.isNotEmpty == true ? templateSignCode : existingFile.templateSignCode,
@@ -704,10 +714,19 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         sheet
             .cell(excel.CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
             .value = excel.TextCellValue(relativePath!);
-        // 签署状态
+        // 签署状态（将 int 转换为显示文本）
+        final statusValue = rowData['status'];
+        String statusText = '未签署';
+        if (statusValue != null) {
+          if (statusValue is int) {
+            statusText = statusValue == 1 ? '已签署' : '未签署';
+          } else if (statusValue is String) {
+            statusText = statusValue;
+          }
+        }
         sheet
             .cell(excel.CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIndex))
-            .value = excel.TextCellValue(rowData['status']?.toString() ?? '-');
+            .value = excel.TextCellValue(statusText);
         // 开户方式
         sheet
             .cell(excel.CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex))
@@ -791,7 +810,11 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         ),
         DataTableColumn(
           label: '签署状态',
-          builder: (row, context) => _buildStatusBadge(row['status']?.toString() ?? '-'),
+          builder: (row, context) => _buildSignStatusBadge(row['status']?.toString() ?? '-'),
+        ),
+        DataTableColumn(
+          label: '生效状态',
+          builder: (row, context) => _buildEnableStatusBadge(row['enableStatus']),
         ),
         DataTableColumn(
           label: '开户方式',
@@ -937,27 +960,83 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     );
   }
 
-  /// 构建状态标签
-  Widget _buildStatusBadge(String? status) {
-    if (status == null || status.isEmpty || status == '-') {
-      return Text(status ?? '-');
+  /// 格式化签署状态为显示文本
+  String _formatSignStatus(Object? status) {
+    if (status == null) return '未签署';
+    if (status is int) {
+      switch (status) {
+        case 1:
+          return '已签署';
+        default:
+          return '未签署';
+      }
     }
+    if (status is String) {
+      // 兼容旧数据
+      if (status == '已签署' || status == '1') return '已签署';
+      if (status == '未签署' || status == '2') return '未签署';
+      return status.isEmpty ? '-' : status;
+    }
+    return '-';
+  }
+
+  /// 构建签署状态标签
+  Widget _buildSignStatusBadge(String? status) {
+    return Text(status ?? '-');
+    // if (status == null || status.isEmpty || status == '-') {
+    //   return Text(status ?? '-');
+    // }
+    //
+    // Color backgroundColor;
+    // Color textColor;
+    //
+    // switch (status) {
+    //   case '已签署':
+    //     backgroundColor = Colors.green.shade100;
+    //     textColor = Colors.green.shade800;
+    //     break;
+    //   case '未签署':
+    //     backgroundColor = Colors.orange.shade100;
+    //     textColor = Colors.orange.shade800;
+    //     break;
+    //   default:
+    //     backgroundColor = Colors.grey.shade100;
+    //     textColor = Colors.grey.shade800;
+    // }
+    //
+    // return Container(
+    //   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    //   decoration: BoxDecoration(
+    //     color: backgroundColor,
+    //     borderRadius: BorderRadius.circular(4),
+    //   ),
+    //   child: Text(
+    //     status,
+    //     style: TextStyle(
+    //       fontSize: 13,
+    //       color: textColor,
+    //       fontWeight: FontWeight.w500,
+    //     ),
+    //   ),
+    // );
+  }
+
+  /// 构建生效状态标签
+  Widget _buildEnableStatusBadge(Object? enableStatus) {
+    final isEnabled = enableStatus != null && (enableStatus == 1 || enableStatus == '1');
+    final statusText = isEnabled ? '生效中' : '已失效';
     
     Color backgroundColor;
     Color textColor;
     
-    switch (status) {
-      case '已签署':
-        backgroundColor = Colors.green.shade100;
-        textColor = Colors.green.shade800;
-        break;
-      case '未签署':
-        backgroundColor = Colors.orange.shade100;
-        textColor = Colors.orange.shade800;
-        break;
-      default:
-        backgroundColor = Colors.grey.shade100;
-        textColor = Colors.grey.shade800;
+    if (isEnabled) {
+      // 已生效：绿色
+      backgroundColor = Colors.green.shade100;
+      textColor = Colors.green.shade800;
+    } else {
+      // 未生效：橙色/黄色
+      backgroundColor = Colors.orange.shade100;
+      textColor = Colors.orange.shade800;
     }
     
     return Container(
@@ -967,7 +1046,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        status,
+        statusText,
         style: TextStyle(
           fontSize: 13,
           color: textColor,
@@ -977,112 +1056,234 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     );
   }
 
+  /// 判断数据是否已生效
+  bool _isEnabled(Map<String, dynamic> row) {
+    final enableStatus = row['enableStatus'];
+    return enableStatus != null && (enableStatus == 1 || enableStatus == '1');
+  }
+
+  /// 处理生效操作
+  Future<void> _handleEnable(Map<String, dynamic> row) async {
+    final accountFileUid = row['account_file_uid']?.toString();
+    final fileVersion = row['version']?.toString();
+    
+    if (accountFileUid == null || accountFileUid.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('开户文件编号不能为空')),
+        );
+      }
+      return;
+    }
+
+    if (fileVersion == null || fileVersion.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('文件版本号不能为空')),
+        );
+      }
+      return;
+    }
+
+    try {
+      // 验证文件是否存在
+      final files = await _repository.findAccountFilesByAccountFileUid(accountFileUid);
+      final targetFile = files.firstWhere(
+        (file) => file.fileVersion == fileVersion,
+        orElse: () => throw Exception('文件不存在'),
+      );
+
+      // 获取登录用户信息
+      final loginUser = await StorageUtils.getLoginUser();
+      final now = DateTime.now();
+
+      // 更新生效状态：将指定版本设为生效，同一开户文件uid下的其他版本设为失效
+      await _repository.updateEnableStatusByAccountFileUid(
+        accountFileUid,
+        fileVersion,
+        loginUser?.userName,
+        now,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已生效: ${row['fileName']}（版本 $fileVersion）')),
+        );
+        // 刷新数据
+        _loadData();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('生效失败: $e')),
+        );
+      }
+    }
+  }
+
   /// 构建操作按钮
   Widget _buildActions(Map<String, dynamic> row) {
     // 判断是否为扫描生成的文件
     final fileSrcType = row['file_src_type']?.toString() ?? '';
     final isScanGenerated = fileSrcType == '扫描生成';
+    // 判断是否已生效
+    final isEnabled = _isEnabled(row);
     
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // 文件预览按钮（蓝色）
-        ElevatedButton(
-          onPressed: () {
-            _navigateToPreviewPage(row, isEditMode: false);
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
-            ),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    // 按钮列表，可以自动换行
+    final buttons = <Widget>[
+      // 预览按钮（蓝色，总是可用）
+      ElevatedButton(
+        onPressed: () {
+          _navigateToPreviewPage(row, isEditMode: false);
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blue,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
           ),
-          child: const Text('文件预览', style: TextStyle(fontSize: 13)),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
-        
-        const SizedBox(width: 8),
-        
-        // 修改按钮（如果是扫描生成则灰显不可用）
-        ElevatedButton(
-          onPressed: isScanGenerated ? null : () {
-            _navigateToPreviewPage(row, isEditMode: true);
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: isScanGenerated ? Colors.grey.shade300 : Colors.blue,
-            foregroundColor: isScanGenerated ? Colors.grey.shade600 : Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
-            ),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        child: const Text('预览', style: TextStyle(fontSize: 13)),
+      ),
+      
+      const SizedBox(width: 8),
+      
+      // 生效按钮（已生效时灰显，未生效时蓝色可用）
+      ElevatedButton(
+        onPressed: isEnabled ? null : () {
+          _handleEnable(row);
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isEnabled ? Colors.grey.shade300 : Colors.blue,
+          foregroundColor: isEnabled ? Colors.grey.shade600 : Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
           ),
-          child: const Text('修改', style: TextStyle(fontSize: 13)),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
-        
-        const SizedBox(width: 8),
-        
-        // 删除按钮（红色）
-        ElevatedButton(
-          onPressed: () {
-            showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('确认删除'),
-                content: Text('确定要删除"${row['fileName']}"吗？'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('取消'),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      Navigator.pop(context);
-                      final accountFileUid = row['account_file_uid'] as String?;
-                      final fileVersion = row['file_version'] as String?;
-                      if (accountFileUid != null) {
-                        try {
-                          await _repository.deleteByAccountFileUidAndVersion(accountFileUid, fileVersion!);
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('已删除: ${row['fileName']}')),
-                            );
-                            _loadData();
-                          }
-                        } catch (e) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('删除失败: $e')),
-                            );
-                          }
+        child: const Text('生效', style: TextStyle(fontSize: 13)),
+      ),
+      
+      const SizedBox(width: 8),
+      
+      // 修改按钮（已失效或扫描生成时灰显不可用）
+      ElevatedButton(
+        onPressed: (isEnabled && !isScanGenerated) ? () {
+          _navigateToPreviewPage(row, isEditMode: true);
+        } : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: (isEnabled && !isScanGenerated) ? Colors.blue : Colors.grey.shade300,
+          foregroundColor: (isEnabled && !isScanGenerated) ? Colors.white : Colors.grey.shade600,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+          ),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        child: const Text('修改', style: TextStyle(fontSize: 13)),
+      ),
+      
+      const SizedBox(width: 8),
+      
+      // 导出按钮（已失效时灰显不可用）
+      ElevatedButton(
+        onPressed: isEnabled ? () {
+          _handleExportSingleFile(row);
+        } : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isEnabled ? Colors.blue : Colors.grey.shade300,
+          foregroundColor: isEnabled ? Colors.white : Colors.grey.shade600,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+          ),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        child: const Text('导出', style: TextStyle(fontSize: 13)),
+      ),
+      
+      const SizedBox(width: 8),
+      
+      // 删除按钮（红色，总是可用）
+      ElevatedButton(
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('确认删除'),
+              content: Text('确定要删除"${row['fileName']}"吗？'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('取消'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    final accountFileUid = row['account_file_uid'] as String?;
+                    final fileVersion = row['version']?.toString();
+                    if (accountFileUid != null && fileVersion != null) {
+                      try {
+                        await _repository.deleteByAccountFileUidAndVersion(accountFileUid, fileVersion);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('已删除: ${row['fileName']}')),
+                          );
+                          _loadData();
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('删除失败: $e')),
+                          );
                         }
                       }
-                    },
-                    style: TextButton.styleFrom(foregroundColor: Colors.red),
-                    child: const Text('删除'),
-                  ),
-                ],
-              ),
-            );
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
+                    }
+                  },
+                  style: TextButton.styleFrom(foregroundColor: Colors.red),
+                  child: const Text('删除'),
+                ),
+              ],
             ),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          );
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.red,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
           ),
-          child: const Text('删除', style: TextStyle(fontSize: 13)),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
-      ],
+        child: const Text('删除', style: TextStyle(fontSize: 13)),
+      ),
+    ];
+    
+    // 使用Wrap使按钮可以自动换行
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: buttons,
     );
+  }
+
+  /// 导出单个文件
+  Future<void> _handleExportSingleFile(Map<String, dynamic> row) async {
+    // TODO: 实现单个文件导出功能
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('导出功能：${row['fileName']}')),
+      );
+    }
   }
 }
 
