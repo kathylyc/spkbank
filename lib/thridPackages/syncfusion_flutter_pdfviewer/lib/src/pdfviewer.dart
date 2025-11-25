@@ -2156,11 +2156,12 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
     // Update the annotations in the document
     _updateAnnotations();
 
-    // Set the default appearance for the form.
-    _document!.form.setDefaultAppearance(false);
-
-    // Flatten the form fields if the PdfFlattenOption is enabled.
+    // Only set default appearance if flattening is enabled to preserve Chinese text
     if (_pdfViewerController._flattenOption == PdfFlattenOption.formFields) {
+      // Set the default appearance for the form.
+      _document!.form.setDefaultAppearance(false);
+
+      // Flatten the form fields if the PdfFlattenOption is enabled.
       _document!.form.flattenAllFields();
     }
 
@@ -2179,28 +2180,33 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
 
   /// Update the signature form fields data
   void _updateSignatureFormFields() {
-    for (final PdfFormField signatureField
-        in _pdfViewerController._formFields) {
-      if (signatureField is PdfSignatureFormField) {
-        final PdfSignatureFormFieldHelper helper =
-            PdfFormFieldHelper.getHelper(signatureField)
-                as PdfSignatureFormFieldHelper;
-        final PdfPage page = helper.pdfSignatureField.page!;
-        if (signatureField.signature != null) {
-          final List<int>? bitmapBytes = signatureField.signature;
-          if (bitmapBytes != null) {
-            page.graphics.drawImage(
-              PdfBitmap(bitmapBytes),
-              Rect.fromLTWH(
-                helper.bounds.left,
-                helper.bounds.top,
-                helper.bounds.width,
-                helper.bounds.height,
-              ),
-            );
-            helper.pdfField.form!.fields.remove(helper.pdfSignatureField);
+    // Only process signatures when flattening is enabled
+    if (_pdfViewerController._flattenOption == PdfFlattenOption.formFields) {
+      for (final PdfFormField signatureField
+          in _pdfViewerController._formFields) {
+        if (signatureField is PdfSignatureFormField) {
+          final PdfSignatureFormFieldHelper helper =
+              PdfFormFieldHelper.getHelper(signatureField)
+                  as PdfSignatureFormFieldHelper;
+          final PdfPage page = helper.pdfSignatureField.page!;
+          if (signatureField.signature != null) {
+            final List<int>? bitmapBytes = signatureField.signature;
+            if (bitmapBytes != null) {
+              // Draw signature to page content only when flattening
+              page.graphics.drawImage(
+                PdfBitmap(bitmapBytes),
+                Rect.fromLTWH(
+                  helper.bounds.left,
+                  helper.bounds.top,
+                  helper.bounds.width,
+                  helper.bounds.height,
+                ),
+              );
+              // Remove signature field from form when flattening
+              helper.pdfField.form!.fields.remove(helper.pdfSignatureField);
+            }
+            _isSignatureSaved = true;
           }
-          _isSignatureSaved = true;
         }
       }
     }

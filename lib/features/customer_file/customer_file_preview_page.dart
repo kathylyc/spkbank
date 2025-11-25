@@ -27,8 +27,37 @@ enum PdfFlattenConfig {
   all,
 }
 
-/// PDF扁平化配置扩展方法
+/// PdfFlattenConfig扩展方法
 extension PdfFlattenConfigExtension on PdfFlattenConfig {
+  /// 获取对应的Syncfusion PdfFlattenOption字符串名称
+  String get toSyncfusionFlattenOptionName {
+    switch (this) {
+      case PdfFlattenConfig.none:
+        return 'none';
+      case PdfFlattenConfig.nonSignatureOnly:
+      case PdfFlattenConfig.signedOnly:
+      case PdfFlattenConfig.all:
+        // 对于需要部分扁平化的情况，我们使用formFields然后手动处理
+        return 'formFields';
+    }
+  }
+
+  /// 是否需要手动处理扁平化逻辑
+  bool get requiresCustomFlattening {
+    switch (this) {
+      case PdfFlattenConfig.none:
+        return false;
+      case PdfFlattenConfig.all:
+        return false; // 使用全部扁平化
+      case PdfFlattenConfig.nonSignatureOnly:
+      case PdfFlattenConfig.signedOnly:
+        return true; // 需要自定义扁平化逻辑
+    }
+  }
+}
+
+/// PDF扁平化配置扩展方法（原有扩展）
+extension PdfFlattenConfigDescriptionExtension on PdfFlattenConfig {
   /// 获取配置的中文描述
   String get description {
     switch (this) {
@@ -231,21 +260,30 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
     // 优先使用 PdfViewerController.saveDocument() 保存，这样可以确保手写签名正确保存
     if (_pdfViewerController != null) {
       try {
-        // 根据扁平化配置使用不同的保存选项
-        if (flattenConfig == PdfFlattenConfig.none) {
-          debugPrint('使用 PdfViewerController.saveDocument() 保存（不扁平化任何表单域）...');
-          // 使用默认的 saveDocument，不扁平化任何表单域
+        // 设置正确的扁平化选项
+        if (flattenConfig.requiresCustomFlattening) {
+          // 对于需要自定义扁平化的配置，先不扁平化保存，然后手动处理
+          debugPrint('使用 PdfViewerController.saveDocument() 保存（先保留表单域，后续手动扁平化）...');
           savedBytes = await _pdfViewerController!.saveDocument();
           debugPrint('✓ 使用 PdfViewerController.saveDocument() 保存成功（保留表单域）');
         } else {
-          debugPrint('使用 PdfViewerController.saveDocument() 保存（保留表单数据）...');
-          // 先保存表单数据，然后根据配置进行后续扁平化处理
-          savedBytes = await _pdfViewerController!.saveDocument();
-          debugPrint('✓ 使用 PdfViewerController.saveDocument() 保存成功');
+          // 对于简单配置，直接使用Syncfusion的扁平化选项
+          debugPrint('使用 PdfViewerController.saveDocument() 保存，flattenOption: ${flattenConfig.toSyncfusionFlattenOptionName}...');
+
+          // 根据字符串名称获取对应的枚举值
+          PdfFlattenOption flattenOption = PdfFlattenOption.values.firstWhere(
+            (option) => option.name == flattenConfig.toSyncfusionFlattenOptionName,
+            orElse: () => PdfFlattenOption.none,
+          );
+
+          savedBytes = await _pdfViewerController!.saveDocument(
+            flattenOption: flattenOption,
+          );
+          debugPrint('✓ 使用 PdfViewerController.saveDocument() 保存成功（${flattenConfig.description}）');
         }
 
-        // 根据扁平化配置进行后续处理
-        if (flattenConfig != PdfFlattenConfig.none) {
+        // 根据扁平化配置进行后续处理（仅对需要自定义扁平化的配置）
+        if (flattenConfig.requiresCustomFlattening) {
           try {
             final PdfDocument flattenDocument = PdfDocument(inputBytes: savedBytes);
             final PdfForm flattenForm = flattenDocument.form;
