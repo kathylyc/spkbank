@@ -180,6 +180,7 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
           password: passwordHash,
           status: '0',
           groupCode: groupCode,
+          isFirstLogin: true,
           lockUntil: DateTime.now(),
           pwdUpdateDate: now, // 新增客户经理时，设置密码更新日期为当前时间
           createBy: _loginUser?.userName,

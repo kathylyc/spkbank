@@ -104,6 +104,7 @@ class CustomerAccountFileDao {
     String? phoneKeyword,
     String? fileNameKeyword,
     String? managerAccount,
+    List<String>? managerAccounts,
   }) async {
     final db = await _manager.database;
     final whereClauses = <String>[];
@@ -121,7 +122,11 @@ class CustomerAccountFileDao {
       whereClauses.add('f.account_file_name LIKE ?');
       whereArgs.add('%$fileNameKeyword%');
     }
-    if (managerAccount != null && managerAccount.isNotEmpty) {
+    if (managerAccounts != null && managerAccounts.isNotEmpty) {
+      final placeholders = List.filled(managerAccounts.length, '?').join(', ');
+      whereClauses.add('c.manager_account IN ($placeholders)');
+      whereArgs.addAll(managerAccounts);
+    } else if (managerAccount != null && managerAccount.isNotEmpty) {
       whereClauses.add('c.manager_account = ?');
       whereArgs.add(managerAccount);
     }
@@ -172,6 +177,7 @@ class CustomerAccountFileDao {
     String? phoneKeyword,
     String? fileNameKeyword,
     String? managerAccount,
+    List<String>? managerAccounts,
   }) async {
     final db = await _manager.database;
     final whereClauses = <String>[];
@@ -189,7 +195,11 @@ class CustomerAccountFileDao {
       whereClauses.add('f.account_file_name LIKE ?');
       whereArgs.add('%$fileNameKeyword%');
     }
-    if (managerAccount != null && managerAccount.isNotEmpty) {
+    if (managerAccounts != null && managerAccounts.isNotEmpty) {
+      final placeholders = List.filled(managerAccounts.length, '?').join(', ');
+      whereClauses.add('c.manager_account IN ($placeholders)');
+      whereArgs.addAll(managerAccounts);
+    } else if (managerAccount != null && managerAccount.isNotEmpty) {
       whereClauses.add('c.manager_account = ?');
       whereArgs.add(managerAccount);
     }

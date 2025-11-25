@@ -152,6 +152,7 @@ class CustomerRepository {
     String? phoneKeyword,
     String? fileNameKeyword,
     String? managerAccount,
+    List<String>? managerAccounts,
   }) =>
       _provider.customerAccountFileDao.findWithCustomerAndManager(
         limit: limit,
@@ -160,6 +161,7 @@ class CustomerRepository {
         phoneKeyword: phoneKeyword,
         fileNameKeyword: fileNameKeyword,
         managerAccount: managerAccount,
+        managerAccounts: managerAccounts,
       );
 
   /// 统计开户文件总数（带查询条件）
@@ -168,12 +170,14 @@ class CustomerRepository {
     String? phoneKeyword,
     String? fileNameKeyword,
     String? managerAccount,
+    List<String>? managerAccounts,
   }) =>
       _provider.customerAccountFileDao.countWithCustomerAndManager(
         customerNameKeyword: customerNameKeyword,
         phoneKeyword: phoneKeyword,
         fileNameKeyword: fileNameKeyword,
         managerAccount: managerAccount,
+        managerAccounts: managerAccounts,
       );
 
   Future<CustomerAttachmentFile> addAttachmentFile(CustomerAttachmentFile entity,

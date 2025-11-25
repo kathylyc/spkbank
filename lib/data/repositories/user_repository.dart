@@ -142,7 +142,7 @@ class UserRepository {
     if (user == null) return true;
 
     // 首次登录需要修改密码
-    if (user.isFirstLogin == true) return true;
+    if (user.isFirstLogin == null || user.isFirstLogin == true) return true;
 
     // 客户经理（userType == '01'）需要检查90天密码过期
     if (user.userType == '01') {

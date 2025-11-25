@@ -112,12 +112,6 @@ class _LoginPageState extends State<LoginPage> {
           return;
         }
 
-        // 登录成功，重置失败次数
-        await userRepo.resetLoginFailCount(username);
-
-        // 更新登录时间
-        await userRepo.updateLoginDate(username, DateTime.now());
-
         // 检查是否需要修改密码
         final shouldUpdatePassword = await userRepo.shouldUpdatePassword(username);
         if (shouldUpdatePassword) {
@@ -140,6 +134,11 @@ class _LoginPageState extends State<LoginPage> {
           );
           return;
         }
+
+        // 登录成功，重置失败次数
+        await userRepo.resetLoginFailCount(username);
+        // 更新登录时间
+        await userRepo.updateLoginDate(username, DateTime.now());
       }
 
       // 保存当前登录的user_name到kv中

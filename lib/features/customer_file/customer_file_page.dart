@@ -97,6 +97,27 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           ? null 
           : _fileNameController.text.trim();
       
+      // 如果是客户经理（userType=01），获取同一团队的所有客户经理账号列表
+      // 超级管理员（userType=00）可以查询所有
+      List<String>? teamManagerAccounts;
+      String? singleManagerAccount;
+      
+      if (_loginUser != null) {
+        if (_loginUser!.userType == '01' && _loginUser!.groupCode.isNotEmpty) {
+          // 客户经理：获取团队下所有客户经理的账号
+          final teamManagers = await _userRepository.findManagersByGroupCode(_loginUser!.groupCode);
+          teamManagerAccounts = teamManagers.map((manager) => manager.userName).toList();
+        } else if (_loginUser!.userType == '00') {
+          // 超级管理员：不传managerAccount，查询所有
+          singleManagerAccount = null;
+        } else {
+          // 其他情况：保持原有逻辑
+          singleManagerAccount = _managerAccount;
+        }
+      } else {
+        singleManagerAccount = _managerAccount;
+      }
+      
       // 查询数据和总数
       final results = await Future.wait([
         _repository.findAccountFilesWithDetails(
@@ -105,13 +126,15 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           customerNameKeyword: customerNameKeyword,
           phoneKeyword: phoneKeyword,
           fileNameKeyword: fileNameKeyword,
-          managerAccount: _managerAccount,
+          managerAccount: teamManagerAccounts == null ? singleManagerAccount : null,
+          managerAccounts: teamManagerAccounts,
         ),
         _repository.countAccountFiles(
           customerNameKeyword: customerNameKeyword,
           phoneKeyword: phoneKeyword,
           fileNameKeyword: fileNameKeyword,
-          managerAccount: _managerAccount,
+          managerAccount: teamManagerAccounts == null ? singleManagerAccount : null,
+          managerAccounts: teamManagerAccounts,
         ),
       ]);
       
