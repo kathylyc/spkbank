@@ -142,6 +142,7 @@ class CustomerAccountFileDao {
         f.sign_status,
         f.file_src_type,
         f.template_name,
+        f.template_sign_code,
         f.create_by,
         f.create_time,
         f.update_by,

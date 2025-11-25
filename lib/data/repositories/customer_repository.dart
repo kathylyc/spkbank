@@ -109,6 +109,14 @@ class CustomerRepository {
 
   Future<CustomerAccountFile> addAccountFile(CustomerAccountFile entity,
       {ConflictAlgorithm conflictAlgorithm = ConflictAlgorithm.replace}) async {
+    // 验证：当 file_src_type 为"模板生成"或"上传PDF"时，template_sign_code 必须填写
+    if (entity.fileSrcType == '模板生成' || entity.fileSrcType == '上传PDF') {
+      if (entity.templateSignCode == null || entity.templateSignCode!.isEmpty) {
+        throw ArgumentError(
+          '当 file_src_type 为"模板生成"或"上传PDF"时，template_sign_code 必须填写',
+        );
+      }
+    }
     final id = await _provider.customerAccountFileDao.insert(entity, conflictAlgorithm: conflictAlgorithm);
     return entity.copyWith(id: id);
   }

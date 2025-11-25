@@ -24,6 +24,7 @@ class CustomerFilePreviewPage extends StatefulWidget {
   final String? customerUid; // 客户 UID（用于保存）
   final String? fileVersion; // 文件版本（用于保存）
   final String? fileSrcType; // 文件来源类型（用于保存）
+  final String? templateSignCode; // 模板签名代码（用于保存）
 
   const CustomerFilePreviewPage({
     super.key,
@@ -37,6 +38,7 @@ class CustomerFilePreviewPage extends StatefulWidget {
     this.customerUid,
     this.fileVersion,
     this.fileSrcType,
+    this.templateSignCode,
   });
 
   @override
@@ -479,6 +481,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         fileVersion: newFileVersion,
         filePath: savedFilePath,
         templateName: widget.templateName,
+        templateSignCode: widget.templateSignCode,
         fileSrcType: widget.fileSrcType ?? '模板生成',
         createBy: loginUser?.userName,
         createTime: now,

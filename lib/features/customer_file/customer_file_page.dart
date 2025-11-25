@@ -130,6 +130,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           'status': row['sign_status'] ?? '-',
           'file_src_type': row['file_src_type'] ?? '',
           'template': row['template_name'] ?? '-',
+          'templateSignCode': row['template_sign_code'],
           'managerCode': row['manager_code'] ?? '',
           'managerName': row['manager_name'] ?? '',
           'filePath': row['file_path'],
@@ -279,6 +280,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     final customerUid = row['customerUid']?.toString();
     final fileVersion = row['version']?.toString();
     final fileSrcType = row['file_src_type']?.toString();
+    final templateSignCode = row['templateSignCode']?.toString();
 
     final result = await Navigator.of(context).push(
       PageRouteBuilder(
@@ -293,6 +295,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
             customerUid: customerUid,
             fileVersion: fileVersion,
             fileSrcType: fileSrcType,
+            templateSignCode: templateSignCode,
           );
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -441,7 +444,8 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       final signStatus = row[5]?.value?.toString()?.trim();
       final fileSrcType = row[6]?.value?.toString()?.trim();
       final templateName = row[7]?.value?.toString()?.trim();
-      final managerAccount = (row[8]?.value?.toString() ?? '').trim();
+      final templateSignCode = row[8]?.value?.toString()?.trim();
+      final managerAccount = (row[9]?.value?.toString() ?? '').trim();
 
       if (accountFileName.isEmpty) {
         continue; // 跳过开户文件名为空的行
@@ -521,6 +525,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           signStatus: signStatus?.isNotEmpty == true ? signStatus : existingFile.signStatus,
           fileSrcType: fileSrcType?.isNotEmpty == true ? fileSrcType : existingFile.fileSrcType,
           templateName: templateName?.isNotEmpty == true ? templateName : existingFile.templateName,
+          templateSignCode: templateSignCode?.isNotEmpty == true ? templateSignCode : existingFile.templateSignCode,
           updateBy: loginUser?.userName,
           updateTime: now,
         );
@@ -543,6 +548,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           signStatus: signStatus,
           fileSrcType: fileSrcType,
           templateName: templateName,
+          templateSignCode: templateSignCode?.isNotEmpty == true ? templateSignCode : null,
           createBy: loginUser?.userName,
           createTime: now,
           updateBy: loginUser?.userName,

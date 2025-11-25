@@ -36,6 +36,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
   // 表单控制器
   String? _selectedCustomerUid; // 存储选中的客户 UID
   final TextEditingController _fileNameController = TextEditingController();
+  final TextEditingController _templateSignCodeController = TextEditingController();
   int? _selectedTemplateId; // 存储选中的模板 ID
 
   // 客户列表（从数据库获取）
@@ -119,6 +120,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
   void dispose() {
     _tabController.dispose();
     _fileNameController.dispose();
+    _templateSignCodeController.dispose();
     // 清理 file_picker 生成的临时文件
     FilePicker.platform.clearTemporaryFiles().catchError((error) {
       debugPrint('清理 file_picker 临时文件失败: $error');
@@ -188,6 +190,9 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
         ? _allPdfData[templateIndex]
         : _allPdfData.first;
     
+    // 获取模板签名代码
+    final templateSignCode = template['signCode'] as String?;
+    
     // 跳转到预览页面，传递模板的完整信息
     Navigator.of(context).push(
       PageRouteBuilder(
@@ -197,6 +202,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
             fileName: _fileNameController.text,
             templateName: template['name'] as String,
             templateAssetPath: template['assetPath'] as String,
+            templateSignCode: templateSignCode,
           );
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -220,6 +226,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
     }
     
     String? templateName;
+    String? templateSignCode;
     String? sourceFilePath;
     
     if (isTemplateTab) {
@@ -237,6 +244,14 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
           ? _allPdfData[templateIndex]
           : _allPdfData.first;
       templateName = template['name'] as String;
+      // 从模板信息中获取 signCode
+      templateSignCode = template['signCode'] as String?;
+      if (templateSignCode == null || templateSignCode.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('模板签名代码不能为空')),
+        );
+        return;
+      }
       // 从assets加载文件到临时目录
       try {
         final ByteData data = await rootBundle.load(template['assetPath'] as String);
@@ -256,6 +271,14 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
       if (_selectedPdfPath == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('请上传PDF文件')),
+        );
+        return;
+      }
+      // 验证模板签名代码
+      templateSignCode = _templateSignCodeController.text.trim();
+      if (templateSignCode.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('请输入模板签名代码')),
         );
         return;
       }
@@ -320,6 +343,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
         fileVersion: fileVersion,
         filePath: savedFilePath,
         templateName: templateName,
+        templateSignCode: templateSignCode,
         fileSrcType: isTemplateTab ? '模板生成' : '上传PDF',
         createBy: loginUser?.userName,
         createTime: now,
@@ -634,6 +658,16 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
 
             // 上传PDF文件
             _buildPdfUploadTile(),
+
+            const SizedBox(height: 24),
+
+            // 模板签名代码（上传PDF时必填）
+            _buildTextField(
+              label: '模板签名代码',
+              controller: _templateSignCodeController,
+              hint: '请输入模板签名代码',
+              required: true,
+            ),
 
             const SizedBox(height: 32),
 

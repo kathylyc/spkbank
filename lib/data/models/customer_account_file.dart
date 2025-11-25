@@ -12,6 +12,7 @@ class CustomerAccountFile {
     this.signStatus,
     this.fileSrcType,
     this.templateName,
+    this.templateSignCode,
     this.createBy,
     this.createTime,
     this.updateBy,
@@ -29,6 +30,7 @@ class CustomerAccountFile {
   final String? signStatus;
   final String? fileSrcType;
   final String? templateName;
+  final String? templateSignCode;
   final String? createBy;
   final DateTime? createTime;
   final String? updateBy;
@@ -48,6 +50,7 @@ class CustomerAccountFile {
       signStatus: map['sign_status'] as String?,
       fileSrcType: map['file_src_type'] as String?,
       templateName: map['template_name'] as String?,
+      templateSignCode: map['template_sign_code'] as String?,
       createBy: map['create_by'] as String?,
       createTime: parseDate(map['create_time']),
       updateBy: map['update_by'] as String?,
@@ -68,6 +71,7 @@ class CustomerAccountFile {
       'sign_status': signStatus,
       'file_src_type': fileSrcType,
       'template_name': templateName,
+      'template_sign_code': templateSignCode,
       'create_by': createBy,
       'create_time': formatDate(createTime),
       'update_by': updateBy,
@@ -85,6 +89,7 @@ class CustomerAccountFile {
     String? signStatus,
     String? fileSrcType,
     String? templateName,
+    String? templateSignCode,
     String? createBy,
     DateTime? createTime,
     String? updateBy,
@@ -100,6 +105,7 @@ class CustomerAccountFile {
       signStatus: signStatus ?? this.signStatus,
       fileSrcType: fileSrcType ?? this.fileSrcType,
       templateName: templateName ?? this.templateName,
+      templateSignCode: templateSignCode ?? this.templateSignCode,
       createBy: createBy ?? this.createBy,
       createTime: createTime ?? this.createTime,
       updateBy: updateBy ?? this.updateBy,
