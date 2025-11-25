@@ -12,6 +12,52 @@ import '../../data/repositories/customer_repository.dart';
 import '../../utils/file_manager.dart';
 import '../../utils/storage_utils.dart';
 
+/// PDF扁平化配置枚举
+enum PdfFlattenConfig {
+  /// 不扁平化任何表单域（默认，保留所有可编辑性）
+  none,
+
+  /// 仅扁平化非签名字段，保留签名字段的可编辑性
+  nonSignatureOnly,
+
+  /// 仅扁平化已签名的签名字段，保留其他字段可编辑
+  signedOnly,
+
+  /// 扁平化所有表单域，生成正式不可修改PDF
+  all,
+}
+
+/// PDF扁平化配置扩展方法
+extension PdfFlattenConfigExtension on PdfFlattenConfig {
+  /// 获取配置的中文描述
+  String get description {
+    switch (this) {
+      case PdfFlattenConfig.none:
+        return '保存草稿（保留表单可编辑）';
+      case PdfFlattenConfig.nonSignatureOnly:
+        return '保存（仅保留签名可编辑）';
+      case PdfFlattenConfig.signedOnly:
+        return '保存（仅扁平化已签名）';
+      case PdfFlattenConfig.all:
+        return '保存正式文档（全部扁平化）';
+    }
+  }
+
+  /// 获取配置的简短描述
+  String get shortDescription {
+    switch (this) {
+      case PdfFlattenConfig.none:
+        return '草稿保存';
+      case PdfFlattenConfig.nonSignatureOnly:
+        return '保留签名';
+      case PdfFlattenConfig.signedOnly:
+        return '扁平化签名';
+      case PdfFlattenConfig.all:
+        return '正式文档';
+    }
+  }
+}
+
 /// 开户文件预览页面
 class CustomerFilePreviewPage extends StatefulWidget {
   final String? customerName;
@@ -172,8 +218,284 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
     }
   }
 
-  /// 保存PDF文件
-  Future<void> _handleSave() async {
+  /// 使用指定扁平化配置保存PDF文件
+  /// [flattenConfig] 扁平化配置，默认为不扁平化
+  /// 返回保存后的PDF字节数据
+  Future<List<int>> _savePdfWithFlattenConfig({
+    PdfFlattenConfig flattenConfig = PdfFlattenConfig.none,
+  }) async {
+    debugPrint('=== 开始保存PDF，扁平化配置: ${flattenConfig.description} ===');
+
+    List<int> savedBytes;
+
+    // 优先使用 PdfViewerController.saveDocument() 保存，这样可以确保手写签名正确保存
+    if (_pdfViewerController != null) {
+      try {
+        // 根据扁平化配置使用不同的保存选项
+        if (flattenConfig == PdfFlattenConfig.none) {
+          debugPrint('使用 PdfViewerController.saveDocument() 保存（不扁平化任何表单域）...');
+          // 使用默认的 saveDocument，不扁平化任何表单域
+          savedBytes = await _pdfViewerController!.saveDocument();
+          debugPrint('✓ 使用 PdfViewerController.saveDocument() 保存成功（保留表单域）');
+        } else {
+          debugPrint('使用 PdfViewerController.saveDocument() 保存（保留表单数据）...');
+          // 先保存表单数据，然后根据配置进行后续扁平化处理
+          savedBytes = await _pdfViewerController!.saveDocument();
+          debugPrint('✓ 使用 PdfViewerController.saveDocument() 保存成功');
+        }
+
+        // 根据扁平化配置进行后续处理
+        if (flattenConfig != PdfFlattenConfig.none) {
+          try {
+            final PdfDocument flattenDocument = PdfDocument(inputBytes: savedBytes);
+            final PdfForm flattenForm = flattenDocument.form;
+            int flattenCount = 0;
+            int skipCount = 0;
+
+            for (int i = 0; i < flattenForm.fields.count; i++) {
+              final PdfField field = flattenForm.fields[i];
+              bool shouldFlatten = false;
+              String reason = '';
+
+              try {
+                if (field is PdfSignatureField) {
+                  dynamic fieldDynamic = field;
+                  final signature = fieldDynamic.signature;
+                  final isSigned = signature != null;
+
+                  switch (flattenConfig) {
+                    case PdfFlattenConfig.nonSignatureOnly:
+                      shouldFlatten = false; // 不扁平化签名字段
+                      reason = '签名字段，配置为不扁平化签名';
+                      break;
+                    case PdfFlattenConfig.signedOnly:
+                      shouldFlatten = isSigned; // 仅扁平化已签名的字段
+                      reason = isSigned ? '已签名字段，配置为扁平化已签名' : '未签名字段，配置为跳过未签名';
+                      break;
+                    case PdfFlattenConfig.all:
+                      shouldFlatten = true; // 扁平化所有签名字段（无论是否已签名）
+                      reason = isSigned ? '已签名字段，配置为扁平化所有' : '未签名字段，配置为扁平化所有';
+                      break;
+                    case PdfFlattenConfig.none:
+                    default:
+                      shouldFlatten = false;
+                      reason = '配置为不扁平化';
+                      break;
+                  }
+                } else {
+                  // 非签名字段
+                  switch (flattenConfig) {
+                    case PdfFlattenConfig.nonSignatureOnly:
+                    case PdfFlattenConfig.all:
+                      shouldFlatten = true;
+                      reason = '非签名字段，配置为扁平化';
+                      break;
+                    case PdfFlattenConfig.signedOnly:
+                    case PdfFlattenConfig.none:
+                    default:
+                      shouldFlatten = false;
+                      reason = '非签名字段，配置为不扁平化';
+                      break;
+                  }
+                }
+
+                if (shouldFlatten) {
+                  try {
+                    field.flatten();
+                    flattenCount++;
+                    debugPrint('✓ 扁平化字段 ${field.name} - $reason');
+                  } catch (e) {
+                    skipCount++;
+                    debugPrint('⚠ 扁平化字段 ${field.name} 失败: $e');
+                  }
+                } else {
+                  skipCount++;
+                  debugPrint('⏭ 跳过字段 ${field.name} - $reason');
+                }
+              } catch (e) {
+                skipCount++;
+                debugPrint('⚠ 处理字段 ${field.name} 时出错: $e');
+              }
+            }
+
+            // 重新保存处理后的文档
+            savedBytes = await flattenDocument.save();
+            flattenDocument.dispose();
+
+            debugPrint('✓ PDF扁平化完成: 扁平化 $flattenCount 个字段，跳过 $skipCount 个字段');
+          } catch (e) {
+            debugPrint('⚠ 扁平化PDF时出错: $e，使用原始保存结果');
+          }
+        }
+
+        debugPrint('=== PDF保存完成 ===');
+        return savedBytes;
+      } catch (e, stackTrace) {
+        debugPrint('⚠ 使用 PdfViewerController.saveDocument() 失败: $e');
+        debugPrint('堆栈跟踪: $stackTrace');
+      }
+    }
+
+    // 如果 PdfViewerController.saveDocument() 失败，回退到手动复制字段值的方法
+    debugPrint('回退到手动复制字段值的方法...');
+    if (_currentDocument != null && _chineseFontBytes != null && _originalPdfBytes != null) {
+      try {
+        // 从原始 PDF 字节重新创建文档
+        final PdfDocument saveDocument = PdfDocument(inputBytes: _originalPdfBytes!);
+
+        // 从 viewer 文档中获取表单字段的值
+        final PdfForm viewerForm = _currentDocument!.form;
+        final PdfForm saveForm = saveDocument.form;
+
+        // 在循环外创建字体对象（在新文档上下文中），避免重复创建
+        final font = _createChineseFont();
+
+        int copyCount = 0;
+        int flattenCount = 0;
+
+        // 复制表单字段的值（通过字段名称匹配）
+        for (int i = 0; i < viewerForm.fields.count; i++) {
+          final PdfField viewerField = viewerForm.fields[i];
+          final String? fieldName = viewerField.name;
+
+          if (fieldName == null) continue;
+
+          // 在保存文档中查找同名字段
+          PdfField? saveField;
+          for (int j = 0; j < saveForm.fields.count; j++) {
+            if (saveForm.fields[j].name == fieldName) {
+              saveField = saveForm.fields[j];
+              break;
+            }
+          }
+
+          if (saveField == null) {
+            debugPrint('⚠ 未找到保存文档中的字段: $fieldName');
+            continue;
+          }
+
+          bool shouldFlatten = false;
+          String reason = '';
+
+          try {
+            if (viewerField is PdfTextBoxField && saveField is PdfTextBoxField) {
+              saveField.text = viewerField.text;
+              if (font != null) {
+                saveField.font = font;
+              }
+              copyCount++;
+
+              // 根据扁平化配置决定是否扁平化
+              if (flattenConfig == PdfFlattenConfig.nonSignatureOnly ||
+                  flattenConfig == PdfFlattenConfig.all) {
+                shouldFlatten = true;
+                reason = '文本字段，配置要求扁平化';
+              }
+            } else if (viewerField is PdfComboBoxField && saveField is PdfComboBoxField) {
+              saveField.selectedValue = viewerField.selectedValue;
+              if (font != null) {
+                saveField.font = font;
+              }
+              copyCount++;
+
+              if (flattenConfig == PdfFlattenConfig.nonSignatureOnly ||
+                  flattenConfig == PdfFlattenConfig.all) {
+                shouldFlatten = true;
+                reason = '下拉字段，配置要求扁平化';
+              }
+            } else if (viewerField is PdfListBoxField && saveField is PdfListBoxField) {
+              saveField.selectedValues = viewerField.selectedValues;
+              if (font != null) {
+                saveField.font = font;
+              }
+              copyCount++;
+
+              if (flattenConfig == PdfFlattenConfig.nonSignatureOnly ||
+                  flattenConfig == PdfFlattenConfig.all) {
+                shouldFlatten = true;
+                reason = '列表字段，配置要求扁平化';
+              }
+            } else if (viewerField is PdfCheckBoxField && saveField is PdfCheckBoxField) {
+              saveField.isChecked = viewerField.isChecked;
+              copyCount++;
+
+              if (flattenConfig == PdfFlattenConfig.nonSignatureOnly ||
+                  flattenConfig == PdfFlattenConfig.all) {
+                shouldFlatten = true;
+                reason = '复选框字段，配置要求扁平化';
+              }
+            } else if (viewerField is PdfSignatureField && saveField is PdfSignatureField) {
+              // 处理签名字段：尝试复制签名数据
+              try {
+                dynamic viewerFieldDynamic = viewerField;
+                dynamic saveFieldDynamic = saveField;
+
+                final viewerSignature = viewerFieldDynamic.signature;
+                if (viewerSignature != null) {
+                  saveFieldDynamic.signature = viewerSignature;
+                  copyCount++;
+                  debugPrint('✓ 复制签名字段 $fieldName 的签名数据成功');
+
+                  // 根据扁平化配置决定是否扁平化签名字段
+                  switch (flattenConfig) {
+                    case PdfFlattenConfig.signedOnly:
+                    case PdfFlattenConfig.all:
+                      shouldFlatten = true;
+                      reason = '已签名字段，配置要求扁平化';
+                      break;
+                    case PdfFlattenConfig.nonSignatureOnly:
+                    case PdfFlattenConfig.none:
+                    default:
+                      shouldFlatten = false;
+                      reason = '已签名字段，配置要求保留可编辑性';
+                      break;
+                  }
+                } else {
+                  debugPrint('⏭ 签名字段 $fieldName 未签名，跳过');
+                }
+              } catch (e) {
+                debugPrint('⚠ 处理签名字段 $fieldName 时出错: $e');
+              }
+            }
+
+            // 执行扁平化（如果需要）
+            if (shouldFlatten) {
+              try {
+                saveField.flatten();
+                flattenCount++;
+                debugPrint('✓ 扁平化字段 $fieldName - $reason');
+              } catch (e) {
+                debugPrint('⚠ 扁平化字段 $fieldName 失败: $e');
+              }
+            }
+          } catch (e) {
+            debugPrint('复制字段 $fieldName 的值失败: $e');
+          }
+        }
+
+        // 保存文档
+        savedBytes = await saveDocument.save();
+        saveDocument.dispose();
+
+        debugPrint('✓ 手动复制字段值保存成功: 复制 $copyCount 个字段，扁平化 $flattenCount 个字段');
+        return savedBytes;
+      } catch (e2, stackTrace2) {
+        debugPrint('⚠ 手动复制字段值也失败: $e2');
+        debugPrint('堆栈跟踪: $stackTrace2');
+      }
+    }
+
+    // 如果所有方法都失败，使用原始 PDF 字节（会丢失表单数据和签名）
+    if (_originalPdfBytes != null) {
+      debugPrint('⚠ 使用原始 PDF 字节（可能丢失表单数据和签名）');
+      return _originalPdfBytes!.toList();
+    } else {
+      throw Exception('无法保存PDF：缺少原始数据');
+    }
+  }
+
+  /// 保存PDF文件（支持选择扁平化配置）
+  Future<void> _handleSave({PdfFlattenConfig flattenConfig = PdfFlattenConfig.none}) async {
     // 验证必要参数
     if (widget.accountFileUid == null || 
         widget.customerUid == null || 
@@ -229,245 +551,10 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       }
 
       // 3. 将页面上的表单数据保存到新的PDF中
-      // 根据 Syncfusion 文档，对于包含手写签名的表单，最佳实践是：
-      // 优先使用 PdfViewerController.saveDocument() 方法，因为它会保存 viewer 中的所有数据，
-      // 包括手写签名和其他表单字段的值
-      List<int> savedBytes;
-      
-      // 优先使用 PdfViewerController.saveDocument() 保存，这样可以确保手写签名正确保存
-      if (_pdfViewerController != null) {
-        try {
-          debugPrint('使用 PdfViewerController.saveDocument() 保存（包含手写签名）...');
-          savedBytes = await _pdfViewerController!.saveDocument();
-          debugPrint('✓ 使用 PdfViewerController.saveDocument() 保存成功');
-          
-          // 检查是否有签名字段，如果有则扁平化以确保签名正确显示
-          if (_currentDocument != null) {
-            try {
-              final PdfForm form = _currentDocument!.form;
-              bool hasSignedFields = false;
-              
-              for (int i = 0; i < form.fields.count; i++) {
-                final PdfField field = form.fields[i];
-                if (field is PdfSignatureField) {
-                  try {
-                    dynamic fieldDynamic = field;
-                    final signature = fieldDynamic.signature;
-                    if (signature != null) {
-                      hasSignedFields = true;
-                      debugPrint('✓ 检测到签名字段 ${field.name} 已签名');
-                    }
-                  } catch (e) {
-                    debugPrint('⚠ 检查签名字段 ${field.name} 时出错: $e');
-                  }
-                }
-              }
-              
-              // 如果有签名，需要重新加载保存的文档并扁平化签名字段
-              if (hasSignedFields) {
-                try {
-                  debugPrint('检测到签名字段，重新加载文档以扁平化签名...');
-                  final PdfDocument flattenDocument = PdfDocument(inputBytes: savedBytes);
-                  final PdfForm flattenForm = flattenDocument.form;
-                  
-                  for (int i = 0; i < flattenForm.fields.count; i++) {
-                    final PdfField field = flattenForm.fields[i];
-                    if (field is PdfSignatureField) {
-                      try {
-                        dynamic fieldDynamic = field;
-                        final signature = fieldDynamic.signature;
-                        if (signature != null) {
-                          // 扁平化签名字段以确保签名正确显示
-                          try {
-                            field.flatten();
-                            debugPrint('✓ 扁平化签名字段 ${field.name}');
-                          } catch (e) {
-                            debugPrint('⚠ 扁平化签名字段 ${field.name} 失败: $e');
-                          }
-                        }
-                      } catch (e) {
-                        debugPrint('⚠ 处理签名字段 ${field.name} 时出错: $e');
-                      }
-                    }
-                  }
-                  
-                  // 重新保存扁平化后的文档
-                  savedBytes = await flattenDocument.save();
-                  flattenDocument.dispose();
-                  debugPrint('✓ 签名扁平化完成并重新保存');
-                } catch (e) {
-                  debugPrint('⚠ 扁平化签名时出错: $e，使用原始保存结果');
-                }
-              }
-            } catch (e) {
-              debugPrint('⚠ 检查签名时出错: $e');
-            }
-          }
-        } catch (e, stackTrace) {
-          debugPrint('⚠ 使用 PdfViewerController.saveDocument() 失败: $e');
-          debugPrint('堆栈跟踪: $stackTrace');
-          
-          // 如果 PdfViewerController.saveDocument() 失败，回退到手动复制字段值的方法
-          if (_currentDocument != null && _chineseFontBytes != null && _originalPdfBytes != null) {
-            try {
-              debugPrint('回退到手动复制字段值的方法...');
-              // 从原始 PDF 字节重新创建文档
-              final PdfDocument saveDocument = PdfDocument(inputBytes: _originalPdfBytes!);
-
-              // 从 viewer 文档中获取表单字段的值
-              final PdfForm viewerForm = _currentDocument!.form;
-              final PdfForm saveForm = saveDocument.form;
-              
-              // 在循环外创建字体对象（在新文档上下文中），避免重复创建
-              final font = _createChineseFont();
-              
-              // 复制表单字段的值（通过字段名称匹配）
-              for (int i = 0; i < viewerForm.fields.count; i++) {
-                final PdfField viewerField = viewerForm.fields[i];
-                final String? fieldName = viewerField.name;
-                
-                if (fieldName == null) continue;
-                
-                // 在保存文档中查找同名字段
-                PdfField? saveField;
-                for (int j = 0; j < saveForm.fields.count; j++) {
-                  if (saveForm.fields[j].name == fieldName) {
-                    saveField = saveForm.fields[j];
-                    break;
-                  }
-                }
-                
-                if (saveField == null) {
-                  debugPrint('⚠ 未找到保存文档中的字段: $fieldName');
-                  continue;
-                }
-                
-                try {
-                  if (viewerField is PdfTextBoxField && saveField is PdfTextBoxField) {
-                    saveField.text = viewerField.text;
-                    if (font != null) {
-                      saveField.font = font;
-                    }
-                  } else if (viewerField is PdfComboBoxField && saveField is PdfComboBoxField) {
-                    saveField.selectedValue = viewerField.selectedValue;
-                    if (font != null) {
-                      saveField.font = font;
-                    }
-                  } else if (viewerField is PdfListBoxField && saveField is PdfListBoxField) {
-                    saveField.selectedValues = viewerField.selectedValues;
-                    if (font != null) {
-                      saveField.font = font;
-                    }
-                  } else if (viewerField is PdfCheckBoxField && saveField is PdfCheckBoxField) {
-                    saveField.isChecked = viewerField.isChecked;
-                  } else if (viewerField is PdfSignatureField && saveField is PdfSignatureField) {
-                    // 处理签名字段：尝试复制签名数据
-                    try {
-                      dynamic viewerFieldDynamic = viewerField;
-                      dynamic saveFieldDynamic = saveField;
-                      
-                      final viewerSignature = viewerFieldDynamic.signature;
-                      if (viewerSignature != null) {
-                        try {
-                          saveFieldDynamic.signature = viewerSignature;
-                          debugPrint('✓ 复制签名字段 $fieldName 的签名数据成功');
-                          // 扁平化签名字段
-                          saveField.flatten();
-                          debugPrint('✓ 扁平化签名字段 $fieldName');
-                        } catch (e) {
-                          debugPrint('⚠ 设置签名字段 $fieldName 失败: $e');
-                        }
-                      }
-                    } catch (e) {
-                      debugPrint('⚠ 处理签名字段 $fieldName 时出错: $e');
-                    }
-                  }
-                } catch (e) {
-                  debugPrint('复制字段 $fieldName 的值失败: $e');
-                }
-              }
-              
-              // 保存文档
-              savedBytes = await saveDocument.save();
-              saveDocument.dispose();
-              debugPrint('✓ 手动复制字段值保存成功');
-            } catch (e2, stackTrace2) {
-              debugPrint('⚠ 手动复制字段值也失败: $e2');
-              debugPrint('堆栈跟踪: $stackTrace2');
-              // 如果还是失败，使用原始 PDF 字节（会丢失表单数据和签名）
-              savedBytes = _originalPdfBytes!.toList();
-              debugPrint('⚠ 回退到使用原始 PDF 字节（可能丢失表单数据和签名）');
-            }
-          } else {
-            // 如果没有文档引用或中文字体，使用原始 PDF 字节
-            savedBytes = _originalPdfBytes!.toList();
-            debugPrint('⚠ 使用原始 PDF 字节（可能丢失表单数据和签名）');
-          }
-        }
-      } else {
-        // 如果 PdfViewerController 不可用，回退到手动复制字段值的方法
-        debugPrint('⚠ PdfViewerController 不可用，使用手动复制字段值的方法');
-        if (_currentDocument != null && _chineseFontBytes != null && _originalPdfBytes != null) {
-          try {
-            final PdfDocument saveDocument = PdfDocument(inputBytes: _originalPdfBytes!);
-            final PdfForm viewerForm = _currentDocument!.form;
-            final PdfForm saveForm = saveDocument.form;
-            final font = _createChineseFont();
-            
-            for (int i = 0; i < viewerForm.fields.count; i++) {
-              final PdfField viewerField = viewerForm.fields[i];
-              final String? fieldName = viewerField.name;
-              if (fieldName == null) continue;
-              
-              PdfField? saveField;
-              for (int j = 0; j < saveForm.fields.count; j++) {
-                if (saveForm.fields[j].name == fieldName) {
-                  saveField = saveForm.fields[j];
-                  break;
-                }
-              }
-              
-              if (saveField == null) continue;
-              
-              try {
-                if (viewerField is PdfTextBoxField && saveField is PdfTextBoxField) {
-                  saveField.text = viewerField.text;
-                  if (font != null) saveField.font = font;
-                } else if (viewerField is PdfComboBoxField && saveField is PdfComboBoxField) {
-                  saveField.selectedValue = viewerField.selectedValue;
-                  if (font != null) saveField.font = font;
-                } else if (viewerField is PdfListBoxField && saveField is PdfListBoxField) {
-                  saveField.selectedValues = viewerField.selectedValues;
-                  if (font != null) saveField.font = font;
-                } else if (viewerField is PdfCheckBoxField && saveField is PdfCheckBoxField) {
-                  saveField.isChecked = viewerField.isChecked;
-                } else if (viewerField is PdfSignatureField && saveField is PdfSignatureField) {
-                  try {
-                    dynamic viewerFieldDynamic = viewerField;
-                    dynamic saveFieldDynamic = saveField;
-                    final viewerSignature = viewerFieldDynamic.signature;
-                    if (viewerSignature != null) {
-                      saveFieldDynamic.signature = viewerSignature;
-                      saveField.flatten();
-                    }
-                  } catch (e) {
-                    debugPrint('⚠ 处理签名字段 $fieldName 时出错: $e');
-                  }
-                }
-              } catch (e) {
-                debugPrint('复制字段 $fieldName 的值失败: $e');
-              }
-            }
-            
-            savedBytes = await saveDocument.save();
-            saveDocument.dispose();
-          } catch (e) {
-            savedBytes = _originalPdfBytes!.toList();
-          }
-        } else {
-          savedBytes = _originalPdfBytes!.toList();
-        }
-      }
+      // 使用传入的扁平化配置
+      final List<int> savedBytes = await _savePdfWithFlattenConfig(
+        flattenConfig: flattenConfig,
+      );
 
       // 将保存的PDF字节写入文件
       final savedFile = File(savedFilePath);
@@ -494,7 +581,10 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('开户文件保存成功')),
+        SnackBar(
+          content: Text('开户文件保存成功 (${flattenConfig.shortDescription})'),
+          duration: const Duration(seconds: 3),
+        ),
       );
 
       // 保存成功后返回上一页
@@ -1376,58 +1466,83 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         elevation: 1,
         actions: [
           if (_pdfViewerController != null && _pdfBytes != null) ...[
-            // IconButton(
-            //   icon: const Icon(Icons.first_page),
-            //   tooltip: '第一页',
-            //   onPressed: () {
-            //     _pdfViewerController!.jumpToPage(1);
-            //   },
-            // ),
-            // IconButton(
-            //   icon: const Icon(Icons.last_page),
-            //   tooltip: '最后一页',
-            //   onPressed: () {
-            //     _pdfViewerController!.jumpToPage(
-            //       _pdfViewerController!.pageCount,
-            //     );
-            //   },
-            // ),
-            // IconButton(
-            //   icon: const Icon(Icons.zoom_in),
-            //   tooltip: '放大',
-            //   onPressed: () {
-            //     _pdfViewerController!.zoomLevel += 0.25;
-            //   },
-            // ),
-            // IconButton(
-            //   icon: const Icon(Icons.zoom_out),
-            //   tooltip: '缩小',
-            //   onPressed: () {
-            //     if (_pdfViewerController!.zoomLevel > 0.25) {
-            //       _pdfViewerController!.zoomLevel -= 0.25;
-            //     }
-            //   },
-            // ),
-              // 编辑模式下显示保存按钮
-              if (widget.isEditMode)
-                Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: ElevatedButton(
-                    onPressed: _handleSave,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 0,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
+            // 编辑模式下显示保存选项
+            if (widget.isEditMode) ...[
+              // 保存选项菜单
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: PopupMenuButton<PdfFlattenConfig>(
+                  icon: const Icon(Icons.save),
+                  tooltip: '保存选项',
+                  itemBuilder: (BuildContext context) => [
+                    PopupMenuItem<PdfFlattenConfig>(
+                      value: PdfFlattenConfig.none,
+                      child: Row(
+                        children: [
+                          const Icon(Icons.edit_document, size: 16),
+                          const SizedBox(width: 8),
+                          Text(PdfFlattenConfig.none.description),
+                        ],
                       ),
                     ),
-                    child: const Text('保存'),
+                    PopupMenuItem<PdfFlattenConfig>(
+                      value: PdfFlattenConfig.nonSignatureOnly,
+                      child: Row(
+                        children: [
+                          const Icon(Icons.text_snippet, size: 16),
+                          const SizedBox(width: 8),
+                          Text(PdfFlattenConfig.nonSignatureOnly.description),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem<PdfFlattenConfig>(
+                      value: PdfFlattenConfig.signedOnly,
+                      child: Row(
+                        children: [
+                          const Icon(Icons.draw, size: 16),
+                          const SizedBox(width: 8),
+                          Text(PdfFlattenConfig.signedOnly.description),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem<PdfFlattenConfig>(
+                      value: PdfFlattenConfig.all,
+                      child: Row(
+                        children: [
+                          const Icon(Icons.picture_as_pdf, size: 16),
+                          const SizedBox(width: 8),
+                          Text(PdfFlattenConfig.all.description),
+                        ],
+                      ),
+                    ),
+                  ],
+                  onSelected: (PdfFlattenConfig config) {
+                    _handleSave(flattenConfig: config);
+                  },
+                ),
+              ),
+
+              // 快速保存按钮（默认不扁平化）
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: ElevatedButton.icon(
+                  onPressed: () => _handleSave(flattenConfig: PdfFlattenConfig.none),
+                  icon: const Icon(Icons.save, size: 16),
+                  label: const Text('快速保存'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 0,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
                 ),
+              ),
+            ],
           ],
         ],
       ),
