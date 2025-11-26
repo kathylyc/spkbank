@@ -12,6 +12,7 @@ import '../../data/repositories/customer_repository.dart';
 import '../../utils/file_manager.dart';
 import '../../utils/storage_utils.dart';
 import '../../utils/common_const.dart';
+import '../../utils/version_utils.dart';
 
 /// PDF扁平化配置枚举
 enum PdfFlattenConfig {
@@ -659,9 +660,9 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       int newFileVersion;
       final maxVersion = await _repository.findMaxVersionByAccountFileUid(widget.accountFileUid!);
       if (maxVersion != null) {
-        newFileVersion = maxVersion + 1;
+        newFileVersion = VersionUtils.incrementMajorIntVersion(maxVersion);
       } else {
-        newFileVersion = 1;
+        newFileVersion = VersionUtils.baseVersion;
       }
 
       // 2. 构建目标文件路径

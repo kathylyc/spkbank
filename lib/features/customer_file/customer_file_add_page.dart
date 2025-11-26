@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:bank_flutter/utils/version_utils.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -347,14 +348,14 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
         accountFileUid = existingFile.accountFileUid;
         final maxVersion = await _repository.findMaxVersionByAccountFileUid(accountFileUid);
         if (maxVersion != null) {
-          fileVersion = maxVersion + 1;
+          fileVersion = VersionUtils.incrementMajorIntVersion(maxVersion);
         } else {
-          fileVersion = 1;
+          fileVersion = VersionUtils.baseVersion;
         }
       } else {
         // 如果不存在，使用 UUID 生成 account_file_uid，file_version 设为 1
         accountFileUid = _uuid.v4().replaceAll('-', '');
-        fileVersion = 1;
+        fileVersion = VersionUtils.baseVersion;
       }
       
       // 2. 将选中的文件复制到沙盒目录下的 account 目录

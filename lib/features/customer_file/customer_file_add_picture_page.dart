@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:bank_flutter/utils/version_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
@@ -309,10 +310,10 @@ class _CustomerFileAddPicturePageState extends State<CustomerFileAddPicturePage>
       final loginUser = await StorageUtils.getLoginUser();
       final now = DateTime.now();
 
-      // 扫描生成PDF：每次生成时都创建新的 account_file_uid，fileVersion 固定为 1
+      // 扫描生成PDF：每次生成时都创建新的 account_file_uid，fileVersion 固定为 1.0.0
       final templateName = '扫描生成PDF';
       final String accountFileUid = _uuid.v4().replaceAll('-', '');
-      final int fileVersion = 1;
+      final int fileVersion = VersionUtils.baseVersion;
 
       // 将PDF文件复制到沙盒目录下的 account 目录
       final savedFilePath = await FileManager.saveAccountFileWithName(
