@@ -133,5 +133,39 @@ class CustomerAccountFile {
       updateTime: updateTime ?? this.updateTime,
     );
   }
+  CustomerAccountFile copyNewWith({
+    String? accountFileUid,
+    String? customerUid,
+    String? accountFileName,
+    int? fileVersion,
+    String? filePath,
+    int? signStatus,
+    int? enableStatus,
+    String? fileSrcType,
+    String? templateName,
+    String? templateSignCode,
+    String? createBy,
+    DateTime? createTime,
+    String? updateBy,
+    DateTime? updateTime,
+  }) {
+    return CustomerAccountFile(
+      id: null,
+      accountFileUid: accountFileUid ?? this.accountFileUid,
+      customerUid: customerUid ?? this.customerUid,
+      accountFileName: accountFileName ?? this.accountFileName,
+      fileVersion: fileVersion ?? this.fileVersion,
+      filePath: filePath ?? this.filePath,
+      signStatus: signStatus ?? this.signStatus,
+      enableStatus: enableStatus ?? this.enableStatus,
+      fileSrcType: fileSrcType ?? this.fileSrcType,
+      templateName: templateName ?? this.templateName,
+      templateSignCode: templateSignCode ?? this.templateSignCode,
+      createBy: createBy ?? this.createBy,
+      createTime: createTime ?? this.createTime,
+      updateBy: updateBy ?? this.updateBy,
+      updateTime: updateTime ?? this.updateTime,
+    );
+  }
 }
 

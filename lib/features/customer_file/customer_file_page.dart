@@ -237,7 +237,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           final accountFileUid = row['account_file_uid'] as String;
           final fileVersion = row['fileVersion'];
           // 使用 account_file_uid 和 file_version 组合成唯一标识
-          final uniqueId = '${accountFileUid}_${fileVersion}';
+          final uniqueId = '${accountFileUid}_$fileVersion';
           selectedRowIds.add(uniqueId);
           break;
         }
@@ -414,11 +414,12 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         '签署状态',
         '开户方式',
         '使用模板',
+        '模板编码',
         '客户经理编号'
       ];
       final headerRow = sheet.rows[0];
       if (headerRow.length < expectedHeaders.length) {
-        return '非标准压缩包，不支持导入2';
+        return '非标准压缩包，不支持导入1';
       }
 
       // 检查表头是否匹配
@@ -433,6 +434,73 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     } catch (e, s) {
       debugPrintStack(stackTrace: s);
       return '验证Excel文件失败: $e';
+    }
+  }
+
+  /// 备份现有开户文件版本
+  ///
+  /// [existingFile] 现有的开户文件记录
+  /// [newFileVersion] 新的版本号（用于备份）
+  /// [updateBy] 更新人
+  /// [updateTime] 更新时间
+  /// [accountDir] 账户文件目录
+  ///
+  /// 返回备份后的文件记录
+  Future<CustomerAccountFile?> _backupExistingVersion(
+    CustomerAccountFile existingFile,
+    int newFileVersion,
+    String? updateBy,
+    DateTime updateTime,
+    Directory accountDir,
+  ) async {
+    try {
+      CustomerAccountFile? backupFile;
+
+      // 1. 复制PDF文件（如果存在）
+      final originalFilePath = existingFile.filePath;
+      if (originalFilePath.isNotEmpty) {
+        final originalFile = File(originalFilePath);
+        if (await originalFile.exists()) {
+          // 生成备份文件名：使用新的版本号
+          final backupFileName = '${existingFile.accountFileUid}_$newFileVersion.pdf';
+          final backupFilePath = p.join(accountDir.path, backupFileName);
+          final backupFileObj = File(backupFilePath);
+
+          // 如果备份文件已存在，先删除
+          if (await backupFileObj.exists()) {
+            await backupFileObj.delete();
+          }
+
+          // 复制文件
+          await originalFile.copy(backupFilePath);
+          debugPrint('备份文件成功: $originalFilePath -> $backupFilePath');
+
+          // 更新备份记录的文件路径
+          // 2. 创建备份记录，版本号使用新的版本号
+          backupFile = existingFile.copyNewWith(
+            fileVersion: newFileVersion,
+            filePath: backupFilePath,
+            updateBy: updateBy,
+            updateTime: updateTime,
+          );
+        } else {
+          debugPrint('原始文件不存在，跳过文件备份: $originalFilePath');
+          return null;
+        }
+      }
+
+      // 3. 保存备份记录到数据库
+      await _repository.addAccountFile(
+        backupFile!,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+
+      debugPrint('备份开户文件成功: accountFileUid=${existingFile.accountFileUid}, 原版本=${existingFile.fileVersion}, 备份版本=$newFileVersion');
+      return backupFile;
+
+    } catch (e) {
+      debugPrint('备份开户文件失败: $e');
+      return null;
     }
   }
 
@@ -510,9 +578,9 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       final accountFileUid = (row[0]?.value?.toString() ?? '').trim();
       final customerUid = (row[1]?.value?.toString() ?? '').trim();
       final accountFileName = (row[2]?.value?.toString() ?? '').trim();
-      final fileVersion = int.tryParse(row[3]?.value?.toString() ?? '') ?? 1;
+      final fileVersion = VersionUtils.stringToInt(row[3]?.value?.toString() ?? '');
       final relativeFilePath = (row[4]?.value?.toString() ?? '').trim(); // 第5列：文件路径（相对路径）
-      final signStatusStr = row[5]?.value?.toString()?.trim();
+      final signStatusStr = row[5]?.value?.toString().trim();
       // 将 Excel 中的 signStatus 字符串转换为 int
       int? signStatus;
       if (signStatusStr != null && signStatusStr.isNotEmpty) {
@@ -522,9 +590,9 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           signStatus = int.tryParse(signStatusStr) ?? 0;
         }
       }
-      final fileSrcType = row[6]?.value?.toString()?.trim();
-      final templateName = row[7]?.value?.toString()?.trim();
-      final templateSignCode = row[8]?.value?.toString()?.trim();
+      final fileSrcType = row[6]?.value?.toString().trim();
+      final templateName = row[7]?.value?.toString().trim();
+      final templateSignCode = row[8]?.value?.toString().trim();
       final managerAccount = (row[9]?.value?.toString() ?? '').trim();
 
       if (accountFileName.isEmpty) {
@@ -553,41 +621,44 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       }
 
       // 处理文件路径：如果Excel中有相对路径，且files目录存在，则复制文件到APP缓存目录
-      String? appCacheFilePath;
-      if (relativeFilePath.isNotEmpty && 
-          relativeFilePath != '-' && 
-          hasFilesDir && 
-          relativeFilePath.startsWith('files/')) {
-        try {
-          // 获取源文件路径（在解压目录中）
-          final sourceFilePath = p.join(importDirPath, relativeFilePath);
-          final sourceFile = File(sourceFilePath);
-          
-          if (await sourceFile.exists()) {
-            // 生成目标文件名：使用accountFileUid和fileVersion，如果不存在则使用UUID
-            final finalAccountFileUid = accountFileUid.isNotEmpty
-                ? accountFileUid
-                : '${customerUid}_${DateTime.now().millisecondsSinceEpoch}';
-            final finalFileVersion = fileVersion;
-            final targetFileName = '${finalAccountFileUid}_$finalFileVersion.pdf';
-            final targetFilePath = p.join(accountDir.path, targetFileName);
-            final targetFile = File(targetFilePath);
-            
-            // 如果目标文件已存在，先删除（替换）
-            if (await targetFile.exists()) {
-              await targetFile.delete();
+      Future<String?> copyOrReplaceToAppCacheFile() async {
+        String? appCacheFilePath = null;
+        if (relativeFilePath.isNotEmpty &&
+            relativeFilePath != '-' &&
+            hasFilesDir &&
+            relativeFilePath.startsWith('files/')) {
+          try {
+            // 获取源文件路径（在解压目录中）
+            final sourceFilePath = p.join(importDirPath, relativeFilePath);
+            final sourceFile = File(sourceFilePath);
+
+            if (await sourceFile.exists()) {
+              // 生成目标文件名：使用accountFileUid和fileVersion，如果不存在则使用UUID
+              final finalAccountFileUid = accountFileUid.isNotEmpty
+              ? accountFileUid
+                  : '${customerUid}_${DateTime.now().millisecondsSinceEpoch}';
+              final finalFileVersion = fileVersion;
+              final targetFileName = '${finalAccountFileUid}_$finalFileVersion.pdf';
+              final targetFilePath = p.join(accountDir.path, targetFileName);
+              final targetFile = File(targetFilePath);
+
+              // 如果目标文件已存在，先删除（替换）
+              if (await targetFile.exists()) {
+                await targetFile.delete();
+              }
+
+              // 复制文件到APP缓存目录
+              await sourceFile.copy(targetFilePath);
+              appCacheFilePath = targetFilePath;
+            } else {
+              debugPrint('文件不存在，跳过: $sourceFilePath');
             }
-            
-            // 复制文件到APP缓存目录
-            await sourceFile.copy(targetFilePath);
-            appCacheFilePath = targetFilePath;
-          } else {
-            debugPrint('文件不存在，跳过: $sourceFilePath');
+          } catch (e) {
+            debugPrint('复制文件失败: $relativeFilePath, 错误: $e');
+            // 继续处理，不中断导入流程
           }
-        } catch (e) {
-          debugPrint('复制文件失败: $relativeFilePath, 错误: $e');
-          // 继续处理，不中断导入流程
         }
+        return appCacheFilePath;
       }
 
       // 尝试匹配现有开户文件
@@ -597,25 +668,108 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       final existingFile = accountFilesMap[key];
 
       if (existingFile != null) {
-        // 更新现有开户文件
-        final updatedFile = existingFile.copyWith(
-          accountFileName: accountFileName.isNotEmpty ? accountFileName : existingFile.accountFileName,
-          fileVersion: fileVersion,
-          filePath: appCacheFilePath ?? existingFile.filePath, // 如果有新文件路径则更新，否则保持原路径
-          signStatus: signStatus ?? existingFile.signStatus,
-          fileSrcType: fileSrcType?.isNotEmpty == true ? fileSrcType : existingFile.fileSrcType,
-          templateName: templateName?.isNotEmpty == true ? templateName : existingFile.templateName,
-          templateSignCode: templateSignCode?.isNotEmpty == true ? templateSignCode : existingFile.templateSignCode,
-          updateBy: loginUser?.userName,
-          updateTime: now,
-        );
-        await _repository.addAccountFile(
-          updatedFile,
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-        updateCount++;
+        // 新需求：备份现有版本，然后更新原版本
+        try {
+          // 1. 生成备份版本号（查找当前大版本下最大小版本号，然后+1）
+          final currentFileVersion = existingFile.fileVersion ?? fileVersion;
+
+          // 获取当前大版本号
+          final currentVersionStr = VersionUtils.intToString(currentFileVersion);
+          final currentVersionParts = currentVersionStr.split('.');
+          final currentMajorVersion = currentVersionParts[0]; // 大版本号
+
+          // 获取该accountFileUid下所有同大版本的文件
+          final allAccountFiles = await _repository.findAccountFilesByAccountFileUid(existingFile.accountFileUid);
+          final sameMajorVersionFiles = allAccountFiles.where((file) {
+            if (file.fileVersion == null) return false;
+            final fileVersionStr = VersionUtils.intToString(file.fileVersion!);
+            final fileVersionParts = fileVersionStr.split('.');
+            return fileVersionParts[0] == currentMajorVersion; // 同大版本
+          }).toList();
+
+          // 找到最大小版本号
+          int maxMinorVersion = -1;
+          final List<String> existingVersions = [];
+          for (final file in sameMajorVersionFiles) {
+            if (file.fileVersion != null) {
+              final fileVersionStr = VersionUtils.intToString(file.fileVersion!);
+              final fileVersionParts = fileVersionStr.split('.');
+              final minorVersion = int.parse(fileVersionParts[2]); // 小版本号
+              existingVersions.add(fileVersionStr);
+              if (minorVersion > maxMinorVersion) {
+                maxMinorVersion = minorVersion;
+              }
+            }
+          }
+
+          // 生成新的备份版本号：大版本不变，中版本保持当前，小版本号 = maxMinorVersion + 1
+          final currentMiddleVersion = int.parse(currentVersionParts[1]); // 中版本号
+          final newMinorVersion = maxMinorVersion + 1;
+          final backupFileVersion = VersionUtils.stringToInt('$currentMajorVersion.$currentMiddleVersion.$newMinorVersion');
+
+          debugPrint('版本分析结果: 当前版本=$currentVersionStr, 同大版本存在版本=${existingVersions.join(', ')}, 最大小版本=$maxMinorVersion, 新备份版本=${VersionUtils.intToString(backupFileVersion)}');
+
+          debugPrint('检测到现有文件，准备备份: accountFileUid=${existingFile.accountFileUid}, 当前版本=$currentFileVersion, 备份版本=$backupFileVersion');
+
+          // 2. 备份现有版本
+          final backupResult = await _backupExistingVersion(
+            existingFile,
+            backupFileVersion,
+            loginUser?.userName,
+            now,
+            accountDir,
+          );
+
+          if (backupResult != null) {
+            debugPrint('备份成功，继续更新原版本');
+          } else {
+            debugPrint('备份失败，但仍继续更新原版本');
+          }
+
+          // 3. 更新原版本数据（保持原版本号不变）
+          String? appCacheFilePath = await copyOrReplaceToAppCacheFile();
+          // final updatedFile = existingFile.copyWith(
+          //   accountFileName: accountFileName.isNotEmpty ? accountFileName : existingFile.accountFileName,
+          //   fileVersion: currentFileVersion, // 保持原版本号
+          //   filePath: appCacheFilePath ?? existingFile.filePath, // 如果有新文件路径则更新，否则保持原路径
+          //   signStatus: signStatus ?? existingFile.signStatus,
+          //   fileSrcType: fileSrcType?.isNotEmpty == true ? fileSrcType : existingFile.fileSrcType,
+          //   templateName: templateName?.isNotEmpty == true ? templateName : existingFile.templateName,
+          //   templateSignCode: templateSignCode?.isNotEmpty == true ? templateSignCode : existingFile.templateSignCode,
+          //   updateBy: loginUser?.userName,
+          //   updateTime: now,
+          // );
+          // 其实数据并没有变化，所以不需要更新DB
+          // await _repository.addAccountFile(
+          //   updatedFile,
+          //   conflictAlgorithm: ConflictAlgorithm.replace,
+          // );
+          // updateCount++;
+          // debugPrint('更新原版本成功: accountFileUid=${existingFile.accountFileUid}, 版本=$currentFileVersion');
+
+        } catch (e) {
+          debugPrint('处理现有文件时出错: $e');
+          // 即使备份失败，也尝试更新原文件
+          String? appCacheFilePath = await copyOrReplaceToAppCacheFile();
+          final updatedFile = existingFile.copyWith(
+            accountFileName: accountFileName.isNotEmpty ? accountFileName : existingFile.accountFileName,
+            filePath: appCacheFilePath ?? existingFile.filePath,
+            signStatus: signStatus ?? existingFile.signStatus,
+            fileSrcType: fileSrcType?.isNotEmpty == true ? fileSrcType : existingFile.fileSrcType,
+            templateName: templateName?.isNotEmpty == true ? templateName : existingFile.templateName,
+            templateSignCode: templateSignCode?.isNotEmpty == true ? templateSignCode : existingFile.templateSignCode,
+            updateBy: loginUser?.userName,
+            updateTime: now,
+          );
+          await _repository.addAccountFile(
+            updatedFile,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+          updateCount++;
+        }
       } else {
         // 插入新开户文件
+        String? appCacheFilePath = await copyOrReplaceToAppCacheFile();
         final finalAccountFileUid = accountFileUid.isNotEmpty
             ? accountFileUid
             : '${customerUid}_${DateTime.now().millisecondsSinceEpoch}';
@@ -730,7 +884,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     final selectedData = _data.where((row) {
       final accountFileUid = row['account_file_uid'] as String;
       final fileVersion = row['fileVersion'];
-      final uniqueId = '${accountFileUid}_${fileVersion}';
+      final uniqueId = '${accountFileUid}_$fileVersion';
       return _selectedIds.contains(uniqueId);
     }).toList();
 
@@ -759,6 +913,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         '签署状态',
         '开户方式',
         '使用模板',
+        '模板编码',
         '客户经理编号'
       ],
       beforeDataToExcelRows: (exportDirPath) async {
@@ -793,8 +948,8 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
 
             // 如果目标文件已存在，添加时间戳
             if (await targetFile.exists()) {
-              final nameWithoutExt = p.basenameWithoutExtension(fileName);
-              final ext = p.extension(fileName);
+              final nameWithoutExt = p.basenameWithoutExtension(targetFileName);
+              final ext = p.extension(targetFileName);
               final timestamp = DateTime.now().millisecondsSinceEpoch;
               final uniqueFileName = '${nameWithoutExt}_$timestamp$ext';
               final uniqueTargetPath = p.join(filesDir.path, uniqueFileName);
@@ -804,7 +959,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
             } else {
               await sourceFile.copy(targetFilePath);
               // 相对路径：files/文件名
-              filePathMap[originalFilePath] = 'files/$fileName';
+              filePathMap[originalFilePath] = 'files/$targetFileName';
             }
           } catch (e) {
             debugPrint('复制文件失败: $originalFilePath, 错误: $e');
@@ -863,9 +1018,13 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         sheet
             .cell(excel.CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIndex))
             .value = excel.TextCellValue(rowData['template']?.toString() ?? '-');
-        // 客户经理编号
+        // 模板编码
         sheet
             .cell(excel.CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: rowIndex))
+            .value = excel.TextCellValue(rowData['templateSignCode']?.toString() ?? '-');
+        // 客户经理编号
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 9, rowIndex: rowIndex))
             .value = excel.TextCellValue(rowData['managerCode']?.toString() ?? '');
       },
       onSuccess: () {
@@ -1219,10 +1378,9 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     try {
       // 验证文件是否存在
       final files = await _repository.findAccountFilesByAccountFileUid(accountFileUid);
-      final targetFile = files.firstWhere(
-        (file) => file.fileVersion == fileVersion,
-        orElse: () => throw Exception('文件不存在'),
-      );
+      if (!files.any((file) => file.fileVersion == fileVersion)) {
+        throw Exception('文件不存在');
+      }
 
       // 获取登录用户信息
       final loginUser = await StorageUtils.getLoginUser();
