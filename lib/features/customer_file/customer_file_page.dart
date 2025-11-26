@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:bank_flutter/utils/version_utils.dart';
 import 'package:excel/excel.dart' as excel;
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -698,23 +699,30 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     );
   }
 
+  /// 显示提示对话框
+  void _showAlertDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // 防止外部点击关闭，避免重复触发
+      builder: (context) => AlertDialog(
+        key: ValueKey('alert_${DateTime.now().millisecondsSinceEpoch}'), // 使用唯一Key
+        title: const Text('提示'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// 导出开户文件
   Future<void> _handleExportAccountFile() async {
     // 检查是否有选中的数据
     if (_selectedIds.isEmpty) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('提示'),
-          content: const Text('没有勾选数据，无法导出'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('确定'),
-            ),
-          ],
-        ),
-      );
+      _showAlertDialog('没有勾选数据，无法导出');
       return;
     }
 
@@ -729,26 +737,17 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     // 验证选中的文件是否符合导出条件
     final validationResult = _validateSelectedFiles(selectedData);
     if (!validationResult.success) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('提示'),
-          content: Text(validationResult.message),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('确定'),
-            ),
-          ],
-        ),
-      );
+      _showAlertDialog(validationResult.message);
       return;
     }
+
+    // 生成时间戳
+    final timestamp = DateFormat('yyyyMMddHHmmss').format(DateTime.now());
 
     await ImportExportUtils.exportToZip(
       context,
       templateAssetPath: 'assets/excel/account_file_info.xlsx',
-      zipFileName: 'account_file_info_export',
+      zipFileName: '${selectedData[0]['customerName']}_$timestamp', // 客户姓名+时间戳：客户姓名_20251117122330
       excelFileName: 'account_file_info_export',
       data: selectedData,
       headers: const [
@@ -787,7 +786,8 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
             // 获取文件名
             final fileName = p.basename(originalFilePath);
             // 如果文件名已存在，添加时间戳前缀
-            final targetFileName = fileName;
+            // final targetFileName = fileName;
+            final targetFileName = '${rowData['fileName']}V${VersionUtils.intToString(rowData['fileVersion'])}.pdf'; // 打包的文件名使用数据库里保存的文件名+版本号
             final targetFilePath = p.join(filesDir.path, targetFileName);
             final targetFile = File(targetFilePath);
 

@@ -361,6 +361,7 @@ class ImportExportUtils {
         await exportDir.create(recursive: true);
       }
       final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final addTimestamp = false;
       exportCurrentDir = Directory(p.join(exportDir.path, '$timestamp'));
       if (!await exportCurrentDir.exists()) {
         await exportCurrentDir.create(recursive: true);
@@ -386,7 +387,7 @@ class ImportExportUtils {
         throw Exception('生成Excel数据失败');
       }
 
-      final excelName = '${excelFileName}_$timestamp.xlsx';
+      final excelName = addTimestamp ? '${excelFileName}_$timestamp.xlsx' : '$excelFileName.xlsx';
       final excelPath = p.join(exportCurrentDir.path, excelName);
       excelFile = File(excelPath);
       await excelFile.writeAsBytes(excelBytes, flush: true);
@@ -398,7 +399,7 @@ class ImportExportUtils {
       }
 
       // 创建ZIP文件
-      final zipName = '${zipFileName}_$timestamp.zip';
+      final zipName = addTimestamp ? '${zipFileName}_$timestamp.zip': '$zipFileName.zip';
       final zipPath = p.join(exportCurrentDir.path, zipName);
       zipFile = File(zipPath);
       if (await zipFile.exists()) {
