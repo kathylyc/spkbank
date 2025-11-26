@@ -1,3 +1,5 @@
+import 'package:path/path.dart' as p;
+
 class ConstZip {
   static const pcPwd = "265xxaq545a2xq6x";// PC端导出的默认密码
 }
@@ -34,14 +36,21 @@ class PdfTemplateInfo {
   final String signCode;
   final String assetsPath;
   final List<String>? signFields;
+
+  String get fileName {
+    if (assetsPath.isEmpty) {
+      return '';
+    }
+    return p.basenameWithoutExtension(assetsPath);
+  }
 }
 
 /// PDF 模板常量列表
 const Map<String, PdfTemplateInfo> ConstPdfTemplateMap = {
   "1": PdfTemplateInfo(
-    signCode: '265xxaq545a2xq6x',
-    assetsPath: 'assets/pdf/Account Mandate for BusinessAccount_201908.pdf',
-    signFields: ['SignName01', 'SignName02'],
+      signCode: '265xxaq545a2xq6x',
+      assetsPath: 'assets/pdf/Account Mandate for BusinessAccount_201908.pdf',
+      signFields: ['SignName01', 'SignName02'],
   ),
   "2": PdfTemplateInfo(
       signCode: 'x8q8a3d9dz771ds6',

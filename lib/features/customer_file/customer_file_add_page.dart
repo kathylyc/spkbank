@@ -39,7 +39,8 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
 
   // 表单控制器
   String? _selectedCustomerUid; // 存储选中的客户 UID
-  final TextEditingController _fileNameController = TextEditingController();
+  final TextEditingController _fileNameController1 = TextEditingController(); // 模板选择tab
+  final TextEditingController _fileNameController2 = TextEditingController(); // 上传PDFtab
   int? _selectedTemplateId; // 存储选中的模板 ID
   
   // 从PDF文件中读取的签名代码
@@ -106,7 +107,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
         // 如果有客户，默认选择第一个
         if (_customers.isNotEmpty && _selectedCustomerUid == null) {
           _selectedCustomerUid = _customers.first.customerUid;
-          _fileNameController.text = '开户文件_${_customers.first.customerName}';
+          _refreshFileName();
         }
         _isLoadingCustomers = false;
       });
@@ -122,10 +123,44 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
     }
   }
 
+  void _refreshFileName() {
+    // 获取当前选中的客户
+    final customer = _customers.firstWhere(
+          (c) => c.customerUid == _selectedCustomerUid,
+      orElse: () => _customers.first,
+    );
+
+    // 设置tab1的文件名
+    // 获取模板tab选中的模板信息
+    final templateIndex = _allPdfData.indexWhere(
+          (t) => t['id'] == _selectedTemplateId,
+    );
+    final template = templateIndex >= 0
+        ? _allPdfData[templateIndex]
+        : _allPdfData.first;
+    final templateName = template['name'] as String;
+    _fileNameController1.text = '${templateName}_${customer.customerName}';
+
+
+    // 设置tab2的文件名
+    String tab2FileNamePrefix = '选择PDF文件';
+    if (_pdfSignCode != null) {
+      // 已上传合法的pdf
+      for (final entry in ConstPdfTemplateMap.entries) {
+        if (entry.value.signCode == _pdfSignCode) {
+          tab2FileNamePrefix = entry.value.fileName;
+          break;
+        }
+      }
+    }
+    _fileNameController2.text = '${tab2FileNamePrefix}_${customer.customerName}';
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
-    _fileNameController.dispose();
+    _fileNameController1.dispose();
+    _fileNameController2.dispose();
     // 清理 file_picker 生成的临时文件
     FilePicker.platform.clearTemporaryFiles().catchError((error) {
       debugPrint('清理 file_picker 临时文件失败: $error');
@@ -138,13 +173,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
     setState(() {
       _selectedCustomerUid = customerUid;
       // 自动更新文件名
-      if (customerUid != null) {
-        final customer = _customers.firstWhere(
-          (c) => c.customerUid == customerUid,
-          orElse: () => _customers.first,
-        );
-        _fileNameController.text = '开户文件_${customer.customerName}';
-      }
+      _refreshFileName();
     });
   }
 
@@ -161,7 +190,11 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
 
   /// 生成预览
   void _handleGeneratePreview() {
-    if (_selectedCustomerUid == null || _selectedTemplateId == null || _fileNameController.text.isEmpty) {
+    // 根据当前Tab判断验证条件
+    final isTemplateTab = _tabController.index == 0;
+    dynamic fileNameController = isTemplateTab ? _fileNameController1 : _fileNameController2;
+
+    if (_selectedCustomerUid == null || _selectedTemplateId == null || fileNameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('请完整填写所有必填项')),
       );
@@ -204,7 +237,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
         pageBuilder: (context, animation, secondaryAnimation) {
           return CustomerFilePreviewPage(
             customerName: customer.customerName,
-            fileName: _fileNameController.text,
+            fileName: fileNameController.text,
             templateName: template['name'] as String,
             templateAssetPath: template['assetPath'] as String,
             templateSignCode: templateSignCode,
@@ -222,8 +255,9 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
   Future<void> _handleGenerateFile() async {
     // 根据当前Tab判断验证条件
     final isTemplateTab = _tabController.index == 0;
-    
-    if (_selectedCustomerUid == null || _fileNameController.text.isEmpty) {
+    dynamic fileNameController = isTemplateTab ? _fileNameController1 : _fileNameController2;
+
+    if (_selectedCustomerUid == null || fileNameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('请完整填写所有必填项')),
       );
@@ -369,7 +403,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
       final accountFile = CustomerAccountFile(
         accountFileUid: accountFileUid,
         customerUid: _selectedCustomerUid!,
-        accountFileName: _fileNameController.text,
+        accountFileName: fileNameController.text,
         fileVersion: fileVersion,
         filePath: savedFilePath,
         templateName: templateName,
@@ -549,6 +583,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
           _selectedPdfPath = path;
           _selectedPdfName = selected.name;
           _pdfSignCode = signCodeFromPdf;
+          _refreshFileName();
         });
 
         document.dispose();
@@ -588,6 +623,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
       _selectedPdfPath = null;
       _selectedPdfName = null;
       _pdfSignCode = null;
+      _refreshFileName();
     });
   }
 
@@ -707,7 +743,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
             // 开户文件名
             _buildTextField(
               label: '开户文件名',
-              controller: _fileNameController,
+              controller: _fileNameController1,
               hint: '请输入开户文件名',
               required: true,
             ),
@@ -722,6 +758,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
               onChanged: (value) {
                 setState(() {
                   _selectedTemplateId = value;
+                  _refreshFileName();
                 });
               },
               required: true,
@@ -822,7 +859,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
             // 开户文件名
             _buildTextField(
               label: '开户文件名',
-              controller: _fileNameController,
+              controller: _fileNameController2,
               hint: '请输入开户文件名',
               required: true,
             ),
@@ -895,6 +932,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
         const SizedBox(height: 8),
         TextField(
           controller: controller,
+          enabled: false,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(color: Colors.grey.shade400),

@@ -18,7 +18,7 @@ class PdfTemplateUtils {
       final templateInfo = entry.value;
       final signCode = templateInfo.signCode;
       final assetPath = templateInfo.assetsPath;
-      final fileName = assetPath.split('/').last;
+      final fileName = templateInfo.fileName;
       final signFields = templateInfo.signFields;
       
       return {
