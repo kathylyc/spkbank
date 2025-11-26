@@ -42,6 +42,9 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
   // 表格数据
   List<Map<String, dynamic>> _tableData = [];
 
+  // 选中的行ID集合
+  Set<String> _selectedIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -149,12 +152,16 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
     _managerNameController.clear();
     _managerPhoneController.clear();
     _currentPage = 1;
+    _selectedIds.clear(); // 清空选择状态
     _loadData();
   }
 
   /// 页码变化
   void _handlePageChanged(int page) {
-    _currentPage = page;
+    setState(() {
+      _currentPage = page;
+      _selectedIds.clear(); // 页码变化时清空选择状态
+    });
     _loadData();
   }
 
@@ -268,6 +275,24 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
         );
       }
     }
+  }
+
+  /// 选择状态变化处理
+  void _handleSelectionChanged(List<int> selectedIds) {
+    // 根据行索引获取对应的managerAccount
+    final selectedManagerAccounts = <String>{};
+    for (final id in selectedIds) {
+      for (int i = 0; i < _tableData.length; i++) {
+        dynamic row = _tableData[i];
+        if (id == row['id']) {
+          selectedManagerAccounts.add(row['managerAccount'] as String);
+          break;
+        }
+      }
+    }
+    setState(() {
+      _selectedIds = selectedManagerAccounts;
+    });
   }
 
   /// 新增客户经理
@@ -443,12 +468,33 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
 
   /// 导出客户经理
   Future<void> _handleExportManager() async {
+    // 检查是否有选中的数据
+    if (_selectedIds.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('提示'),
+          content: const Text('没有勾选数据，无法导出'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('确定'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // 过滤选中的数据（客户经理使用managerAccount作为唯一标识）
+    final selectedData = _tableData.where((row) => _selectedIds.contains(row['managerAccount'])).toList();
+
     await ImportExportUtils.exportToZip(
       context,
       templateAssetPath: 'assets/excel/customer_manager_info.xlsx',
       zipFileName: 'customer_manager_info_export',
       excelFileName: 'customer_manager_info_export',
-      data: _tableData,
+      data: selectedData,
       loadingMessage: '正在导出客户经理数据...',
       successMessage: '客户经理数据导出成功',
       dataToExcelRows: (sheet, rowData, rowIndex, filePathMap) {
@@ -477,6 +523,9 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
     return CommonDataTablePage(
       // 查询条件区域
       querySection: _buildQuerySection(),
+
+      // 选择状态变化回调
+      onSelectionChanged: _handleSelectionChanged,
       
       // 表格标题
       tableTitle: '维护客户经理基础信息',

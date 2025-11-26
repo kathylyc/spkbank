@@ -45,7 +45,10 @@ class _CustomerPageState extends State<CustomerPage> {
   
   // 表格数据
   List<Map<String, dynamic>> _tableData = [];
-  
+
+  // 选中的行ID集合
+  Set<String> _selectedIds = {};
+
   User? _loginUser;
   
   bool get _isAccountManager => _loginUser?.userType == '01';
@@ -185,6 +188,7 @@ class _CustomerPageState extends State<CustomerPage> {
     setState(() {
       _selectedTag = null;
       _currentPage = 1;
+      _selectedIds.clear(); // 清空选择状态
     });
     _loadData();
   }
@@ -193,8 +197,27 @@ class _CustomerPageState extends State<CustomerPage> {
   void _handlePageChanged(int page) {
     setState(() {
       _currentPage = page;
+      _selectedIds.clear(); // 页码变化时清空选择状态
     });
     _loadData();
+  }
+
+  /// 选择状态变化处理
+  void _handleSelectionChanged(List<int> selectedIds) {
+    // 根据行索引获取对应的customerUid
+    final selectedCustomerUids = <String>{};
+    for (final id in selectedIds) {
+      for (int i = 0; i < _tableData.length; i++) {
+        dynamic row = _tableData[i];
+        if (id == row['id']) {
+          selectedCustomerUids.add(row['customerUid'] as String);
+          break;
+        }
+      }
+    }
+    setState(() {
+      _selectedIds = selectedCustomerUids;
+    });
   }
 
   Future<void> _handleAddCustomer() async {
@@ -646,9 +669,30 @@ class _CustomerPageState extends State<CustomerPage> {
 
   /// 导出客户
   Future<void> _handleExportCustomer() async {
-    // 收集所有客户的附件数据
+    // 检查是否有选中的数据
+    if (_selectedIds.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('提示'),
+          content: const Text('没有勾选数据，无法导出'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('确定'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // 过滤选中的数据
+    final selectedData = _tableData.where((row) => _selectedIds.contains(row['customerUid'])).toList();
+
+    // 收集选中客户的附件数据
     final allAttachments = <CustomerAttachmentFile>[];
-    for (final rowData in _tableData) {
+    for (final rowData in selectedData) {
       final customer = rowData['customer'] as Customer?;
       if (customer != null) {
         final attachments = await _customerRepository.findAttachmentFiles(customer.customerUid);
@@ -661,7 +705,7 @@ class _CustomerPageState extends State<CustomerPage> {
       templateAssetPath: 'assets/excel/customer_info.xlsx',
       zipFileName: 'customer_info_export',
       excelFileName: 'customer_info_export',
-      data: _tableData,
+      data: selectedData,
       headers: const ['客户编号', '客户姓名', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'],
       beforeDataToExcelRows: (exportDirPath) async {
         // 复制附件文件到files文件夹，并返回相对路径映射
@@ -901,6 +945,9 @@ class _CustomerPageState extends State<CustomerPage> {
     return CommonDataTablePage(
       // 查询条件区域
       querySection: _buildQuerySection(),
+
+      // 选择状态变化回调
+      onSelectionChanged: _handleSelectionChanged,
       
       // 表格标题
       tableTitle: '维护客户基础信息',

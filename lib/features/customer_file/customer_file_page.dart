@@ -40,6 +40,9 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   // 数据
   List<Map<String, dynamic>> _data = [];
   bool _isLoading = false;
+
+  // 选中的行ID集合
+  Set<String> _selectedIds = {};
   
   // Repository
   final CustomerRepository _repository = CustomerRepository();
@@ -146,6 +149,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       // 转换数据格式以匹配表格显示
       _data = rawData.map((row) {
         return {
+          'id': row['id'],
           'account_file_uid': row['account_file_uid'] ?? '-',
           'company': row['company'] ?? '-',
           'customerName': row['customer_name'] ?? '',
@@ -192,6 +196,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     _phoneController.clear();
     _fileNameController.clear();
     _currentPage = 1;
+    _selectedIds.clear(); // 清空选择状态
     _loadData();
   }
 
@@ -199,8 +204,31 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   void _handlePageChanged(int page) {
     setState(() {
       _currentPage = page;
+      _selectedIds.clear(); // 页码变化时清空选择状态
     });
     _loadData();
+  }
+
+  /// 选择状态变化处理
+  void _handleSelectionChanged(List<int> selectedIds) {
+    // 根据行索引获取对应的account_file_uid + file_version组合
+    final selectedRowIds = <String>{};
+    for (final id in selectedIds) {
+      for (int i = 0; i < _data.length; i++) {
+        dynamic row = _data[i];
+        if (id == row['id']) {
+          final accountFileUid = row['account_file_uid'] as String;
+          final fileVersion = row['fileVersion'];
+          // 使用 account_file_uid 和 file_version 组合成唯一标识
+          final uniqueId = '${accountFileUid}_${fileVersion}';
+          selectedRowIds.add(uniqueId);
+          break;
+        }
+      }
+    }
+    setState(() {
+      _selectedIds = selectedRowIds;
+    });
   }
 
   /// 扫描生成PDF
@@ -619,12 +647,38 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
 
   /// 导出开户文件
   Future<void> _handleExportAccountFile() async {
+    // 检查是否有选中的数据
+    if (_selectedIds.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('提示'),
+          content: const Text('没有勾选数据，无法导出'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('确定'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // 过滤选中的数据（开户文件使用account_file_uid + file_version组合作为唯一标识）
+    final selectedData = _data.where((row) {
+      final accountFileUid = row['account_file_uid'] as String;
+      final fileVersion = row['fileVersion'];
+      final uniqueId = '${accountFileUid}_${fileVersion}';
+      return _selectedIds.contains(uniqueId);
+    }).toList();
+
     await ImportExportUtils.exportToZip(
       context,
       templateAssetPath: 'assets/excel/account_file_info.xlsx',
       zipFileName: 'account_file_info_export',
       excelFileName: 'account_file_info_export',
-      data: _data,
+      data: selectedData,
       headers: const [
         '开户文件编号',
         '客户编码',
@@ -756,6 +810,9 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     return CommonDataTablePage(
       // 查询条件区域
       querySection: _buildQuerySection(),
+
+      // 选择状态变化回调
+      onSelectionChanged: _handleSelectionChanged,
       
       // 表格标题
       tableTitle: '维护客户开户文件',
