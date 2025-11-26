@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -200,6 +201,88 @@ class FileManager {
         .whereType<File>()
         .toList();
     return files;
+  }
+
+  /// 获取临时文件目录
+  /// 路径: cache/temp/
+  static Future<Directory> _getTempDir() async {
+    final cacheDir = await _cacheDir;
+    final tempDir = Directory(p.join(cacheDir.path, 'temp'));
+    if (!await tempDir.exists()) {
+      await tempDir.create(recursive: true);
+    }
+    return tempDir;
+  }
+
+  /// 创建临时PDF文件
+  ///
+  /// [bytes] PDF字节数据
+  /// [fileName] 文件名（可选）
+  ///
+  /// 返回创建的临时文件路径
+  static Future<String> createTempPdfFile(Uint8List bytes, {String? fileName}) async {
+    final tempDir = await _getTempDir();
+
+    // 生成唯一文件名
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final uuid = _uuid.v4();
+    final finalFileName = fileName ?? 'temp_${timestamp}_$uuid.pdf';
+    final tempFile = File(p.join(tempDir.path, finalFileName));
+
+    // 写入文件
+    await tempFile.writeAsBytes(bytes);
+
+    return tempFile.path;
+  }
+
+  /// 从现有文件创建临时PDF文件
+  ///
+  /// [sourcePath] 源文件路径
+  /// [fileName] 新文件名（可选）
+  ///
+  /// 返回创建的临时文件路径
+  static Future<String> createTempPdfFileFromSource(String sourcePath, {String? fileName}) async {
+    final sourceFile = File(sourcePath);
+    if (!await sourceFile.exists()) {
+      throw Exception('源文件不存在: $sourcePath');
+    }
+
+    // 读取源文件字节数据
+    final bytes = await sourceFile.readAsBytes();
+
+    // 创建临时文件
+    return await createTempPdfFile(bytes, fileName: fileName);
+  }
+
+  /// 删除临时文件
+  ///
+  /// [filePath] 文件路径
+  static Future<void> deleteTempFile(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (e) {
+      // 静默处理删除失败，避免影响主流程
+      print('删除临时文件失败: $e');
+    }
+  }
+
+  /// 清理所有临时文件
+  static Future<void> cleanupTempFiles() async {
+    try {
+      final tempDir = await _getTempDir();
+      if (await tempDir.exists()) {
+        await for (final entity in tempDir.list()) {
+          if (entity is File) {
+            await entity.delete();
+          }
+        }
+      }
+    } catch (e) {
+      print('清理临时文件失败: $e');
+    }
   }
 }
 

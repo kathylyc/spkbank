@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui show Image, ImageByteFormat;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -129,11 +130,15 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   Uint8List? _pdfBytes;
   Uint8List? _originalPdfBytes; // 保存原始未修改的 PDF 字节
   PdfDocument? _currentDocument; // 保存当前文档的引用，用于保存时复制表单字段值
-  
+
+  // 临时文件相关
+  String? _tempPdfPath; // 临时PDF文件路径
+  File? _currentTempFile; // 当前临时文件引用
+
   // 字体相关
   PdfTrueTypeFont? _chineseFont;
   List<int>? _chineseFontBytes;
-  
+
   // Repository
   final CustomerRepository _repository = CustomerRepository();
 
@@ -146,6 +151,10 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
   @override
   void dispose() {
+    // 清理临时文件
+    _cleanupTempFiles();
+
+    // 现有的清理逻辑
     _pdfViewerController?.dispose();
     _currentDocument?.dispose();
     super.dispose();
@@ -1662,6 +1671,27 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
               //   ),
               // ),
 
+              // 上传PDF按钮
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: ElevatedButton.icon(
+                  onPressed: _pickAndValidatePdf,
+                  icon: const Icon(Icons.upload, size: 16),
+                  label: const Text('上传PDF'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 0,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ),
+
               // 快速保存按钮（默认不扁平化）
               Padding(
                 padding: const EdgeInsets.only(right: 16),
@@ -1739,7 +1769,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
     }
 
     if (_pdfBytes != null) {
-      final bool showInfoBar = widget.customerName != null;
+      final bool showInfoBar = widget.customerName != null || widget.fileVersion != null;
 
       return Column(
         children: [
@@ -1755,25 +1785,37 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
             ),
             child: Row(
               children: [
-                Icon(Icons.person, size: 20, color: Colors.blue.shade700),
-                const SizedBox(width: 8),
-                Text(
-                  '客户：${widget.customerName}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade800,
+                if (widget.customerName != null) ...[
+                  Icon(Icons.person, size: 20, color: Colors.blue.shade700),
+                  const SizedBox(width: 8),
+                  Text(
+                    '客户：${widget.customerName}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade800,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 24),
-                Icon(Icons.description, size: 20, color: Colors.blue.shade700),
-                const SizedBox(width: 8),
-                Text(
-                  '模板：${widget.templateName}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade800,
+                  const SizedBox(width: 24),
+                  Icon(Icons.description, size: 20, color: Colors.blue.shade700),
+                  const SizedBox(width: 8),
+                  Text(
+                    '模板：${widget.templateName}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade800,
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 24),
+                  Icon(Icons.info, size: 20, color: Colors.blue.shade700),
+                  const SizedBox(width: 8),
+                  Text(
+                    '版本：${VersionUtils.intToString(widget.fileVersion!)}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade800,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1812,6 +1854,200 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
     return const Center(
       child: Text('PDF数据为空'),
     );
+  }
+
+  /// 选择并验证PDF文件
+  Future<void> _pickAndValidatePdf() async {
+    try {
+      // 1. 文件选择
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        allowMultiple: false,
+      );
+
+      if (result == null || result.files.isEmpty) {
+        return;
+      }
+
+      final selectedFile = result.files.single;
+      final String? filePath = selectedFile.path;
+
+      if (filePath == null || !await File(filePath).exists()) {
+        _showValidationDialog(false, '选择的文件不存在');
+        return;
+      }
+
+      // 2. 显示加载对话框
+      _showLoadingDialog('正在验证PDF文件...');
+
+      // 3. 读取PDF并提取signCode
+      String? uploadedSignCode = await _extractSignCodeFromPdf(filePath);
+
+      if (uploadedSignCode == null || uploadedSignCode.isEmpty) {
+        _hideLoadingDialog();
+        _showValidationDialog(false, 'PDF文件中未找到signCode表单域');
+        return;
+      }
+
+      // 4. 获取当前文件的signCode
+      final currentSignCode = widget.templateSignCode;
+
+      if (currentSignCode == null || currentSignCode.isEmpty) {
+        _hideLoadingDialog();
+        _showValidationDialog(false, '当前预览文件的signCode为空');
+        return;
+      }
+
+      // 5. 验证signCode一致性
+      await Future.delayed(const Duration(milliseconds: 500)); // 用户体验
+
+      if (uploadedSignCode == currentSignCode) {
+        try {
+          // 1. 复制文件到临时目录
+          _tempPdfPath = await FileManager.createTempPdfFileFromSource(filePath);
+          _currentTempFile = File(_tempPdfPath!);
+
+          // 2. 重新加载PDF到内存
+          await _reloadPdfFromTempFile();
+
+          // 3. 隐藏加载对话框
+          _hideLoadingDialog();
+
+          // 4. 显示成功提示
+          _showValidationDialog(true, 'PDF文件已成功加载');
+
+        } catch (e) {
+          _hideLoadingDialog();
+          _showValidationDialog(false, '加载PDF文件失败：$e');
+        }
+      } else {
+        _hideLoadingDialog();
+        _showValidationDialog(false, '验证失败：上传文件的signCode与当前文件不一致\n\n上传文件：$uploadedSignCode\n当前文件：$currentSignCode');
+      }
+
+    } catch (e) {
+      _hideLoadingDialog();
+      _showValidationDialog(false, '验证过程中发生错误：$e');
+    }
+  }
+
+  /// 从PDF文件中提取signCode
+  Future<String?> _extractSignCodeFromPdf(String filePath) async {
+    try {
+      final pdfFile = File(filePath);
+      final pdfBytes = await pdfFile.readAsBytes();
+
+      final PdfDocument document = PdfDocument(inputBytes: pdfBytes);
+      final PdfForm form = document.form;
+
+      for (int i = 0; i < form.fields.count; i++) {
+        final PdfField field = form.fields[i];
+        if (field.name == 'signCode') {
+          if (field is PdfTextBoxField) {
+            final result = field.text.trim();
+            document.dispose();
+            return result;
+          } else if (field is PdfComboBoxField) {
+            final result = field.selectedValue?.toString().trim();
+            document.dispose();
+            return result;
+          }
+        }
+      }
+
+      document.dispose();
+      return null;
+    } catch (e) {
+      debugPrint('提取signCode失败: $e');
+      return null;
+    }
+  }
+
+  /// 显示加载对话框
+  void _showLoadingDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(width: 20),
+              Text(message),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 隐藏加载对话框
+  void _hideLoadingDialog() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  /// 显示验证结果对话框
+  void _showValidationDialog(bool isSuccess, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          isSuccess ? '验证成功' : '验证失败',
+          style: TextStyle(
+            color: isSuccess ? Colors.green : Colors.red,
+          ),
+        ),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 从临时文件重新加载PDF
+  Future<void> _reloadPdfFromTempFile() async {
+    if (_tempPdfPath == null) return;
+
+    try {
+      // 读取临时文件到内存
+      final tempFile = File(_tempPdfPath!);
+      final newPdfBytes = await tempFile.readAsBytes();
+
+      // 更新状态
+      setState(() {
+        _pdfBytes = newPdfBytes;
+        _isLoading = true;
+        _error = null;
+      });
+
+      // 重新加载PDF
+      await _loadPdf();
+
+    } catch (e) {
+      setState(() {
+        _error = '重新加载PDF失败: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  /// 清理临时文件
+  Future<void> _cleanupTempFiles() async {
+    if (_tempPdfPath != null) {
+      await FileManager.deleteTempFile(_tempPdfPath!);
+      _tempPdfPath = null;
+      _currentTempFile = null;
+    }
   }
 }
 
