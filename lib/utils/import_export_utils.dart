@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import 'common_const.dart';
+
 /// 额外的Excel文件信息
 class ExtraExcelFile {
   final String fileName;
@@ -332,10 +334,7 @@ class ImportExportUtils {
         sheetName = excelBook.tables.isNotEmpty
             ? excelBook.tables.keys.first
             : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : 'Sheet1');
-        if (sheetName.isEmpty) {
-          throw Exception('模板中未找到可用的工作表');
-        }
-        sheet = excelBook[sheetName] ?? excelBook['Sheet1']!;
+        sheet = excelBook[sheetName];
         // 如果使用模板，从第二行开始填充数据（第一行是表头）
       } catch (templateError) {
         // 模板加载失败，创建新的Excel文件
@@ -368,7 +367,7 @@ class ImportExportUtils {
       }
 
       // 在填充Excel数据之前执行文件复制等操作
-      Map<String, String>? filePathMap = null; // key: 原始路径, value: 相对路径
+      Map<String, String>? filePathMap; // key: 原始路径, value: 相对路径
       if (beforeDataToExcelRows != null) {
         filePathMap = await beforeDataToExcelRows(exportCurrentDir.path);
       }
@@ -592,10 +591,31 @@ class ImportExportUtils {
         return;
       }
 
-      // 弹出密码输入对话框
-      final password = await promptUnzipPassword(context);
-      if (password == null) {
-        return;
+      // 先尝试使用默认密码解压
+      bool unzipSuccess = false;
+      String? usedPassword;
+
+      // 如果默认密码不为空，先尝试使用默认密码
+      if (ConstZip.pcPwd.isNotEmpty) {
+        try {
+          final zipBytes = await zipFile.readAsBytes();
+          final archive = ZipDecoder().decodeBytes(zipBytes, verify: true, password: ConstZip.pcPwd);
+          unzipSuccess = true;
+          usedPassword = ConstZip.pcPwd;
+          debugPrint('使用默认密码解压成功');
+        } catch (e) {
+          debugPrint('使用默认密码解压失败: $e');
+        }
+      }
+
+      // 如果默认密码解压失败，弹出密码输入对话框
+      if (!unzipSuccess) {
+        if (!context.mounted) return;
+        final password = await promptUnzipPassword(context);
+        if (password == null) {
+          return;
+        }
+        usedPassword = password;
       }
 
       // 显示加载对话框
@@ -624,7 +644,7 @@ class ImportExportUtils {
       // 解压 zip 文件
       try {
         final zipBytes = await targetZipFile.readAsBytes();
-        final archive = ZipDecoder().decodeBytes(zipBytes, password: password);
+        final archive = ZipDecoder().decodeBytes(zipBytes, verify: true, password: usedPassword);
 
         // 解压到 cache/import 目录
         for (final file in archive) {
@@ -737,9 +757,10 @@ class ImportExportUtils {
         }
 
         onSuccess?.call(successMessage);
-      } catch (e) {
+      } catch (e, s) {
         // 解压失败（可能是密码错误）
         debugPrint('解压失败: $e');
+        debugPrintStack(stackTrace: s);
 
         // 关闭加载对话框
         if (context.mounted) {

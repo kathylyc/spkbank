@@ -1,6 +1,7 @@
-import 'dart:ffi';
+class ConstZip {
+  static const pcPwd = "265xxaq545a2xq6x";// PC端导出的默认密码
+}
 
-/// 客户标签常量映射
 class ConstCustomerTag  {
   static const keyCustomer = "1";// 大客户
   static const publicOfficials = "2";// 公职人员
