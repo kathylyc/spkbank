@@ -48,6 +48,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   User? _loginUser;
   
   bool get _isAccountManager => _loginUser?.userType == '01';
+  bool get _isSuperAdmin => _loginUser?.userType == '00';
   String? get _managerAccount => _isAccountManager ? _loginUser?.userName : null;
 
   @override
@@ -1211,62 +1212,63 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       ),
       
       const SizedBox(width: 8),
-      
-      // 删除按钮（红色，总是可用）
-      ElevatedButton(
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('确认删除'),
-              content: Text('确定要删除"${row['fileName']}"吗？'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('取消'),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    final accountFileUid = row['account_file_uid'] as String?;
-                    final fileVersion = row['fileVersion'];
-                    if (accountFileUid != null && fileVersion != null) {
-                      try {
-                        await _repository.deleteByAccountFileUidAndVersion(accountFileUid, fileVersion);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('已删除: ${row['fileName']}')),
-                          );
-                          _loadData();
-                        }
-                      } catch (e) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('删除失败: $e')),
-                          );
+
+      // 删除按钮（红色，仅超级管理员可用）
+      if (_isSuperAdmin)
+        ElevatedButton(
+          onPressed: () {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('确认删除'),
+                content: Text('确定要删除"${row['fileName']}"吗？'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('取消'),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      final accountFileUid = row['account_file_uid'] as String?;
+                      final fileVersion = row['fileVersion'];
+                      if (accountFileUid != null && fileVersion != null) {
+                        try {
+                          await _repository.deleteByAccountFileUidAndVersion(accountFileUid, fileVersion);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('已删除: ${row['fileName']}')),
+                            );
+                            _loadData();
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('删除失败: $e')),
+                            );
+                          }
                         }
                       }
-                    }
-                  },
-                  style: TextButton.styleFrom(foregroundColor: Colors.red),
-                  child: const Text('删除'),
-                ),
-              ],
+                    },
+                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                    child: const Text('删除'),
+                  ),
+                ],
+              ),
+            );
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
             ),
-          );
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.red,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          child: const Text('删除', style: TextStyle(fontSize: 13)),
         ),
-        child: const Text('删除', style: TextStyle(fontSize: 13)),
-      ),
     ];
     
     // 使用Wrap使按钮可以自动换行
