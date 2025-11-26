@@ -19,6 +19,22 @@ import 'customer_file_add_page.dart';
 import 'customer_file_add_picture_page.dart';
 import 'customer_file_preview_page.dart';
 
+/// 验证结果类（类似Python元组）
+class ValidationResult {
+  final bool success;
+  final String reasonCode;
+  final String message;
+
+  const ValidationResult({
+    required this.success,
+    required this.reasonCode,
+    required this.message,
+  });
+
+  @override
+  String toString() => 'ValidationResult(success: $success, reasonCode: $reasonCode, message: $message)';
+}
+
 /// 开户文件管理页面
 class CustomerFilePage extends StatefulWidget {
   const CustomerFilePage({super.key});
@@ -645,6 +661,43 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     );
   }
 
+  /// 验证选中的开户文件是否符合导出条件
+  ValidationResult _validateSelectedFiles(List<Map<String, dynamic>> selectedData) {
+    if (selectedData.isEmpty) {
+      return const ValidationResult(
+        success: false,
+        reasonCode: 'NO_SELECTION',
+        message: '没有勾选数据，无法导出',
+      );
+    }
+
+    // (1) 检查是否选择了同一客户的开户文件
+    final customerUids = selectedData.map((row) => row['customerUid'] as String).toSet();
+    if (customerUids.length > 1) {
+      return const ValidationResult(
+        success: false,
+        reasonCode: 'MULTIPLE_CUSTOMERS',
+        message: '仅支持对【相同客户】的开户文件导出。',
+      );
+    }
+
+    // (2) 检查是否只选择了生效的开户文件
+    final allEnabled = selectedData.every((row) => _isEnabled(row));
+    if (!allEnabled) {
+      return const ValidationResult(
+        success: false,
+        reasonCode: 'CONTAINS_DISABLED',
+        message: '仅支持对【生效】的开户文件导出。',
+      );
+    }
+
+    return const ValidationResult(
+      success: true,
+      reasonCode: 'SUCCESS',
+      message: '验证通过',
+    );
+  }
+
   /// 导出开户文件
   Future<void> _handleExportAccountFile() async {
     // 检查是否有选中的数据
@@ -672,6 +725,25 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       final uniqueId = '${accountFileUid}_${fileVersion}';
       return _selectedIds.contains(uniqueId);
     }).toList();
+
+    // 验证选中的文件是否符合导出条件
+    final validationResult = _validateSelectedFiles(selectedData);
+    if (!validationResult.success) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('提示'),
+          content: Text(validationResult.message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('确定'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
 
     await ImportExportUtils.exportToZip(
       context,
