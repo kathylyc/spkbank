@@ -312,7 +312,7 @@ class _CustomerFileAddPicturePageState extends State<CustomerFileAddPicturePage>
       // 扫描生成PDF：每次生成时都创建新的 account_file_uid，fileVersion 固定为 1
       final templateName = '扫描生成PDF';
       final String accountFileUid = _uuid.v4().replaceAll('-', '');
-      final String fileVersion = '1';
+      final int fileVersion = 1;
 
       // 将PDF文件复制到沙盒目录下的 account 目录
       final savedFilePath = await FileManager.saveAccountFileWithName(

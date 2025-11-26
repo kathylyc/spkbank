@@ -33,7 +33,7 @@ class CustomerAccountFileDao {
   /// 将指定版本设为生效（enable_status = 1），其他版本设为失效（enable_status = 0）
   Future<void> updateEnableStatusByAccountFileUid(
     String accountFileUid,
-    String fileVersion,
+    int fileVersion,
     String updateBy,
     DateTime updateTime,
   ) async {
@@ -67,7 +67,7 @@ class CustomerAccountFileDao {
     });
   }
 
-  Future<int> deleteByAccountFileUidAndVersion(String accountFileUid, String fileVersion) async {
+  Future<int> deleteByAccountFileUidAndVersion(String accountFileUid, int fileVersion) async {
     final db = await _manager.database;
     return db.delete(
       CustomerAccountFile.tableName,
@@ -119,7 +119,7 @@ class CustomerAccountFileDao {
 
   /// 根据账户文件UID查找最大版本号
   /// 返回最大版本号，如果没有记录则返回 null
-  Future<String?> findMaxVersionByAccountFileUid(String accountFileUid) async {
+  Future<int?> findMaxVersionByAccountFileUid(String accountFileUid) async {
     final db = await _manager.database;
     final rows = await db.query(
       CustomerAccountFile.tableName,
@@ -130,7 +130,7 @@ class CustomerAccountFileDao {
       limit: 1,
     );
     if (rows.isEmpty) return null;
-    return rows.first['file_version'] as String?;
+    return rows.first['file_version'] as int?;
   }
 
   /// 查询开户文件列表，关联客户信息和客户经理信息

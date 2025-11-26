@@ -26,7 +26,7 @@ class CustomerAccountFile {
   final String accountFileUid;
   final String customerUid;
   final String accountFileName;
-  final String? fileVersion;
+  final int? fileVersion;
   final String filePath;
   final int? signStatus;
   final int? enableStatus;
@@ -62,7 +62,7 @@ class CustomerAccountFile {
       accountFileUid: map['account_file_uid'] as String,
       customerUid: map['customer_uid'] as String,
       accountFileName: map['account_file_name'] as String,
-      fileVersion: map['file_version'] as String?,
+      fileVersion: map['file_version'] as int?,
       filePath: map['file_path'] as String,
       signStatus: parseSignStatus(map['sign_status']),
       enableStatus: parseEnableStatus(map['enable_status']),
@@ -103,7 +103,7 @@ class CustomerAccountFile {
     String? accountFileUid,
     String? customerUid,
     String? accountFileName,
-    String? fileVersion,
+    int? fileVersion,
     String? filePath,
     int? signStatus,
     int? enableStatus,

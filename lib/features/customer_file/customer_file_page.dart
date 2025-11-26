@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:bank_flutter/utils/version_utils.dart';
 import 'package:excel/excel.dart' as excel;
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
@@ -149,7 +150,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           'customerName': row['customer_name'] ?? '',
           'phone': row['phone'] ?? '',
           'fileName': row['account_file_name'] ?? '',
-          'version': row['file_version'] ?? '-',
+          'fileVersion': row['file_version'],
           'status': _formatSignStatus(row['sign_status']),
           'enableStatus': row['enable_status'],
           'file_src_type': row['file_src_type'] ?? '',
@@ -302,7 +303,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     final filePath = row['filePath']?.toString();
     final accountFileUid = row['account_file_uid']?.toString();
     final customerUid = row['customerUid']?.toString();
-    final fileVersion = row['version']?.toString();
+    final fileVersion = row['fileVersion'];
     final fileSrcType = row['file_src_type']?.toString();
     final templateSignCode = row['templateSignCode']?.toString();
 
@@ -463,7 +464,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       final accountFileUid = (row[0]?.value?.toString() ?? '').trim();
       final customerUid = (row[1]?.value?.toString() ?? '').trim();
       final accountFileName = (row[2]?.value?.toString() ?? '').trim();
-      final fileVersion = (row[3]?.value?.toString() ?? '').trim();
+      final fileVersion = int.tryParse(row[3]?.value?.toString() ?? '') ?? 1;
       final relativeFilePath = (row[4]?.value?.toString() ?? '').trim(); // 第5列：文件路径（相对路径）
       final signStatusStr = row[5]?.value?.toString()?.trim();
       // 将 Excel 中的 signStatus 字符串转换为 int
@@ -521,7 +522,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
             final finalAccountFileUid = accountFileUid.isNotEmpty
                 ? accountFileUid
                 : '${customerUid}_${DateTime.now().millisecondsSinceEpoch}';
-            final finalFileVersion = fileVersion.isNotEmpty ? fileVersion : '1';
+            final finalFileVersion = fileVersion;
             final targetFileName = '${finalAccountFileUid}_$finalFileVersion.pdf';
             final targetFilePath = p.join(accountDir.path, targetFileName);
             final targetFile = File(targetFilePath);
@@ -553,7 +554,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         // 更新现有开户文件
         final updatedFile = existingFile.copyWith(
           accountFileName: accountFileName.isNotEmpty ? accountFileName : existingFile.accountFileName,
-          fileVersion: fileVersion.isNotEmpty ? fileVersion : existingFile.fileVersion,
+          fileVersion: fileVersion,
           filePath: appCacheFilePath ?? existingFile.filePath, // 如果有新文件路径则更新，否则保持原路径
           signStatus: signStatus ?? existingFile.signStatus,
           fileSrcType: fileSrcType?.isNotEmpty == true ? fileSrcType : existingFile.fileSrcType,
@@ -576,7 +577,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           accountFileUid: finalAccountFileUid,
           customerUid: customerUid,
           accountFileName: accountFileName,
-          fileVersion: fileVersion.isNotEmpty ? fileVersion : '1',
+          fileVersion: fileVersion,
           filePath: appCacheFilePath ?? '', // 使用复制后的APP缓存路径
           signStatus: signStatus,
           fileSrcType: fileSrcType,
@@ -704,7 +705,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         // 文件版本
         sheet
             .cell(excel.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
-            .value = excel.TextCellValue(rowData['version']?.toString() ?? '-');
+            .value = excel.TextCellValue(VersionUtils.intToString(rowData['fileVersion']));
         // 文件路径（相对路径，如 files/xxx.pdf）
         String localPath = rowData['filePath']?.toString() ?? '-';
         String? relativePath = localPath;
@@ -806,7 +807,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         ),
         DataTableColumn(
           label: '文件版本',
-          builder: (row, context) => Text(row['version']?.toString() ?? '-'),
+          builder: (row, context) => Text(VersionUtils.intToString(row['fileVersion'])),
         ),
         DataTableColumn(
           label: '签署状态',
@@ -1065,7 +1066,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   /// 处理生效操作
   Future<void> _handleEnable(Map<String, dynamic> row) async {
     final accountFileUid = row['account_file_uid']?.toString();
-    final fileVersion = row['version']?.toString();
+    final fileVersion = row['fileVersion'];
     
     if (accountFileUid == null || accountFileUid.isEmpty) {
       if (mounted) {
@@ -1076,7 +1077,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       return;
     }
 
-    if (fileVersion == null || fileVersion.isEmpty) {
+    if (fileVersion == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('文件版本号不能为空')),
@@ -1228,7 +1229,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
                   onPressed: () async {
                     Navigator.pop(context);
                     final accountFileUid = row['account_file_uid'] as String?;
-                    final fileVersion = row['version']?.toString();
+                    final fileVersion = row['fileVersion'];
                     if (accountFileUid != null && fileVersion != null) {
                       try {
                         await _repository.deleteByAccountFileUidAndVersion(accountFileUid, fileVersion);

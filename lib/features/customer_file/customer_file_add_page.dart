@@ -314,7 +314,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
       );
       
       String accountFileUid;
-      String fileVersion;
+      int fileVersion;
       
       if (existingFile != null) {
         // 如果存在，先做一个Dialog确认，如果用户点击确定，则继续往下走，否则退出该流程；Dialog的空白区域不可关闭
@@ -347,15 +347,14 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
         accountFileUid = existingFile.accountFileUid;
         final maxVersion = await _repository.findMaxVersionByAccountFileUid(accountFileUid);
         if (maxVersion != null) {
-          final currentVersion = int.tryParse(maxVersion) ?? 0;
-          fileVersion = (currentVersion + 1).toString();
+          fileVersion = maxVersion + 1;
         } else {
-          fileVersion = '1';
+          fileVersion = 1;
         }
       } else {
         // 如果不存在，使用 UUID 生成 account_file_uid，file_version 设为 1
         accountFileUid = _uuid.v4().replaceAll('-', '');
-        fileVersion = '1';
+        fileVersion = 1;
       }
       
       // 2. 将选中的文件复制到沙盒目录下的 account 目录

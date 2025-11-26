@@ -98,7 +98,7 @@ class CustomerFilePreviewPage extends StatefulWidget {
   final bool isEditMode; // 是否为编辑模式
   final String? accountFileUid; // 账户文件 UID（用于保存）
   final String? customerUid; // 客户 UID（用于保存）
-  final String? fileVersion; // 文件版本（用于保存）
+  final int? fileVersion; // 文件版本（用于保存）
   final String? fileSrcType; // 文件来源类型（用于保存）
   final String? templateSignCode; // 模板签名代码（用于保存）
 
@@ -656,13 +656,12 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       final now = DateTime.now();
 
       // 1. 查询该 account_file_uid 的最大版本号并加一
-      String newFileVersion;
+      int newFileVersion;
       final maxVersion = await _repository.findMaxVersionByAccountFileUid(widget.accountFileUid!);
       if (maxVersion != null) {
-        final currentVersion = int.tryParse(maxVersion) ?? 0;
-        newFileVersion = (currentVersion + 1).toString();
+        newFileVersion = maxVersion + 1;
       } else {
-        newFileVersion = '1';
+        newFileVersion = 1;
       }
 
       // 2. 构建目标文件路径

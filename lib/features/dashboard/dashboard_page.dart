@@ -1,3 +1,4 @@
+import 'package:bank_flutter/utils/version_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../utils/context_extensions.dart';
@@ -127,7 +128,7 @@ class _DashboardPageState extends State<DashboardPage> {
       'customerName': row['customer_name'] ?? '-',
       'company': (row['company'] as String?)?.isEmpty ?? true ? '-' : (row['company'] as String),
       'accountFileName': row['account_file_name'] ?? '-',
-      'fileVersion': row['file_version'] ?? '-',
+      'fileVersion': row['file_version'],
       'templateUsed': row['template_name'] ?? '-',
       'accountManagerCode': row['manager_code'] ?? '-',
       'accountManagerName': row['manager_name'] ?? '-',
@@ -282,7 +283,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           DataTableColumn(
             label: context.S.fileVersion,
-            builder: (row, context) => Text(row['fileVersion']),
+            builder: (row, context) => Text(VersionUtils.intToString(row['fileVersion'])),
           ),
           DataTableColumn(
             label: context.S.templateUsed,

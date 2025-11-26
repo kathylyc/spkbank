@@ -139,16 +139,16 @@ class CustomerRepository {
       _provider.customerAccountFileDao.findByAccountFileUid(accountFileUid);
 
   /// 根据账户文件UID查找最大版本号
-  Future<String?> findMaxVersionByAccountFileUid(String accountFileUid) =>
+  Future<int?> findMaxVersionByAccountFileUid(String accountFileUid) =>
       _provider.customerAccountFileDao.findMaxVersionByAccountFileUid(accountFileUid);
 
-  Future<int> deleteByAccountFileUidAndVersion(String accountFileUid, String fileVersion) => _provider.customerAccountFileDao.deleteByAccountFileUidAndVersion(accountFileUid, fileVersion);
+  Future<int> deleteByAccountFileUidAndVersion(String accountFileUid, int fileVersion) => _provider.customerAccountFileDao.deleteByAccountFileUidAndVersion(accountFileUid, fileVersion);
 
   /// 更新同一开户文件uid下所有版本的生效状态
   /// 将指定版本设为生效，其他版本设为失效
   Future<void> updateEnableStatusByAccountFileUid(
     String accountFileUid,
-    String fileVersion,
+    int fileVersion,
     String? updateBy,
     DateTime updateTime,
   ) async {

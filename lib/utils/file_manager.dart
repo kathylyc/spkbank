@@ -128,7 +128,7 @@ class FileManager {
   static Future<String> saveAccountFileWithName({
     required String sourcePath,
     required String accountFileUid,
-    required String fileVersion,
+    required int fileVersion,
   }) async {
     final sourceFile = File(sourcePath);
     if (!await sourceFile.exists()) {
