@@ -699,7 +699,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
 
         final filePathMap = <String, String>{}; // key: 原始路径, value: 相对路径
 
-        for (final rowData in _data) {
+        for (final rowData in selectedData) {
           final originalFilePath = rowData['filePath']?.toString();
           if (originalFilePath == null || originalFilePath.isEmpty || originalFilePath == '-') {
             continue;

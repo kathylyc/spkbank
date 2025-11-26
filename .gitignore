@@ -95,3 +95,7 @@ ios/Runner/Base.lproj/*.orig
 # Swift Package Manager
 **/ios/.swiftpm/
 **/ios/.build/
+
+# Claude Code 相关
+CLAUDE.md
+.claude/
