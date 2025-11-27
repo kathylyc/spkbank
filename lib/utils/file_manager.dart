@@ -25,7 +25,8 @@ class FileManager {
     if (Platform.isIOS) {
       // iOS 使用 documents 目录下的 cache 子目录
       // iOS 的 cache 目录可能被系统清理，documents 目录更持久
-      final documentsDir = await getApplicationDocumentsDirectory();
+      // final documentsDir = await getApplicationDocumentsDirectory();
+      final documentsDir = await getApplicationCacheDirectory();
       cacheDir = Directory(p.join(documentsDir.path, 'cache'));
 
       // 确保 cache 目录存在
