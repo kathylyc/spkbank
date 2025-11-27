@@ -846,6 +846,31 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       );
     }
 
+    // (3) 检查是否只选择了正式版本的开户文件（中版本和小版本都为0）
+    for (final row in selectedData) {
+      final fileVersion = row['fileVersion'] as int?;
+      if (fileVersion == null) {
+        return const ValidationResult(
+          success: false,
+          reasonCode: 'NO_VERSION',
+          message: '开户文件版本信息不完整，无法导出。',
+        );
+      }
+
+      // 检查中版本号和小版本号是否都为0
+      final remainder = fileVersion % 10000;
+      final middleVersion = remainder ~/ 100;    // 中版本号
+      final minorVersion = remainder % 100;     // 小版本号
+
+      if (middleVersion != 0 || minorVersion != 0) {
+        return const ValidationResult(
+          success: false,
+          reasonCode: 'NOT_FORMAL_VERSION',
+          message: '当前为备份版本，不可直接导出。如需导出，请先编辑内容并保存为新版本，再执行导出操作。',
+        );
+      }
+    }
+
     return const ValidationResult(
       success: true,
       reasonCode: 'SUCCESS',
