@@ -217,7 +217,9 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       // 优先使用文件路径加载
       if (widget.filePath != null && widget.filePath!.isNotEmpty) {
         try {
-          final file = File(widget.filePath!);
+          // 使用FileManager处理相对路径
+          final fullPath = await FileManager.getFullPath(widget.filePath!);
+          final file = File(fullPath);
           if (await file.exists()) {
             bytes = await file.readAsBytes();
             debugPrint('从文件路径加载PDF成功: ${widget.filePath}');
@@ -700,7 +702,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       );
 
       // 将保存的PDF字节写入文件
-      final savedFile = File(savedFilePath);
+      final savedFile = File(await FileManager.getFullPath(savedFilePath));
       await savedFile.writeAsBytes(savedBytes);
 
       // 计算文档签署状态
@@ -1805,16 +1807,18 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                       color: Colors.grey.shade800,
                     ),
                   ),
-                  const SizedBox(width: 24),
-                  Icon(Icons.info, size: 20, color: Colors.blue.shade700),
-                  const SizedBox(width: 8),
-                  Text(
-                    '版本：${VersionUtils.intToString(widget.fileVersion!)}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade800,
+                  if ( widget.fileVersion != null) ...[
+                    const SizedBox(width: 24),
+                    Icon(Icons.info, size: 20, color: Colors.blue.shade700),
+                    const SizedBox(width: 8),
+                    Text(
+                      '版本：${VersionUtils.intToString(widget.fileVersion!)}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade800,
+                      ),
                     ),
-                  ),
+                  ]
                 ],
               ],
             ),
@@ -1935,7 +1939,9 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   /// 从PDF文件中提取signCode
   Future<String?> _extractSignCodeFromPdf(String filePath) async {
     try {
-      final pdfFile = File(filePath);
+      // 使用FileManager处理相对路径
+      final fullPath = await FileManager.getFullPath(filePath);
+      final pdfFile = File(fullPath);
       final pdfBytes = await pdfFile.readAsBytes();
 
       final PdfDocument document = PdfDocument(inputBytes: pdfBytes);

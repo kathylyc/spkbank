@@ -718,7 +718,7 @@ class _CustomerPageState extends State<CustomerPage> {
 
         // 复制所有附件文件
         for (final attachment in allAttachments) {
-          final originalFilePath = attachment.filePath;
+          final originalFilePath = await FileManager.getFullPath(attachment.filePath);
           if (originalFilePath.isEmpty) {
             continue;
           }

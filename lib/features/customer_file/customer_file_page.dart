@@ -13,6 +13,7 @@ import '../../utils/page_transition_animations.dart';
 import '../../utils/storage_utils.dart';
 import '../../utils/import_export_utils.dart';
 import '../../utils/file_utils.dart';
+import '../../utils/file_manager.dart';
 import '../../data/models/user.dart';
 import '../../data/models/customer.dart';
 import '../../data/models/customer_account_file.dart';
@@ -461,7 +462,9 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       // 1. 复制PDF文件（如果存在）
       final originalFilePath = existingFile.filePath;
       if (originalFilePath.isNotEmpty) {
-        final originalFile = File(originalFilePath);
+        // 使用FileManager处理相对路径
+        final fullPath = await FileManager.getFullPath(originalFilePath);
+        final originalFile = File(fullPath);
         if (await originalFile.exists()) {
           // 生成备份文件名：使用新的版本号
           final backupFileName = '${existingFile.accountFileUid}_$newFileVersion.pdf';
@@ -960,7 +963,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           }
 
           try {
-            final sourceFile = File(originalFilePath);
+            final sourceFile = File(await FileManager.getFullPath(originalFilePath));
             if (!await sourceFile.exists()) {
               debugPrint('文件不存在，跳过: $originalFilePath');
               continue;
@@ -1624,8 +1627,9 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     }
 
     try {
-      // 读取源文件
-      final sourceFile = File(filePath);
+      // 使用FileManager处理相对路径
+      final fullPath = await FileManager.getFullPath(filePath);
+      final sourceFile = File(fullPath);
       if (!await sourceFile.exists()) {
         throw Exception('源文件不存在: $filePath');
       }

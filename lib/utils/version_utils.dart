@@ -299,6 +299,13 @@ class VersionUtils {
     int newMiddle = middleVersion + middleIncrement;
     int newMinor = minorVersion + minorIncrement;
 
+    if (majorIncrement > 0) {
+      // 本次增加了大版本
+      // 中版本和小版本不增加
+      newMiddle = 0;
+      newMinor = 0;
+    }
+
     // 处理小版本号溢出（超过99或小于0）
     if (newMinor > 99) {
       final int middleOverflow = newMinor ~/ 100;

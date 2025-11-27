@@ -72,7 +72,7 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
       ]);
 
       final User? loginUser = results[0] as User?;
-      final List<CustomerAttachmentFile> attachmentFiles =
+      List<CustomerAttachmentFile> attachmentFiles =
           results[1] as List<CustomerAttachmentFile>;
       final Map<String, _AttachmentState> states = {
         for (final config in _attachmentConfigs)
@@ -371,20 +371,25 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
     final String? existingName =
         existingPath == null ? null : p.basename(existingPath);
 
-    final String? previewPath = selectedPath ?? existingPath;
+    String? previewPath = selectedPath ?? existingPath;
     final bool hasFile = previewPath != null;
-    final bool isImage = _isImageFile(previewPath);
 
-    String displayText;
-    if (selectedName != null) {
-      displayText = selectedName;
-    } else if (existingName != null) {
-      displayText = '已上传: $existingName';
-    } else {
-      displayText = '点击选择文件';
-    }
+    return FutureBuilder<String?>(
+      future: hasFile ? FileManager.getFullPath(previewPath) : Future.value(null),
+      builder: (context, snapshot) {
+        String? fullPath = snapshot.data;
+        final bool isImage = _isImageFile(fullPath);
 
-    return Container(
+        String displayText;
+        if (selectedName != null) {
+          displayText = selectedName;
+        } else if (existingName != null) {
+          displayText = '已上传: $existingName';
+        } else {
+          displayText = '点击选择文件';
+        }
+
+        return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
@@ -417,9 +422,9 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
               child: hasFile
                   ? ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: isImage
+                      child: isImage && fullPath != null
                           ? Image.file(
-                              File(previewPath!),
+                              File(fullPath),
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) {
                                 return const Center(
@@ -485,6 +490,8 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
           ),
         ],
       ),
+        );
+      },
     );
   }
 }

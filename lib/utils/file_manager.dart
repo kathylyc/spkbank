@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
@@ -15,9 +16,77 @@ class FileManager {
   static const _uuid = Uuid();
 
   /// 获取缓存目录
+  ///
+  /// iOS: 使用 documents 目录下的 cache 子目录，确保持久化
+  /// Android: 使用系统的 cache 目录
   static Future<Directory> get _cacheDir async {
-    final cacheDir = await getApplicationCacheDirectory();
+    Directory cacheDir;
+
+    if (Platform.isIOS) {
+      // iOS 使用 documents 目录下的 cache 子目录
+      // iOS 的 cache 目录可能被系统清理，documents 目录更持久
+      final documentsDir = await getApplicationDocumentsDirectory();
+      cacheDir = Directory(p.join(documentsDir.path, 'cache'));
+
+      // 确保 cache 目录存在
+      if (!await cacheDir.exists()) {
+        await cacheDir.create(recursive: true);
+      }
+    } else {
+      // Android 保持原有行为
+      cacheDir = await getApplicationCacheDirectory();
+    }
+
     return cacheDir;
+  }
+
+  /// 获取完整文件路径
+  ///
+  /// [relativePath] 相对路径（相对于缓存目录）
+  /// 返回拼接后的完整路径
+  static Future<String> getFullPath(String relativePath) async {
+    final cacheDir = await _cacheDir;
+    return p.join(cacheDir.path, relativePath);
+  }
+
+  /// 将绝对路径转换为相对路径
+  ///
+  /// [absolutePath] 绝对路径
+  /// 返回相对于缓存目录的相对路径，如果无法转换则返回原路径
+  static Future<String> getRelativePath(String absolutePath) async {
+    try {
+      final cacheDir = await _cacheDir;
+      final cachePath = cacheDir.path;
+
+      if (absolutePath.startsWith(cachePath)) {
+        return absolutePath.substring(cachePath.length + 1); // +1 to remove the leading '/'
+      }
+
+      // 如果不是以缓存路径开头，可能是因为缓存路径已经变化
+      // 尝试通过文件名和目录结构推断相对路径
+      if (absolutePath.contains('cache/customer/')) {
+        final parts = absolutePath.split('cache/customer/');
+        if (parts.length > 1) {
+          return 'cache/customer/${parts[1]}';
+        }
+      } else if (absolutePath.contains('cache/account/')) {
+        final parts = absolutePath.split('cache/account/');
+        if (parts.length > 1) {
+          return 'cache/account/${parts[1]}';
+        }
+      } else if (absolutePath.contains('cache/temp/')) {
+        final parts = absolutePath.split('cache/temp/');
+        if (parts.length > 1) {
+          return 'cache/temp/${parts[1]}';
+        }
+      }
+
+      // 无法转换，返回原路径
+      return absolutePath;
+    } catch (e) {
+      print('转换相对路径失败: $e');
+      return absolutePath;
+    }
   }
 
   /// 获取客户附件目录
@@ -57,12 +126,12 @@ class FileManager {
   }
 
   /// 保存客户附件文件
-  /// 
+  ///
   /// [sourcePath] 源文件路径
   /// [customerUid] 客户UID
   /// [attachmentType] 附件类型（使用 ConstCustomerAttachmentType 常量）
-  /// 
-  /// 返回保存后的文件路径（沙盒中的路径）
+  ///
+  /// 返回保存后的相对文件路径（相对于缓存目录）
   static Future<String> saveCustomerAttachment({
     required String sourcePath,
     required String customerUid,
@@ -87,14 +156,16 @@ class FileManager {
     // 复制文件
     final targetFile = await sourceFile.copy(targetPath);
 
-    return targetFile.path;
+    // 返回相对路径
+    final relativePath = 'customer/$customerUid/$fileName';
+    return relativePath;
   }
 
   /// 保存账户文件
-  /// 
+  ///
   /// [sourcePath] 源文件路径
   /// 
-  /// 返回保存后的文件路径（沙盒中的路径）
+  /// 返回保存后的相对文件路径（相对于缓存目录）
   /// 文件名格式: {UUID}.pdf
   static Future<String> saveAccountFile({
     required String sourcePath,
@@ -115,7 +186,9 @@ class FileManager {
     // 复制文件
     final targetFile = await sourceFile.copy(targetPath);
 
-    return targetFile.path;
+    // 返回相对路径
+    final relativePath = 'account/$fileName';
+    return relativePath;
   }
 
   /// 保存账户文件（指定文件名）
@@ -124,7 +197,7 @@ class FileManager {
   /// [accountFileUid] 账户文件UID
   /// [fileVersion] 文件版本号
   /// 
-  /// 返回保存后的文件路径（沙盒中的路径）
+  /// 返回保存后的相对文件路径（相对于缓存目录）
   /// 文件名格式: {account_file_uid}_{file_version}.pdf
   static Future<String> saveAccountFileWithName({
     required String sourcePath,
@@ -146,34 +219,54 @@ class FileManager {
     // 复制文件
     final targetFile = await sourceFile.copy(targetPath);
 
-    return targetFile.path;
+    // 返回相对路径
+    final relativePath = 'account/$fileName';
+    return relativePath;
   }
 
   /// 删除客户附件文件
-  /// 
-  /// [filePath] 文件路径（沙盒中的路径）
+  ///
+  /// [filePath] 文件路径（支持绝对路径或相对路径）
   static Future<void> deleteCustomerAttachment(String filePath) async {
-    final file = File(filePath);
+    // 如果是相对路径，需要转换为绝对路径
+    String fullPath = filePath;
+    if (!filePath.startsWith('/')) {
+      fullPath = await getFullPath(filePath);
+    }
+
+    final file = File(fullPath);
     if (await file.exists()) {
       await file.delete();
     }
   }
 
   /// 删除账户文件
-  /// 
-  /// [filePath] 文件路径（沙盒中的路径）
+  ///
+  /// [filePath] 文件路径（支持绝对路径或相对路径）
   static Future<void> deleteAccountFile(String filePath) async {
-    final file = File(filePath);
+    // 如果是相对路径，需要转换为绝对路径
+    String fullPath = filePath;
+    if (!filePath.startsWith('/')) {
+      fullPath = await getFullPath(filePath);
+    }
+
+    final file = File(fullPath);
     if (await file.exists()) {
       await file.delete();
     }
   }
 
   /// 检查文件是否存在
-  /// 
-  /// [filePath] 文件路径
+  ///
+  /// [filePath] 文件路径（支持绝对路径或相对路径）
   static Future<bool> fileExists(String filePath) async {
-    final file = File(filePath);
+    // 如果是相对路径，需要转换为绝对路径
+    String fullPath = filePath;
+    if (!filePath.startsWith('/')) {
+      fullPath = await getFullPath(filePath);
+    }
+
+    final file = File(fullPath);
     return await file.exists();
   }
 

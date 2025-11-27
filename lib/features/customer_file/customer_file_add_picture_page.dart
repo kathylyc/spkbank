@@ -297,7 +297,7 @@ class _CustomerFileAddPicturePageState extends State<CustomerFileAddPicturePage>
         );
       }
 
-      // 保存PDF到临时文件
+      // 保存PDF到临时目录
       final Directory tempDir = await getTemporaryDirectory();
       final String tempPdfPath = p.join(tempDir.path, '${_uuid.v4()}.pdf');
       final File tempPdfFile = File(tempPdfPath);
