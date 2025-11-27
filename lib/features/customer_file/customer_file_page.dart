@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:bank_flutter/utils/version_utils.dart';
 import 'package:excel/excel.dart' as excel;
@@ -11,6 +12,7 @@ import '../../widgets/common_data_table_page.dart';
 import '../../utils/page_transition_animations.dart';
 import '../../utils/storage_utils.dart';
 import '../../utils/import_export_utils.dart';
+import '../../utils/file_utils.dart';
 import '../../data/models/user.dart';
 import '../../data/models/customer.dart';
 import '../../data/models/customer_account_file.dart';
@@ -480,6 +482,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           backupFile = existingFile.copyNewWith(
             fileVersion: newFileVersion,
             filePath: backupFilePath,
+            enableStatus: 0,// 备份的这条，生效状态改为false
             updateBy: updateBy,
             updateTime: updateTime,
           );
@@ -1593,11 +1596,72 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
 
   /// 导出单个文件
   Future<void> _handleExportSingleFile(Map<String, dynamic> row) async {
-    // TODO: 实现单个文件导出功能
+    final baseFileName = row['fileName']?.toString() ?? '';
+    final fileVersion = row['fileVersion'];
+    final fileName = '${baseFileName}V${VersionUtils.intToString(fileVersion)}.pdf';
+    final filePath = row['filePath']?.toString();
+
+    if (baseFileName.isEmpty || filePath == null || filePath.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('文件路径不存在'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    // 显示导出中提示
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('导出功能：${row['fileName']}')),
+        SnackBar(
+          content: Text('正在导出: $fileName'),
+          duration: const Duration(seconds: 2),
+        ),
       );
+    }
+
+    try {
+      // 读取源文件
+      final sourceFile = File(filePath);
+      if (!await sourceFile.exists()) {
+        throw Exception('源文件不存在: $filePath');
+      }
+
+      // 读取文件内容
+      final bytes = await sourceFile.readAsBytes();
+
+      // 使用平台特定的文件保存方法
+      final savedPath = await FileUtils.saveFileForPlatform(
+        bytes: Uint8List.fromList(bytes),
+        fileName: fileName,
+      );
+
+      if (savedPath == null) {
+        throw Exception('文件导出失败');
+      }
+
+      if (mounted) {
+        // 显示文件操作对话框
+        await FileUtils.showFileActionDialog(
+          context,
+          fileName: fileName,
+          filePath: savedPath,
+        );
+      }
+    } catch (e) {
+      debugPrint('导出文件失败: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('导出失败: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 }

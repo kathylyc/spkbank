@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:bank_flutter/utils/context_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -196,11 +197,11 @@ class FileUtils {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('文件名: $fileName'),
-              const SizedBox(height: 8),
-              Text(
-                '保存位置: ${p.dirname(filePath)}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              // const SizedBox(height: 8),
+              // Text(
+              //   '保存位置: ${p.dirname(filePath)}',
+              //   style: Theme.of(context).textTheme.bodySmall,
+              // ),
               const SizedBox(height: 16),
               Text(
                 '您可以通过以下方式访问文件：',
@@ -209,8 +210,8 @@ class FileUtils {
               const SizedBox(height: 8),
               Text(
                 Platform.isAndroid
-                    ? '• 点击"打开文件"直接查看\n• 在设备"文件管理器"的"Download"或"下载"文件夹中找到文件'
-                    : '• 点击"打开文件"直接查看\n• 在iPad"文件"应用的"我的iPad"中找到本应用',
+                    ? '• 在设备"文件管理器-Download"文件夹中找到文件'
+                    : '• 在iPad"文件-我的iPad-${context.S.appName}-Downloads"中找到文件',
               ),
             ],
           ),
