@@ -8,6 +8,7 @@ import '../../data/repositories/pdf_template_info_repository.dart';
 import '../../utils/context_extensions.dart';
 import '../../utils/page_transition_animations.dart';
 import '../../utils/pdf_template_utils.dart';
+import '../../utils/file_utils.dart';
 import '../../widgets/common_data_table_page.dart';
 import '../customer_file/customer_file_preview_page.dart';
 
@@ -126,7 +127,8 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
     _updatePageData();
   }
 
-  /// 获取Downloads目录
+  /// 获取Downloads目录 - 已弃用，使用 FileUtils.saveToDocuments 替代
+  @deprecated
   Future<Directory?> _getDownloadsDirectory() async {
     if (Platform.isAndroid) {
       // Android: 尝试获取外部存储目录，然后访问Downloads子目录
@@ -138,7 +140,7 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
           // 找到外部存储根目录
           final rootPath = externalPath.split('/Android')[0];
           final downloadsDir = Directory(p.join(rootPath, 'Download'));
-          
+
           // 如果Download目录不存在，尝试Downloads（某些设备使用复数形式）
           if (!await downloadsDir.exists()) {
             final downloadsDirAlt = Directory(p.join(rootPath, 'Downloads'));
@@ -148,7 +150,7 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
             // 如果都不存在，创建Download目录
             await downloadsDir.create(recursive: true);
           }
-          
+
           return downloadsDir;
         }
       } catch (e) {
@@ -170,11 +172,11 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
     return null;
   }
 
-  /// 下载PDF - 将assets中的PDF文件复制到Downloads目录
+  /// 下载PDF - 使用新的文件工具类保存到文档目录
   Future<void> _handleDownload(Map<String, dynamic> row) async {
     final assetPath = row['assetPath'] as String?;
     final fileName = row['name'] as String;
-    
+
     if (assetPath == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -198,50 +200,26 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
     }
 
     try {
-      // 获取Downloads目录
-      final downloadsDir = await _getDownloadsDirectory();
-      if (downloadsDir == null) {
-        throw Exception('无法获取Downloads目录，请检查存储权限');
-      }
-
       // 从assets读取PDF文件
       final ByteData data = await rootBundle.load(assetPath);
       final List<int> bytes = data.buffer.asUint8List();
 
-      // 构建目标文件路径
-      final targetPath = p.join(downloadsDir.path, fileName);
-      final targetFile = File(targetPath);
+      // 使用平台特定的文件保存方法
+      final savedPath = await FileUtils.saveFileForPlatform(
+        bytes: Uint8List.fromList(bytes),
+        fileName: fileName,
+      );
 
-      // 如果文件已存在，添加时间戳后缀
-      String finalPath = targetPath;
-      if (await targetFile.exists()) {
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final nameWithoutExt = p.basenameWithoutExtension(fileName);
-        final ext = p.extension(fileName);
-        finalPath = p.join(downloadsDir.path, '${nameWithoutExt}_$timestamp$ext');
+      if (savedPath == null) {
+        throw Exception('文件保存失败');
       }
 
-      // 写入文件
-      await File(finalPath).writeAsBytes(bytes);
-
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('下载成功: $fileName'),
-                const SizedBox(height: 4),
-                Text(
-                  '保存路径: ${p.basename(finalPath)}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
+        // 显示文件操作对话框
+        await FileUtils.showFileActionDialog(
+          context,
+          fileName: fileName,
+          filePath: savedPath,
         );
       }
     } catch (e) {
