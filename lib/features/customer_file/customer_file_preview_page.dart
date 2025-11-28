@@ -142,6 +142,9 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   // Repository
   final CustomerRepository _repository = CustomerRepository();
 
+  // 签署状态缓存相关
+  int? _cachedPreviousSignStatus;  // 缓存历史签署状态（懒加载）
+
   @override
   void initState() {
     super.initState();
@@ -643,8 +646,8 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   /// 保存PDF文件（支持选择扁平化配置）
   Future<void> _handleSave({PdfFlattenConfig flattenConfig = PdfFlattenConfig.none}) async {
     // 验证必要参数
-    if (widget.accountFileUid == null || 
-        widget.customerUid == null || 
+    if (widget.accountFileUid == null ||
+        widget.customerUid == null ||
         widget.fileVersion == null ||
         _originalPdfBytes == null) {
       if (mounted) {
@@ -705,19 +708,23 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       final savedFile = File(await FileManager.getFullPath(savedFilePath));
       await savedFile.writeAsBytes(savedBytes);
 
-      // 计算文档签署状态
-      // 根据当前pdf文档的signCode，与常量定义的ConstPdfTemplateMap进行遍历匹配，获取当前文档对应的signFields字段；
-      // 判断当前pdf文件的PdfSignatureField类型字段是否已签名；假如常量定义中有2个signFields，当前文档也有2个PdfSignatureField类型字段已签名，则签署状态sign_status=1，否则sign_status=0
-      final int? signStatus = _calculateSigningStatus();
+      // 0. 检测签署状态变更
+      final int? previousSignStatus = _cachedPreviousSignStatus;
+      final int? currentSignStatus = _calculateSigningStatus();
+      // 判断是否从未签署变为已签署
+      final bool isSigningStatusChanged =
+          (previousSignStatus == null || previousSignStatus == 0) &&
+              (currentSignStatus == 1);
+      debugPrint('📊 签署状态检测: 之前=$previousSignStatus, 当前=$currentSignStatus, 变更=$isSigningStatusChanged');
 
-      // 4. 保存到数据库
+      // 4. 保存到数据库（已签署版本）
       final accountFile = CustomerAccountFile(
         accountFileUid: widget.accountFileUid!,
         customerUid: widget.customerUid!,
         accountFileName: widget.fileName!,
         fileVersion: newFileVersion,
         filePath: savedFilePath,
-        signStatus: signStatus,
+        signStatus: currentSignStatus,
         templateName: widget.templateName,
         templateSignCode: widget.templateSignCode,
         fileSrcType: widget.fileSrcType ?? '模板生成',
@@ -729,11 +736,71 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
       await _repository.addAccountFile(accountFile);
 
+      // 5. 如果签署状态从未签署变为已签署，创建未签署备份版本
+      if (isSigningStatusChanged) {
+        debugPrint('🔄 检测到签署状态变更，创建未签署备份版本...');
+
+        try {
+          // 创建备份版本号（大版本+1后中版本-1）
+          final int backupVersion = VersionUtils.createBackupVersion(newFileVersion);
+
+          // 生成未签署PDF（保留当前用户编辑的表单数据，清除签名）
+          final List<int> unsignedBytes = await _createUnsignedPdfBytes();
+
+          // 创建临时文件保存未签署PDF
+          final tempDir = await getTemporaryDirectory();
+          final tempUnsignedPath = '${tempDir.path}/temp_unsigned_backup_${widget.accountFileUid}_$backupVersion.pdf';
+          final tempUnsignedFile = File(tempUnsignedPath);
+          await tempUnsignedFile.writeAsBytes(unsignedBytes);
+
+          // 使用临时未签署文件创建备份版本
+          final backupFilePath = await FileManager.saveAccountFileWithName(
+            sourcePath: tempUnsignedPath,
+            accountFileUid: widget.accountFileUid!,
+            fileVersion: backupVersion,
+          );
+
+          // 清理临时文件
+          if (await tempUnsignedFile.exists()) {
+            await tempUnsignedFile.delete();
+          }
+
+          // 保存备份版本到数据库（signStatus=0）
+          final backupAccountFile = CustomerAccountFile(
+            accountFileUid: widget.accountFileUid!,
+            customerUid: widget.customerUid!,
+            accountFileName: widget.fileName!,
+            fileVersion: backupVersion,
+            filePath: backupFilePath,
+            signStatus: 0, // 未签署状态
+            templateName: widget.templateName,
+            templateSignCode: widget.templateSignCode,
+            fileSrcType: widget.fileSrcType ?? '模板生成',
+            createBy: loginUser?.userName,
+            createTime: now,
+            updateBy: loginUser?.userName,
+            updateTime: now,
+          );
+
+          await _repository.addAccountFile(backupAccountFile);
+
+          debugPrint('✓ 未签署备份版本创建成功: ${VersionUtils.intToString(backupVersion)}');
+        } catch (e) {
+          debugPrint('⚠ 创建未签署备份版本失败: $e');
+          // 备份版本创建失败不影响主版本保存
+        }
+      }
+
       if (!mounted) return;
+
+      String successMessage = '开户文件保存成功 (${flattenConfig.shortDescription})';
+      if (isSigningStatusChanged) {
+        successMessage += '，已自动创建未签署备份版本';
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('开户文件保存成功 (${flattenConfig.shortDescription})'),
+          content: Text(successMessage),
           duration: const Duration(seconds: 3),
         ),
       );
@@ -1838,6 +1905,10 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                 debugPrint('PDF文档已加载，共 ${details.document.pages.count} 页');
                 // 保存文档引用，用于保存时复制表单字段值
                 _currentDocument = details.document;
+
+                // 当前签署状态通过PDF表单直接获取，无需数据库查询
+                _cachedPreviousSignStatus = _calculateSigningStatus();
+
                 // 打印所有表单域的所有属性
                 _printAllFormFieldsProperties(details.document);
                 // 文档加载后，再次为所有表单字段设置中文字体
@@ -2053,6 +2124,91 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       await FileManager.deleteTempFile(_tempPdfPath!);
       _tempPdfPath = null;
       _currentTempFile = null;
+    }
+  }
+
+  /// 生成未签署版本的PDF字节数据
+  /// 从原始模板复制当前表单值，但跳过签名字段
+  Future<List<int>> _createUnsignedPdfBytes() async {
+    debugPrint('=== 开始生成未签署版本PDF ===');
+
+    try {
+      // 1. 检查必要的数据
+      if (_originalPdfBytes == null || _currentDocument == null) {
+        throw Exception('缺少原始PDF数据或当前文档');
+      }
+
+      // 2. 从原始模板创建新文档
+      final PdfDocument unsignedDocument = PdfDocument(inputBytes: _originalPdfBytes!);
+      final PdfForm viewerForm = _currentDocument!.form;
+      final PdfForm saveForm = unsignedDocument.form;
+
+      // 3. 创建字体
+      final font = _createChineseFont();
+      int copyCount = 0;
+
+      // 4. 复制表单字段值（跳过签名字段）
+      for (int i = 0; i < viewerForm.fields.count; i++) {
+        final PdfField viewerField = viewerForm.fields[i];
+        final String? fieldName = viewerField.name;
+
+        if (fieldName == null) continue;
+
+        // 在保存文档中查找同名字段
+        PdfField? saveField;
+        for (int j = 0; j < saveForm.fields.count; j++) {
+          if (saveForm.fields[j].name == fieldName) {
+            saveField = saveForm.fields[j];
+            break;
+          }
+        }
+
+        if (saveField == null) {
+          debugPrint('⚠ 未找到保存文档中的字段: $fieldName');
+          continue;
+        }
+
+        try {
+          if (viewerField is PdfTextBoxField && saveField is PdfTextBoxField) {
+            saveField.text = viewerField.text;
+            if (font != null) saveField.font = font;
+            copyCount++;
+          } else if (viewerField is PdfComboBoxField && saveField is PdfComboBoxField) {
+            saveField.selectedValue = viewerField.selectedValue;
+            if (font != null) saveField.font = font;
+            copyCount++;
+          } else if (viewerField is PdfListBoxField && saveField is PdfListBoxField) {
+            saveField.selectedValues = viewerField.selectedValues;
+            if (font != null) saveField.font = font;
+            copyCount++;
+          } else if (viewerField is PdfCheckBoxField && saveField is PdfCheckBoxField) {
+            saveField.isChecked = viewerField.isChecked;
+            copyCount++;
+          } else if (viewerField is PdfSignatureField && saveField is PdfSignatureField) {
+            // 跳过签名字段，不复制签名数据
+            debugPrint('⚠ 跳过签名字段: $fieldName');
+          } else {
+            debugPrint('⚠ 不支持的字段类型: $fieldName');
+          }
+        } catch (e) {
+          debugPrint('⚠ 复制字段 $fieldName 失败: $e');
+        }
+      }
+
+      // 5. 保存处理后的文档
+      final List<int> unsignedBytes = await unsignedDocument.save();
+      unsignedDocument.dispose();
+
+      debugPrint('✓ 未签署版本PDF生成完成: 复制了 $copyCount 个非签名字段');
+      return unsignedBytes;
+    } catch (e) {
+      debugPrint('⚠ 生成未签署版本PDF失败: $e');
+      // 如果生成失败，返回原始模板
+      if (_originalPdfBytes != null) {
+        return _originalPdfBytes!.toList();
+      } else {
+        throw Exception('无法生成未签署版本PDF：缺少原始数据');
+      }
     }
   }
 }

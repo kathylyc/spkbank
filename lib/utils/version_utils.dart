@@ -366,4 +366,29 @@ class VersionUtils {
   static int decrementMinorIntVersion(int intVersion, {int decrement = 1}) {
     return incrementIntVersion(intVersion, minorIncrement: -decrement);
   }
+
+  /// 创建备份版本号（大版本+1后中版本-1）
+  ///
+  /// [currentVersion] 当前版本号（int 类型）
+  ///
+  /// 返回备份版本号（int 类型）
+  ///
+  /// 示例：
+  /// ```dart
+  /// VersionUtils.createBackupVersion(40000) // 49900 ("4.99.0")
+  /// VersionUtils.createBackupVersion(50000) // 59900 ("5.99.0")
+  /// ```
+  static int createBackupVersion(int currentVersion) {
+    if (currentVersion < 0) {
+      throw ArgumentError('版本号不能为负数');
+    }
+
+    // 然后递减中版本号（新大版本的0.0.0 -> 0.9.0）
+    final int backupVersion = incrementIntVersion(
+      currentVersion,
+      middleIncrement: -91,
+    );
+
+    return backupVersion;
+  }
 }
