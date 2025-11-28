@@ -5,6 +5,7 @@ import 'package:excel/excel.dart' as excel;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -282,11 +283,12 @@ class ImportExportUtils {
     required String templateAssetPath,
     required String zipFileName,
     required String excelFileName,
+    required bool addTimestamp,
     required List<Map<String, dynamic>> data,
     required void Function(excel.Sheet sheet, Map<String, dynamic> rowData, int rowIndex, Map<String, String>? filePathMap) dataToExcelRows,
     List<String>? headers,
     Future<Map<String, String>> Function(String exportDirPath)? beforeDataToExcelRows,
-    Future<List<ExtraExcelFile>> Function(String exportDirPath, Map<String, String>? filePathMap, int timestamp)? generateExtraExcelFiles,
+    Future<List<ExtraExcelFile>> Function(String exportDirPath, Map<String, String>? filePathMap, String timestamp)? generateExtraExcelFiles,
     String loadingMessage = '正在导出数据...',
     String? successMessage,
     VoidCallback? onSuccess,
@@ -360,8 +362,8 @@ class ImportExportUtils {
       if (!await exportDir.exists()) {
         await exportDir.create(recursive: true);
       }
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final addTimestamp = false;
+      final timestamp = DateFormat('yyyyMMddHHmmss').format(DateTime.now());
+      // final timestamp = DateTime.now().millisecondsSinceEpoch;
       exportCurrentDir = Directory(p.join(exportDir.path, '$timestamp'));
       if (!await exportCurrentDir.exists()) {
         await exportCurrentDir.create(recursive: true);

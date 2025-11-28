@@ -705,6 +705,7 @@ class _CustomerPageState extends State<CustomerPage> {
       templateAssetPath: 'assets/excel/customer_info.xlsx',
       zipFileName: 'customer_info_export',
       excelFileName: 'customer_info_export',
+      addTimestamp: true,
       data: selectedData,
       headers: const ['客户编号', '客户姓名', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'],
       beforeDataToExcelRows: (exportDirPath) async {
@@ -847,7 +848,7 @@ class _CustomerPageState extends State<CustomerPage> {
               .cell(excel.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
               .value = excel.TextCellValue(attachment.attachmentType);
           // 文件路径（相对路径）
-          final relativePath = filePathMap?[attachment.filePath] ?? attachment.filePath;
+          final relativePath = filePathMap?[await FileManager.getFullPath(attachment.filePath)] ?? attachment.filePath;
           attachmentSheet
               .cell(excel.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
               .value = excel.TextCellValue(relativePath);

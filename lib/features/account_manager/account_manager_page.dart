@@ -494,6 +494,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
       templateAssetPath: 'assets/excel/customer_manager_info.xlsx',
       zipFileName: 'customer_manager_info_export',
       excelFileName: 'customer_manager_info_export',
+      addTimestamp: true,
       data: selectedData,
       loadingMessage: '正在导出客户经理数据...',
       successMessage: '客户经理数据导出成功',

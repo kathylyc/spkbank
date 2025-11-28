@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:bank_flutter/utils/version_utils.dart';
 import 'package:excel/excel.dart' as excel;
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
@@ -934,6 +935,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       templateAssetPath: 'assets/excel/account_file_info.xlsx',
       zipFileName: '${selectedData[0]['customerName']}_$timestamp', // 客户姓名+时间戳：客户姓名_20251117122330
       excelFileName: 'account_file_info_export',
+      addTimestamp: false,
       data: selectedData,
       headers: const [
         '开户文件编号',
@@ -977,6 +979,8 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
             final targetFilePath = p.join(filesDir.path, targetFileName);
             final targetFile = File(targetFilePath);
 
+            String? finalTargetFilePath;
+
             // 如果目标文件已存在，添加时间戳
             if (await targetFile.exists()) {
               final nameWithoutExt = p.basenameWithoutExtension(targetFileName);
@@ -984,14 +988,18 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
               final timestamp = DateTime.now().millisecondsSinceEpoch;
               final uniqueFileName = '${nameWithoutExt}_$timestamp$ext';
               final uniqueTargetPath = p.join(filesDir.path, uniqueFileName);
-              await sourceFile.copy(uniqueTargetPath);
+              finalTargetFilePath = uniqueTargetPath;
               // 相对路径：files/文件名
               filePathMap[originalFilePath] = 'files/$uniqueFileName';
             } else {
-              await sourceFile.copy(targetFilePath);
+              finalTargetFilePath = targetFilePath;
               // 相对路径：files/文件名
               filePathMap[originalFilePath] = 'files/$targetFileName';
             }
+            // 复制pdf文件到打包目录
+            await sourceFile.copy(finalTargetFilePath);
+            // 读取pdf文件(finalTargetFilePath)中所有的Text表单域字段，存入一个同名excel，excel第一列是字段名，第二列是值
+            await _extractPdfFormFieldsToExcel(finalTargetFilePath);
           } catch (e) {
             debugPrint('复制文件失败: $originalFilePath, 错误: $e');
             // 继续处理其他文件
@@ -1666,6 +1674,136 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           ),
         );
       }
+    }
+  }
+
+  /// 读取PDF文件中的表单域并生成Excel文件
+  Future<void> _extractPdfFormFieldsToExcel(String pdfFilePath) async {
+    try {
+      debugPrint('开始提取PDF表单域: $pdfFilePath');
+
+      // 1. 读取PDF文件
+      final File pdfFile = File(pdfFilePath);
+      if (!await pdfFile.exists()) {
+        debugPrint('PDF文件不存在: $pdfFilePath');
+        return;
+      }
+
+      final Uint8List pdfBytes = await pdfFile.readAsBytes();
+      final PdfDocument document = PdfDocument(inputBytes: pdfBytes);
+
+      // 2. 提取表单域
+      final List<Map<String, String>> formFields = [];
+      final PdfForm form = document.form;
+
+      if (form.fields.count == 0) {
+        debugPrint('PDF中没有表单字段');
+        document.dispose();
+        return;
+      }
+
+      debugPrint('PDF表单域总数: ${form.fields.count}');
+
+      // 遍历所有表单域，提取文本字段
+      for (int i = 0; i < form.fields.count; i++) {
+        final PdfField field = form.fields[i];
+        final String fieldName = field.name ?? '字段$i';
+        String fieldValue = '';
+
+        // 根据字段类型获取值
+        if (field is PdfTextBoxField) {
+          if (fieldName == 'signCode') {
+            // signCode是隐藏域，忽略
+            continue;
+          }
+          fieldValue = field.text;
+          formFields.add({
+            'name': fieldName,
+            'value': fieldValue,
+          });
+          debugPrint('提取文本字段: $fieldName = $fieldValue');
+        } else if (field is PdfCheckBoxField) {
+          fieldValue = field.isChecked ? '是' : '否';
+          formFields.add({
+            'name': fieldName,
+            'value': fieldValue,
+          });
+          debugPrint('提取复选框字段: $fieldName = $fieldValue');
+        } else if (field is PdfRadioButtonListField) {
+          fieldValue = field.selectedIndex >= 0 ? field.selectedValue.toString() : '';
+          formFields.add({
+            'name': fieldName,
+            'value': fieldValue,
+          });
+          debugPrint('提取单选按钮字段: $fieldName = $fieldValue');
+        } else if (field is PdfListBoxField) {
+          final List<String> selectedValues = [];
+          for (int j = 0; j < field.selectedValues.length; j++) {
+            selectedValues.add(field.selectedValues[j].toString());
+          }
+          fieldValue = selectedValues.join(', ');
+          formFields.add({
+            'name': fieldName,
+            'value': fieldValue,
+          });
+          debugPrint('提取列表框字段: $fieldName = $fieldValue');
+        } else if (field is PdfComboBoxField) {
+          fieldValue = field.selectedIndex >= 0 ? field.selectedValue.toString() : '';
+          formFields.add({
+            'name': fieldName,
+            'value': fieldValue,
+          });
+          debugPrint('提取下拉框字段: $fieldName = $fieldValue');
+        } else {
+          // 其他类型字段（如签名字段）不显示
+          // formFields.add({
+          //   'name': fieldName,
+          //   'value': '[${field.runtimeType.toString()}]',
+          // });
+          // debugPrint('提取其他类型字段: $fieldName = [${field.runtimeType.toString()}]');
+        }
+      }
+
+      // 如果没有找到有效的表单域，不生成Excel文件
+      if (formFields.isEmpty) {
+        debugPrint('没有找到有效的表单域数据');
+        document.dispose();
+        return;
+      }
+
+      // 3. 创建Excel文件
+      final excel.Excel excelBook = excel.Excel.createExcel();
+      final excel.Sheet sheet = excelBook['Sheet1'];
+
+      // 设置表头
+      sheet.cell(excel.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0)).value = excel.TextCellValue('字段名');
+      sheet.cell(excel.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 0)).value = excel.TextCellValue('值');
+
+      // 添加数据行
+      for (int i = 0; i < formFields.length; i++) {
+        final rowIndex = i + 1;
+        sheet.cell(excel.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex)).value = excel.TextCellValue(formFields[i]['name'] ?? '');
+        sheet.cell(excel.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex)).value = excel.TextCellValue(formFields[i]['value'] ?? '');
+      }
+
+      // 4. 保存Excel文件
+      final String excelPath = pdfFilePath.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '.xlsx');
+      final File excelFile = File(excelPath);
+      final List<int>? excelBytes = excelBook.save();
+
+      if (excelBytes != null) {
+        await excelFile.writeAsBytes(excelBytes);
+        debugPrint('Excel文件已生成: $excelPath');
+        debugPrint('共导出 ${formFields.length} 个表单域');
+      } else {
+        debugPrint('Excel文件生成失败');
+      }
+
+      // 释放PDF文档资源
+      document.dispose();
+
+    } catch (e) {
+      debugPrint('提取PDF表单域失败: $e');
     }
   }
 }
