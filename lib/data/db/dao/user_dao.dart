@@ -138,5 +138,24 @@ class UserDao {
     );
     return rows.map(User.fromMap).toList();
   }
+
+  /// 检查手机号是否重复（排除指定用户ID）
+  Future<bool> existsByPhoneNumber(String phoneNumber, {int? excludeId}) async {
+    final db = await _manager.database;
+    final whereClauses = <String>['phonenumber = ?'];
+    final whereArgs = <Object?>[phoneNumber];
+
+    if (excludeId != null) {
+      whereClauses.add('id != ?');
+      whereArgs.add(excludeId);
+    }
+
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS count FROM ${User.tableName} WHERE ${whereClauses.join(' AND ')}',
+      whereArgs,
+    );
+    final count = Sqflite.firstIntValue(result) ?? 0;
+    return count > 0;
+  }
 }
 

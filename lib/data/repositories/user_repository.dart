@@ -152,5 +152,9 @@ class UserRepository {
     // 其他用户类型不需要检查密码过期
     return false;
   }
+
+  /// 检查手机号是否重复（排除指定用户ID）
+  Future<bool> isPhoneNumberExists(String phoneNumber, {int? excludeId}) =>
+      _provider.userDao.existsByPhoneNumber(phoneNumber, excludeId: excludeId);
 }
 

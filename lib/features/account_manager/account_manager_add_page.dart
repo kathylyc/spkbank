@@ -155,6 +155,27 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
         }
       }
 
+      // 检查客户经理手机号是否重复
+      if (managerPhone.isNotEmpty) {
+        final phoneExists = await _userRepository.isPhoneNumberExists(
+          managerPhone,
+          excludeId: _isEdit ? _initialManager?.id : null
+        );
+        if (phoneExists) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('客户经理手机号已存在，请使用其他手机号'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() {
+            _isSaving = false;
+          });
+          return;
+        }
+      }
+
       final now = DateTime.now();
       if (_isEdit) {
         final existing = _initialManager!;
