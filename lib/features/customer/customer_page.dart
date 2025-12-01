@@ -1062,35 +1062,43 @@ class _CustomerPageState extends State<CustomerPage> {
           child: _buildDropdown(),
         ),
         const SizedBox(width: 24),
-        
-        // 重置按钮
-        ElevatedButton(
-          onPressed: _handleReset,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.grey.shade200,
-            foregroundColor: Colors.grey.shade800,
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
-            ),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(0, 24, 0, 0),
+          child: Row(
+            children: [
+              // 重置按钮
+              ElevatedButton(
+                onPressed: _handleReset,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey.shade200,
+                  foregroundColor: Colors.grey.shade800,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                child: const Text('重置'),
+              ),
+              const SizedBox(width: 12),
+
+              // 查询按钮
+              ElevatedButton(
+                onPressed: _handleQuery,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                child: const Text('查询'),
+              ),
+            ],
           ),
-          child: const Text('重置'),
         ),
-        const SizedBox(width: 12),
-        
-        // 查询按钮
-        ElevatedButton(
-          onPressed: _handleQuery,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          child: const Text('查询'),
-        ),
+
       ],
     );
   }

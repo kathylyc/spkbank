@@ -266,42 +266,64 @@ class _CommonDataTablePageState extends State<CommonDataTablePage> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         // 左侧标题
-        Text(
-          widget.tableTitle,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey.shade800,
+        SizedBox(
+          width: 180,
+          child: Text(
+            widget.tableTitle,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade800,
+            ),
           ),
         ),
-        
-        // 右侧功能按钮
-        Row(
-          children: widget.actionButtons
-              .map((button) => Padding(
-                    padding: const EdgeInsets.only(left: 12),
-                    child: ElevatedButton(
-                      onPressed: button.onPressed,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: button.color ?? Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      child: Text(button.label),
-                    ),
-                  ))
-              .toList(),
-        ),
+
+        // 右侧功能按钮 - 可水平滚动
+        Expanded(child: _buildScrollableActionButtons()),
       ],
     );
   }
 
+  /// 构建可水平滚动的功能按钮
+  Widget _buildScrollableActionButtons() {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...widget.actionButtons.asMap().entries.map((entry) {
+              final index = entry.key;
+              final button = entry.value;
+              return Padding(
+                // 第一个按钮不需要左边距
+                padding: EdgeInsets.only(left: index == 0 ? 0 : 12),
+                child: ElevatedButton(
+                  onPressed: button.onPressed,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: button.color ?? Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  child: Text(button.label),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  
   /// 构建表格
   Widget _buildTable() {
     return Container(
