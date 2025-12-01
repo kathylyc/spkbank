@@ -451,9 +451,8 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
 
   /// 导入客户经理
   Future<void> _handleImportManager() async {
-    await ImportExportUtils.importFromZip(
+    await ImportExportUtils.importFromExcel(
       context,
-      excelFileNamePrefix: 'customer_manager_info',
       validateExcelFile: _validateManagerExcelFile,
       processExcelData: _processManagerExcelData,
       loadingMessage: '正在导入客户经理数据...',
@@ -490,10 +489,9 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
     // 过滤选中的数据（客户经理使用managerAccount作为唯一标识）
     final selectedData = _tableData.where((row) => _selectedIds.contains(row['managerAccount'])).toList();
 
-    await ImportExportUtils.exportToZip(
+    await ImportExportUtils.exportToExcel(
       context,
       templateAssetPath: 'assets/excel/customer_manager_info.xlsx',
-      zipFileName: 'customer_manager_info_export',
       excelFileName: 'customer_manager_info_export',
       addTimestamp: true,
       data: selectedData,

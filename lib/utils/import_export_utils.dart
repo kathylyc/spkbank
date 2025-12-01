@@ -278,6 +278,193 @@ class ImportExportUtils {
   /// [successMessage] 成功消息（如果为null，使用默认消息）
   /// [onSuccess] 成功回调
   /// [onError] 错误回调
+  static Future<void> exportToExcel(
+    BuildContext context, {
+    required String templateAssetPath,
+    required String excelFileName,
+    required bool addTimestamp,
+    required List<Map<String, dynamic>> data,
+    required void Function(excel.Sheet sheet, Map<String, dynamic> rowData, int rowIndex, Map<String, String>? filePathMap) dataToExcelRows,
+    List<String>? headers,
+    Future<Map<String, String>> Function(String exportDirPath)? beforeDataToExcelRows,
+    String loadingMessage = '正在导出数据...',
+    String? successMessage,
+    VoidCallback? onSuccess,
+    Function(String error)? onError,
+  }) async {
+    if (data.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('当前没有可导出的数据'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    // 显示加载对话框
+    if (context.mounted) {
+      showLoadingDialog(context, message: loadingMessage);
+    }
+
+    // 临时文件变量，用于在 finally 块中清理
+    File? excelFile;
+
+    try {
+      excel.Excel excelBook;
+      String sheetName;
+      excel.Sheet sheet;
+
+      bool useTemplate = true;
+      // 尝试加载模板，如果失败则创建新的Excel文件
+      try {
+        final templateData = await rootBundle.load(templateAssetPath);
+        final templateBytes = templateData.buffer.asUint8List();
+        excelBook = excel.Excel.decodeBytes(templateBytes);
+        sheetName = excelBook.tables.isNotEmpty
+            ? excelBook.tables.keys.first
+            : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : 'Sheet1');
+        sheet = excelBook[sheetName];
+        // 如果使用模板，从第二行开始填充数据（第一行是表头）
+      } catch (templateError) {
+        // 模板加载失败，创建新的Excel文件
+        debugPrint('模板加载失败，创建新的Excel文件: $templateError');
+        useTemplate = false;
+        excelBook = excel.Excel.createExcel();
+        sheetName = 'Sheet1';
+        sheet = excelBook[sheetName];
+
+        // 如果提供了表头，添加表头
+        if (headers != null && headers.isNotEmpty) {
+          for (int i = 0; i < headers.length; i++) {
+            sheet
+                .cell(excel.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
+                .value = excel.TextCellValue(headers[i]);
+          }
+        }
+      }
+
+      // 在填充Excel数据之前执行文件复制等操作
+      Map<String, String>? filePathMap; // key: 原始路径, value: 相对路径
+      if (beforeDataToExcelRows != null) {
+        // 创建临时目录用于文件操作
+        final cacheDir = await getTemporaryDirectory();
+        final exportDir = Directory(p.join(cacheDir.path, 'export'));
+        if (!await exportDir.exists()) {
+          await exportDir.create(recursive: true);
+        }
+        filePathMap = await beforeDataToExcelRows(exportDir.path);
+      }
+
+      // 填充数据（从第二行开始，第一行是表头）
+      final startRow = useTemplate ? 2 : (headers != null && headers.isNotEmpty ? 2 : 1);
+      for (int i = 0; i < data.length; i++) {
+        final rowData = data[i];
+        final rowIndex = startRow - 1 + i;
+        dataToExcelRows(sheet, rowData, rowIndex, filePathMap);
+      }
+
+      // 生成Excel文件
+      final excelBytes = excelBook.encode();
+      if (excelBytes == null) {
+        throw Exception('生成Excel数据失败');
+      }
+
+      // 生成Excel文件名
+      final timestamp = DateFormat('yyyyMMddHHmmss').format(DateTime.now());
+      final finalExcelName = addTimestamp ? '${excelFileName}_$timestamp.xlsx' : '$excelFileName.xlsx';
+
+      // 先保存到缓存目录
+      final cacheDir = await getTemporaryDirectory();
+      final cacheExcelPath = p.join(cacheDir.path, finalExcelName);
+      excelFile = File(cacheExcelPath);
+      if (await excelFile.exists()) {
+        await excelFile.delete();
+      }
+      await excelFile.writeAsBytes(excelBytes, flush: true);
+
+      // 确保缓存文件保存成功
+      if (!await excelFile.exists()) {
+        throw Exception('Excel文件保存到缓存目录失败');
+      }
+
+      // 复制到Downloads目录
+      final downloadsDir = await getDownloadsDirectory();
+      if (downloadsDir == null) {
+        throw Exception('无法获取Downloads目录，请检查存储权限');
+      }
+
+      final targetExcelPath = p.join(downloadsDir.path, finalExcelName);
+      final targetExcelFile = File(targetExcelPath);
+      if (await targetExcelFile.exists()) {
+        await targetExcelFile.delete();
+      }
+      await excelFile.copy(targetExcelPath);
+
+      // 关闭加载对话框
+      if (context.mounted) {
+        hideLoadingDialog(context);
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(successMessage ?? '数据导出成功'),
+                const SizedBox(height: 4),
+                Text(
+                  'Excel 文件: $finalExcelName',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      // 调用成功回调
+      onSuccess?.call();
+    } catch (e) {
+      // 关闭加载对话框
+      if (context.mounted) {
+        hideLoadingDialog(context);
+      }
+
+      final errorMessage = e.toString();
+      debugPrint('导出Excel数据失败: $errorMessage');
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('导出失败: $errorMessage'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+
+      // 调用错误回调
+      onError?.call(errorMessage);
+    } finally {
+      // 清理临时文件
+      if (excelFile != null && await excelFile.exists()) {
+        try {
+          await excelFile.delete();
+        } catch (e) {
+          debugPrint('清理临时Excel文件失败: $e');
+        }
+      }
+    }
+  }
+
+  /// [onError] 错误回调
   static Future<void> exportToZip(
     BuildContext context, {
     required String templateAssetPath,
@@ -537,6 +724,164 @@ class ImportExportUtils {
   /// [processExcelData] 处理Excel数据的函数，返回成功消息（可选）
   /// [loadingMessage] 加载对话框消息
   /// [onSuccess] 成功回调，参数为成功消息
+  /// [onError] 错误回调
+  static Future<void> importFromExcel(
+    BuildContext context, {
+    Future<String?> Function(File excelFile)? validateExcelFile,
+    required Future<String?> Function(File excelFile, String importDirPath) processExcelData,
+    String loadingMessage = '正在导入数据...',
+    Function(String? successMessage)? onSuccess,
+    Function(String error)? onError,
+  }) async {
+    try {
+      // 获取下载目录作为初始目录
+      final downloadsDir = await getDownloadsDirectory();
+      String? initialDirectory;
+      if (downloadsDir != null) {
+        initialDirectory = downloadsDir.path;
+      }
+
+      // 弹出文件浏览器，仅可选择 Excel 文件
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+        initialDirectory: initialDirectory,
+        allowMultiple: false,
+      );
+
+      if (result == null || result.files.isEmpty) {
+        return;
+      }
+
+      final selectedFile = result.files.single;
+      final String? excelFilePath = selectedFile.path;
+      if (excelFilePath == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('无法获取文件路径，请重试'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      final excelFile = File(excelFilePath);
+      if (!await excelFile.exists()) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('文件不存在，请重新选择'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 显示加载对话框
+      if (context.mounted) {
+        showLoadingDialog(context, message: loadingMessage);
+      }
+
+      // 获取 cache/import 目录
+      final cacheDir = await getTemporaryDirectory();
+      final importDir = Directory(p.join(cacheDir.path, 'import'));
+      if (!await importDir.exists()) {
+        await importDir.create(recursive: true);
+      }
+
+      // 创建临时目录并复制Excel文件
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final importCurrentDir = Directory(p.join(importDir.path, '$timestamp'));
+      if (!await importCurrentDir.exists()) {
+        await importCurrentDir.create(recursive: true);
+      }
+
+      final targetExcelName = 'import_$timestamp.xlsx';
+      final targetExcelPath = p.join(importCurrentDir.path, targetExcelName);
+      final targetExcelFile = File(targetExcelPath);
+      await excelFile.copy(targetExcelPath);
+
+      // 验证Excel文件
+      if (validateExcelFile != null) {
+        final validationError = await validateExcelFile(targetExcelFile);
+        if (validationError != null) {
+          // 删除临时文件
+          try {
+            if (await targetExcelFile.exists()) {
+              await targetExcelFile.delete();
+            }
+            if (await importCurrentDir.exists()) {
+              await importCurrentDir.delete(recursive: true);
+            }
+          } catch (deleteError) {
+            debugPrint('删除临时文件失败: $deleteError');
+          }
+
+          if (context.mounted) {
+            hideLoadingDialog(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(validationError),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+          onError?.call(validationError);
+          return;
+        }
+      }
+
+      // 处理Excel数据
+      final successMessage = await processExcelData(targetExcelFile, importCurrentDir.path);
+
+      // 删除临时文件
+      try {
+        if (await targetExcelFile.exists()) {
+          await targetExcelFile.delete();
+        }
+        if (await importCurrentDir.exists()) {
+          await importCurrentDir.delete(recursive: true);
+        }
+      } catch (deleteError) {
+        debugPrint('删除临时文件失败: $deleteError');
+      }
+
+      // 关闭加载对话框
+      if (context.mounted) {
+        hideLoadingDialog(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(successMessage ?? '导入成功'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      onSuccess?.call(successMessage);
+    } catch (e, s) {
+      debugPrint('导入Excel数据失败: $e');
+      debugPrintStack(stackTrace: s);
+
+      // 关闭加载对话框（如果还在显示）
+      if (context.mounted) {
+        hideLoadingDialog(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('导入失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+
+      onError?.call(e.toString());
+    }
+  }
+
   /// [onError] 错误回调
   static Future<void> importFromZip(
     BuildContext context, {
