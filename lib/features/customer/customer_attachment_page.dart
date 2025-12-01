@@ -111,6 +111,8 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
   Future<void> _pickFile(String type) async {
     try {
       final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
         allowMultiple: false,
       );
       if (result == null || result.files.isEmpty) {
