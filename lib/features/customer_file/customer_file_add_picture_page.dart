@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 import '../../utils/file_manager.dart';
 import '../../utils/storage_utils.dart';
 import '../../data/repositories/customer_repository.dart';
+import '../../data/repositories/user_repository.dart';
 import '../../data/models/customer.dart';
 import '../../data/models/customer_account_file.dart';
 import '../customer/customer_add_page.dart';
@@ -40,6 +41,7 @@ class _CustomerFileAddPicturePageState extends State<CustomerFileAddPicturePage>
 
   // Repository
   final CustomerRepository _repository = CustomerRepository();
+  final UserRepository _userRepository = UserRepository();
 
   // UUID生成器
   static const _uuid = Uuid();
@@ -82,7 +84,7 @@ class _CustomerFileAddPicturePageState extends State<CustomerFileAddPicturePage>
     });
 
     try {
-      final customers = await _repository.findAll();
+      final customers = await _loadCustomersByRole();
       setState(() {
         _customers = customers;
         // 如果有客户，默认选择第一个
@@ -101,6 +103,27 @@ class _CustomerFileAddPicturePageState extends State<CustomerFileAddPicturePage>
           SnackBar(content: Text('加载客户列表失败: $e')),
         );
       }
+    }
+  }
+
+  /// 根据用户角色加载客户列表
+  Future<List<Customer>> _loadCustomersByRole() async {
+    final loginUser = await StorageUtils.getLoginUser();
+
+    if (loginUser?.userType == '00') {
+      // 超级管理员：加载所有客户
+      return await _repository.findAll();
+    } else if (loginUser?.userType == '01' && loginUser?.groupCode.isNotEmpty == true) {
+      // 客户经理：加载所属团队的所有客户
+      final teamManagers = await _userRepository.findManagersByGroupCode(loginUser!.groupCode);
+      final managerAccounts = teamManagers.map((manager) => manager.userName).toList();
+
+      return await _repository.search(
+        managerAccounts: managerAccounts.isNotEmpty ? managerAccounts : [loginUser.userName],
+      );
+    } else {
+      // 默认情况：只加载当前客户经理的客户
+      return await _repository.findByManager(loginUser?.userName ?? '');
     }
   }
 
