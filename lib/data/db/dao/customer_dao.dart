@@ -183,5 +183,43 @@ class CustomerDao {
     );
     return rows;
   }
+
+  /// 检查客户名称是否重复（排除指定客户ID）
+  Future<bool> existsByNameAndManager(String customerName, String managerAccount, {String? excludeCustomerUid}) async {
+    final db = await _manager.database;
+    final whereClauses = <String>['customer_name = ?', 'manager_account = ?'];
+    final whereArgs = <Object?>[customerName, managerAccount];
+
+    if (excludeCustomerUid != null && excludeCustomerUid.isNotEmpty) {
+      whereClauses.add('customer_uid != ?');
+      whereArgs.add(excludeCustomerUid);
+    }
+
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS count FROM ${Customer.tableName} WHERE ${whereClauses.join(' AND ')}',
+      whereArgs,
+    );
+    final count = Sqflite.firstIntValue(result) ?? 0;
+    return count > 0;
+  }
+
+  /// 检查电话号码是否重复（排除指定客户ID）
+  Future<bool> existsByPhone(String phone, {String? excludeCustomerUid}) async {
+    final db = await _manager.database;
+    final whereClauses = <String>['phone = ?'];
+    final whereArgs = <Object?>[phone];
+
+    if (excludeCustomerUid != null && excludeCustomerUid.isNotEmpty) {
+      whereClauses.add('customer_uid != ?');
+      whereArgs.add(excludeCustomerUid);
+    }
+
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS count FROM ${Customer.tableName} WHERE ${whereClauses.join(' AND ')}',
+      whereArgs,
+    );
+    final count = Sqflite.firstIntValue(result) ?? 0;
+    return count > 0;
+  }
 }
 

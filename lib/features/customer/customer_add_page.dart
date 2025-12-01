@@ -165,6 +165,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
     });
 
     try {
+      // 检查客户经理关联
       final User? manager = await _userRepository.findByUserName(managerAccount);
       if (manager == null) {
         if (!mounted) return;
@@ -175,6 +176,47 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
           _isSaving = false;
         });
         return;
+      }
+
+      // 检查客户名称是否已存在
+      final nameExists = await _customerRepository.isCustomerNameExists(
+        customerName,
+        managerAccount,
+        excludeCustomerUid: _isEdit ? _initialCustomer!.customerUid : null
+      );
+      if (nameExists) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('客户名称已存在，请使用其他名称'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _isSaving = false;
+        });
+        return;
+      }
+
+      // 检查客户联系电话是否已存在
+      if (phone.isNotEmpty) {
+        final phoneExists = await _customerRepository.isPhoneExists(
+          phone,
+          excludeCustomerUid: _isEdit ? _initialCustomer!.customerUid : null
+        );
+        if (phoneExists) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('联系电话已存在，请使用其他电话号码'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() {
+            _isSaving = false;
+          });
+          return;
+        }
       }
 
       final DateTime now = DateTime.now();

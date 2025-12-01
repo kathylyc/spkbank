@@ -262,5 +262,13 @@ class CustomerRepository {
         months: months,
         managerAccount: managerAccount,
       );
+
+  /// 检查客户名称是否重复（排除指定客户ID）
+  Future<bool> isCustomerNameExists(String customerName, String managerAccount, {String? excludeCustomerUid}) =>
+      _provider.customerDao.existsByNameAndManager(customerName, managerAccount, excludeCustomerUid: excludeCustomerUid);
+
+  /// 检查电话号码是否重复（排除指定客户ID）
+  Future<bool> isPhoneExists(String phone, {String? excludeCustomerUid}) =>
+      _provider.customerDao.existsByPhone(phone, excludeCustomerUid: excludeCustomerUid);
 }
 
