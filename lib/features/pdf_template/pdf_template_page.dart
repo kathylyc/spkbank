@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../../data/models/pdf_template_info.dart';
 import '../../data/repositories/pdf_template_info_repository.dart';
+import '../../data/repositories/customer_repository.dart';
 import '../../utils/context_extensions.dart';
 import '../../utils/page_transition_animations.dart';
 import '../../utils/pdf_template_utils.dart';
@@ -32,6 +33,7 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
   final bool _showRemarkColumn = false; // 控制是否显示备注
   bool _isLoading = true;
   final PdfTemplateInfoRepository _pdfTemplateRepository = PdfTemplateInfoRepository();
+  final CustomerRepository _customerRepository = CustomerRepository();
 
   @override
   void initState() {
@@ -46,16 +48,13 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
     });
 
     try {
-      // 获取数据库中的PDF模板信息
+      // 获取数据库中的PDF模板信息（仅用于备注）
       final pdfTemplateInfos = await _pdfTemplateRepository.findAll();
 
-      // 创建signCode到模板信息的映射
-      final Map<String, dynamic> infoMap = {};
+      // 创建signCode到备注的映射
+      final Map<String, String> remarkMap = {};
       for (final info in pdfTemplateInfos) {
-        infoMap[info.signCode] = {
-          'usage_count': info.usageCount,
-          'remark': info.remark,
-        };
+        remarkMap[info.signCode] = info.remark ?? '';
       }
 
       // 从工具类获取PDF模板列表
@@ -65,14 +64,17 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
       _allPdfData = [];
       for (final item in constantData) {
         final signCode = item['signCode'] as String?;
-        if (signCode != null) {
-          final info = infoMap[signCode];
+        final templateName = item['name'] as String?;
+        if (signCode != null && templateName != null) {
+          // 动态统计使用次数
+          final count = await _customerRepository.countByTemplateName(templateName);
+
           _allPdfData.add({
             'id': item['id'],
-            'name': item['name'],
+            'name': templateName,
             'assetPath': item['assetPath'],
-            'count': info?['usage_count'] ?? 0,
-            'remark': info?['remark'] ?? '',
+            'count': count,
+            'remark': remarkMap[signCode] ?? '',
             'signCode': signCode,
           });
         }

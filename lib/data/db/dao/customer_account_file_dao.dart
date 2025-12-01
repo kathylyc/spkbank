@@ -464,5 +464,19 @@ class CustomerAccountFileDao {
 
     return resultMap.values.toList();
   }
+
+  /// 按模板名称统计使用次数
+  Future<int> countByTemplateName(String templateName) async {
+    final db = await _manager.database;
+    final result = await db.rawQuery(
+      '''
+      SELECT COUNT(*) AS count
+      FROM ${CustomerAccountFile.tableName}
+      WHERE template_name = ?
+      ''',
+      [templateName],
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
 }
 

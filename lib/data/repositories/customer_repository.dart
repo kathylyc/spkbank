@@ -270,5 +270,9 @@ class CustomerRepository {
   /// 检查电话号码是否重复（排除指定客户ID）
   Future<bool> isPhoneExists(String phone, {String? excludeCustomerUid}) =>
       _provider.customerDao.existsByPhone(phone, excludeCustomerUid: excludeCustomerUid);
+
+  /// 按模板名称统计使用次数
+  Future<int> countByTemplateName(String templateName) =>
+      _provider.customerAccountFileDao.countByTemplateName(templateName);
 }
 
