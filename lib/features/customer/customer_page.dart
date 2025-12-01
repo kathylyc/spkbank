@@ -151,7 +151,7 @@ class _CustomerPageState extends State<CustomerPage> {
           'groupCode': manager?.groupCode.isEmpty ?? true ? '-' : manager!.groupCode,
           'managerCode': customer.managerAccount,
           'managerName': _resolveManagerName(manager, customer.managerAccount),
-          'updateTime': customer.updateTime?.toIso8601String() ?? '-',
+          'updateTime': customer.updateTime?.toIso8601String() ?? customer.createTime?.toIso8601String() ?? '-',
         });
       }
 
@@ -941,6 +941,20 @@ class _CustomerPageState extends State<CustomerPage> {
     return manager.userName;
   }
 
+  /// 格式化日期时间
+  String _formatDateTime(String? dateTimeStr) {
+    if (dateTimeStr == null || dateTimeStr.isEmpty || dateTimeStr == '-') {
+      return '-';
+    }
+
+    try {
+      final dateTime = DateTime.parse(dateTimeStr);
+      return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return dateTimeStr;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return CommonDataTablePage(
@@ -1015,6 +1029,10 @@ class _CustomerPageState extends State<CustomerPage> {
         DataTableColumn(
           label: '客户经理姓名',
           builder: (row, context) => Text(row['managerName']),
+        ),
+        DataTableColumn(
+          label: '更新时间',
+          builder: (row, context) => Text(_formatDateTime(row['updateTime'])),
         ),
         DataTableColumn(
           label: '操作',

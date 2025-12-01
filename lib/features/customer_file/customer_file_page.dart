@@ -186,6 +186,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           'managerName': row['manager_name'] ?? '',
           'filePath': row['file_path'],
           'customerUid': row['customer_uid'],
+          'createTime': row['create_time']?.toString() ?? '-',
         };
       }).toList();
       
@@ -1162,6 +1163,10 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           builder: (row, context) => Text(row['managerName']?.toString() ?? ''),
         ),
         DataTableColumn(
+          label: '创建时间',
+          builder: (row, context) => Text(_formatDateTime(row['createTime'])),
+        ),
+        DataTableColumn(
           label: '操作',
           builder: (row, context) => _buildActions(row),
         ),
@@ -1314,6 +1319,20 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       return status.isEmpty ? '-' : status;
     }
     return '-';
+  }
+
+  /// 格式化日期时间
+  String _formatDateTime(String? dateTimeStr) {
+    if (dateTimeStr == null || dateTimeStr.isEmpty || dateTimeStr == '-') {
+      return '-';
+    }
+
+    try {
+      final dateTime = DateTime.parse(dateTimeStr);
+      return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return dateTimeStr;
+    }
   }
 
   /// 构建签署状态标签

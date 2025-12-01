@@ -113,7 +113,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
           'managerName': displayName,
           'managerPhone': (phone != null && phone.isNotEmpty) ? phone : '-',
           'customerCount': stats?.customerCount ?? 0,
-          'entryTime': latestEntry != null
+          'latestEntry': latestEntry != null
               ? _dateFormatter.format(latestEntry)
               : '-',
         });
@@ -582,8 +582,8 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
           builder: (row, context) => _buildPasswordStatus(row),
         ),
         DataTableColumn(
-          label: '录入时间',
-          builder: (row, context) => Text(row['entryTime']),
+          label: '登录时间',
+          builder: (row, context) => Text(row['latestEntry']),
         ),
         DataTableColumn(
           label: '操作',
