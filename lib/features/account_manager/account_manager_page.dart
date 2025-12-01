@@ -109,13 +109,13 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
           'id': displayIndex,
           'managerAccount': manager.userName,
           'managerCode': manager.userName,
-          'groupCode': manager.groupCode.isEmpty ? '-' : manager.groupCode,
+          'groupCode': manager.groupCode.isEmpty ? '' : manager.groupCode,
           'managerName': displayName,
-          'managerPhone': (phone != null && phone.isNotEmpty) ? phone : '-',
+          'managerPhone': (phone != null && phone.isNotEmpty) ? phone : '',
           'customerCount': stats?.customerCount ?? 0,
           'latestEntry': latestEntry != null
               ? _dateFormatter.format(latestEntry)
-              : '-',
+              : '',
         });
       }
 
@@ -343,15 +343,15 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
         return '非标准压缩包，不支持导入2';
       }
 
-      // 检查前三列表头
-      const expectedHeaders = ['客户经理编号', '客户经理姓名', '客户经理手机号码'];
+      // 检查前四列表头
+      const expectedHeaders = ['客户经理编号', '客户经理姓名', '客户经理手机号码', '团队编码'];
       final headerRow = sheet.rows[0];
-      if (headerRow.length < 3) {
+      if (headerRow.length < 4) {
         return '非标准压缩包，不支持导入2';
       }
 
       // 检查表头是否匹配
-      for (int i = 0; i < 3; i++) {
+      for (int i = 0; i < 4; i++) {
         final cellValue = headerRow[i]?.value?.toString() ?? '';
         if (cellValue != expectedHeaders[i]) {
           return '非标准压缩包，不支持导入2';
@@ -402,6 +402,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
       final managerCode = row[0]?.value?.toString() ?? '';
       final managerName = row[1]?.value?.toString() ?? '';
       final managerPhone = row[2]?.value?.toString() ?? '';
+      final teamCode = row[3]?.value?.toString() ?? '';
 
       if (managerCode.isEmpty) {
         continue; // 跳过客户经理编号为空的行
@@ -411,7 +412,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
       if (existingManager != null) {
         // 更新现有用户
         final updatedManager = existingManager.copyWith(
-          groupCode: '', // 从 Excel 导入时，group_code 默认为空字符串
+          groupCode: teamCode, // 使用 Excel 中的团队编码
           nickName: managerName.isNotEmpty ? managerName : existingManager.nickName,
           phoneNumber: managerPhone.isNotEmpty ? managerPhone : existingManager.phoneNumber,
           updateBy: loginUser?.userName,
@@ -430,7 +431,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
           phoneNumber: managerPhone.isNotEmpty ? managerPhone : null,
           password: defaultPassword,
           status: '0',
-          groupCode: '', // 从 Excel 导入时，group_code 默认为空字符串
+          groupCode: teamCode, // 使用 Excel 中的团队编码
           pwdUpdateDate: now, // 导入客户经理时，设置密码更新日期为当前时间
           createBy: loginUser?.userName,
           createTime: now,
@@ -498,6 +499,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
       data: selectedData,
       loadingMessage: '正在导出客户经理数据...',
       successMessage: '客户经理数据导出成功',
+      headers: ['客户经理编号', '客户经理姓名', '客户经理手机号码', '团队编码'],
       dataToExcelRows: (sheet, rowData, rowIndex, filePathMap) {
         sheet
             .cell(excel.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
@@ -508,6 +510,9 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
         sheet
             .cell(excel.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
             .value = excel.TextCellValue('${rowData['managerPhone'] ?? ''}');
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
+            .value = excel.TextCellValue('${rowData['groupCode'] ?? ''}');
       },
       onSuccess: () {
         // 导出成功，无需额外操作
