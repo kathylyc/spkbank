@@ -54,7 +54,7 @@ const Map<String, PdfTemplateInfo> ConstPdfTemplateMap = {
   ),
   "2": PdfTemplateInfo(
       signCode: 'x8q8a3d9dz771ds6',
-      assetsPath: 'assets/pdf/Appendix A - SPDB FinancialInstitution Due Diligence Questionnaire_202406.pdf',
+      assetsPath: 'assets/pdf/Appendix A - SPDB Financial Institution Due Diligence Questionnaire_202406.pdf',
       signFields: [],
   ),
   "3": PdfTemplateInfo(
