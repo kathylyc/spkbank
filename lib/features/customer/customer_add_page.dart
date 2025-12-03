@@ -1,5 +1,3 @@
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -8,6 +6,7 @@ import '../../data/models/user.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/user_repository.dart';
 import '../../utils/common_const.dart';
+import '../../utils/dialog_utils.dart';
 import '../../utils/storage_utils.dart';
 
 class CustomerAddPage extends StatefulWidget {
@@ -112,61 +111,30 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
   }
 
   Future<bool> _handleWillPop() async {
-    if (!_hasUnsavedChanges) {
-      return true;
-    }
-    final shouldExit = await _showUnsavedConfirmDialog();
-    return shouldExit ?? false;
+    // WillPopScope 总是允许返回，主要逻辑在 _handleLeadingPressed 中处理
+    return true;
   }
 
   Future<bool?> _showUnsavedConfirmDialog() async {
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
-      return showCupertinoDialog<bool>(
-        context: context,
-        builder: (dialogContext) {
-          return CupertinoAlertDialog(
-            title: const Text('提示'),
-            content: const Text('您还未保存，确定退出吗？'),
-            actions: [
-              CupertinoDialogAction(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('取消'),
-              ),
-              CupertinoDialogAction(
-                onPressed: () => Navigator.of(dialogContext).pop(true),
-                isDefaultAction: true,
-                child: const Text('确定'),
-              ),
-            ],
-          );
-        },
-      );
-    } else {
-      return showDialog<bool>(
-        context: context,
-        builder: (dialogContext) {
-          return AlertDialog(
-            title: const Text('提示'),
-            content: const Text('您还未保存，确定退出吗？'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('取消'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(true),
-                child: const Text('确定'),
-              ),
-            ],
-          );
-        },
-      );
-    }
+    bool? result = await DialogUtils.confirm(
+      context: context,
+      title: '提示',
+      content: '您还未保存，确定退出吗？',
+    );
+    return result;
   }
 
   Future<void> _handleLeadingPressed() async {
-    final canExit = await _handleWillPop();
-    if (canExit && mounted) {
+    if (!_hasUnsavedChanges) {
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+      return;
+    }
+
+    final shouldExit = await _showUnsavedConfirmDialog();
+
+    if (shouldExit == true && mounted) {
       Navigator.of(context).pop();
     }
   }
