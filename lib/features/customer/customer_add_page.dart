@@ -474,88 +474,83 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
           ),
           const SizedBox(height: 8),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
                 width: 120,
-                child: SizedBox(
-                  height: 48,
-                  child: DropdownButtonFormField<String>(
-                    value: selectedOption.code,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(4),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(4),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(4),
-                        borderSide: const BorderSide(color: Colors.blue),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
+                child: DropdownButtonFormField<String>(
+                  initialValue: selectedOption.code,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
                     ),
-                    items: options
-                        .map(
-                          (option) => DropdownMenuItem<String>(
-                            value: option.code,
-                            child: Text(option.dialCode),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() {
-                        _selectedCountryCode = value;
-                      });
-                    },
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(color: Colors.blue),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
                   ),
+                  items: options
+                      .map(
+                        (option) => DropdownMenuItem<String>(
+                          value: option.code,
+                          child: Text(option.dialCode),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _selectedCountryCode = value;
+                    });
+                  },
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: TextFormField(
-                    controller: _phoneController,
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9\s-]')),
-                    ],
-                    maxLength: 20,
-                    decoration: InputDecoration(
-                      hintText: '请输入客户电话',
-                      hintStyle: TextStyle(color: Colors.grey.shade400),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(4),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(4),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(4),
-                        borderSide: const BorderSide(color: Colors.blue),
-                      ),
-                      counterText: '',
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
+                child: TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9\s-]')),
+                  ],
+                  maxLength: 20,
+                  decoration: InputDecoration(
+                    hintText: '请输入客户电话',
+                    hintStyle: TextStyle(color: Colors.grey.shade400),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
                     ),
-                    validator: (value) {
-                      final String phone = value?.trim() ?? '';
-                      if (phone.isEmpty) {
-                        return '请输入联系电话';
-                      }
-                      return null;
-                    },
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(color: Colors.blue),
+                    ),
+                    counterText: '',
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
                   ),
+                  validator: (value) {
+                    final String phone = value?.trim() ?? '';
+                    if (phone.isEmpty) {
+                      return '请输入联系电话';
+                    }
+                    return null;
+                  },
                 ),
               ),
             ],
