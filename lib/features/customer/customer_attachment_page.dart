@@ -59,6 +59,7 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
     // 清理 file_picker 生成的临时文件
     FilePicker.platform.clearTemporaryFiles().catchError((error) {
       debugPrint('清理 file_picker 临时文件失败: $error');
+      return false;
     });
     super.dispose();
   }
@@ -121,15 +122,19 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
       final selected = result.files.single;
       final String? path = selected.path;
       if (path == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('无法获取文件路径，请重试')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('无法获取文件路径，请重试')),
+          );
+        }
         return;
       }
       if (!await File(path).exists()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('文件不存在，请重新选择')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('文件不存在，请重新选择')),
+          );
+        }
         return;
       }
       setState(() {
@@ -157,11 +162,20 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
     setState(() {
       final currentState = _attachmentStates[type];
       if (currentState != null) {
-        _attachmentStates[type] = currentState.copyWith(
-          clearSelectedPath: true,
-          clearSelectedName: true,
-          clearExistingPath: true,
-        );
+        if (currentState.existingPath != null) {
+          // 如果有已保存的文件，标记为删除，而不是立即清除状态
+          _attachmentStates[type] = currentState.copyWith(
+            clearSelectedPath: true,
+            clearSelectedName: true,
+            isMarkedForDeletion: true,
+          );
+        } else {
+          // 如果只有新选择的文件，直接清除
+          _attachmentStates[type] = currentState.copyWith(
+            clearSelectedPath: true,
+            clearSelectedName: true,
+          );
+        }
       }
     });
   }
@@ -176,12 +190,17 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
     if (_isSaving) {
       return;
     }
-    final selectedEntries = _attachmentStates.entries
-        .where((entry) => entry.value.selectedPath != null)
+
+    // 获取需要处理的附件（新选择 + 标记删除的）
+    final processingEntries = _attachmentStates.entries
+        .where((entry) =>
+               entry.value.selectedPath != null ||
+               entry.value.isMarkedForDeletion)
         .toList();
-    if (selectedEntries.isEmpty) {
+
+    if (processingEntries.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先选择要上传的附件')),
+        const SnackBar(content: Text('没有需要保存的更改')),
       );
       return;
     }
@@ -193,56 +212,81 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
     try {
       final DateTime now = DateTime.now();
       final String customerUid = widget.customer.customerUid;
-      
-      for (final entry in selectedEntries) {
-        final String attachmentType = entry.key; // 已经是常量值
-        final String sourcePath = entry.value.selectedPath!;
-        
-        // 先复制文件到沙盒目录
-        final String sandboxPath = await FileManager.saveCustomerAttachment(
-          sourcePath: sourcePath,
-          customerUid: customerUid,
-          attachmentType: attachmentType,
-        );
-        
-        // 检查是否已存在该类型的附件
-        final existingFiles = await _customerRepository.findAttachmentFilesByType(
-          customerUid,
-          attachmentType,
-        );
-        
-        if (existingFiles.isNotEmpty) {
-          // 如果存在，执行 update
-          final existingFile = existingFiles.first;
-          
-          // 删除旧文件（如果存在且与新文件路径不同）
-          if (existingFile.filePath != sandboxPath) {
+
+      for (final entry in processingEntries) {
+        final String attachmentType = entry.key;
+        final _AttachmentState state = entry.value;
+
+        // 处理删除操作
+        if (state.isMarkedForDeletion && state.existingPath != null) {
+          // 查找该类型的所有附件文件
+          final existingFiles = await _customerRepository.findAttachmentFilesByType(
+            customerUid,
+            attachmentType,
+          );
+
+          for (final file in existingFiles) {
+            // 删除数据库记录
+            await _customerRepository.deleteAttachmentFile(file.id!);
+
+            // 删除文件系统中的文件
             try {
-              await FileManager.deleteCustomerAttachment(existingFile.filePath);
+              await FileManager.deleteCustomerAttachment(file.filePath);
             } catch (e) {
-              // 忽略删除旧文件失败的错误
-              debugPrint('删除旧文件失败: $e');
+              debugPrint('删除文件失败: $e');
             }
           }
-          
-          final updatedEntity = existingFile.copyWith(
-            filePath: sandboxPath,
-            updateBy: _loginUser?.userName,
-            updateTime: now,
-          );
-          await _customerRepository.updateAttachmentFile(updatedEntity);
-        } else {
-          // 如果不存在，执行 insert
-          final newEntity = CustomerAttachmentFile(
+        }
+
+        // 处理新文件上传
+        if (state.selectedPath != null) {
+          final String sourcePath = state.selectedPath!;
+
+          // 先复制文件到沙盒目录
+          final String sandboxPath = await FileManager.saveCustomerAttachment(
+            sourcePath: sourcePath,
             customerUid: customerUid,
             attachmentType: attachmentType,
-            filePath: sandboxPath,
-            createBy: _loginUser?.userName,
-            createTime: now,
-            updateBy: _loginUser?.userName,
-            updateTime: now,
           );
-          await _customerRepository.addAttachmentFile(newEntity);
+
+          // 检查是否已存在该类型的附件（可能已经被标记删除）
+          final existingFiles = await _customerRepository.findAttachmentFilesByType(
+            customerUid,
+            attachmentType,
+          );
+
+          if (existingFiles.isNotEmpty) {
+            // 如果存在，执行 update
+            final existingFile = existingFiles.first;
+
+            // 删除旧文件（如果存在且与新文件路径不同）
+            if (existingFile.filePath != sandboxPath) {
+              try {
+                await FileManager.deleteCustomerAttachment(existingFile.filePath);
+              } catch (e) {
+                debugPrint('删除旧文件失败: $e');
+              }
+            }
+
+            final updatedEntity = existingFile.copyWith(
+              filePath: sandboxPath,
+              updateBy: _loginUser?.userName,
+              updateTime: now,
+            );
+            await _customerRepository.updateAttachmentFile(updatedEntity);
+          } else {
+            // 如果不存在，执行 insert
+            final newEntity = CustomerAttachmentFile(
+              customerUid: customerUid,
+              attachmentType: attachmentType,
+              filePath: sandboxPath,
+              createBy: _loginUser?.userName,
+              createTime: now,
+              updateBy: _loginUser?.userName,
+              updateTime: now,
+            );
+            await _customerRepository.addAttachmentFile(newEntity);
+          }
         }
       }
 
@@ -262,14 +306,14 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
       Navigator.of(context).pop(true);
     } catch (error, stackTrace) {
       debugPrintStack(stackTrace: stackTrace);
-      
+
       // 保存失败时，也清理 file_picker 生成的临时文件
       try {
         await FilePicker.platform.clearTemporaryFiles();
       } catch (e) {
         debugPrint('清理 file_picker 临时文件失败: $e');
       }
-      
+
       if (!mounted) {
         return;
       }
@@ -373,7 +417,7 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
     final String? existingName =
         existingPath == null ? null : p.basename(existingPath);
 
-    String? previewPath = selectedPath ?? existingPath;
+    String? previewPath = state.isMarkedForDeletion ? null : (selectedPath ?? existingPath);
     final bool hasFile = previewPath != null;
 
     return FutureBuilder<String?>(
@@ -385,7 +429,7 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
         String displayText;
         if (selectedName != null) {
           displayText = selectedName;
-        } else if (existingName != null) {
+        } else if (existingName != null && !state.isMarkedForDeletion) {
           displayText = '已上传: $existingName';
         } else {
           displayText = '点击选择文件';
@@ -473,7 +517,7 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
                   ),
                 ),
               ),
-              if (hasFile) ...[
+              if (hasFile || (existingPath != null && !state.isMarkedForDeletion)) ...[
                 const SizedBox(width: 8),
                 SizedBox(
                   width: 100,
@@ -484,7 +528,10 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
                       foregroundColor: Colors.grey.shade800,
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
-                    child: const Text('清除', style: TextStyle(fontSize: 13)),
+                    child: const Text(
+                      '清除',
+                      style: TextStyle(fontSize: 13),
+                    ),
                   ),
                 ),
               ],
@@ -513,11 +560,13 @@ class _AttachmentState {
     this.selectedPath,
     this.selectedName,
     this.existingPath,
+    this.isMarkedForDeletion = false,
   });
 
   final String? selectedPath;
   final String? selectedName;
   final String? existingPath;
+  final bool isMarkedForDeletion;
 
   _AttachmentState copyWith({
     String? selectedPath,
@@ -526,11 +575,13 @@ class _AttachmentState {
     bool clearSelectedPath = false,
     bool clearSelectedName = false,
     bool clearExistingPath = false,
+    bool? isMarkedForDeletion,
   }) {
     return _AttachmentState(
       selectedPath: clearSelectedPath ? null : (selectedPath ?? this.selectedPath),
       selectedName: clearSelectedName ? null : (selectedName ?? this.selectedName),
       existingPath: clearExistingPath ? null : (existingPath ?? this.existingPath),
+      isMarkedForDeletion: isMarkedForDeletion ?? this.isMarkedForDeletion,
     );
   }
 }
