@@ -154,12 +154,20 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
   @override
   void dispose() {
-    // 清理临时文件
-    _cleanupTempFiles();
+    try {
+      // 清理临时文件
+      _cleanupTempFiles();
 
-    // 现有的清理逻辑
-    _pdfViewerController?.dispose();
-    _currentDocument?.dispose();
+      // 现有的清理逻辑 - 按顺序释放资源，避免native崩溃
+      _pdfViewerController?.dispose();
+      _currentDocument?.dispose();
+
+      // 清理字体资源
+      _chineseFont = null;
+      _chineseFontBytes = null;
+    } catch (e) {
+      debugPrint('释放PDF资源时出错: $e');
+    }
     super.dispose();
   }
 
@@ -181,30 +189,68 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         final ByteData fontData = await rootBundle.load(fontPath);
 
         if (fontData.lengthInBytes == 0) {
+          debugPrint('字体文件为空: $fontPath');
           continue;
         }
 
         final List<int> fontBytes = fontData.buffer.asUint8List();
 
         if (fontBytes.length < 1000) {
+          debugPrint('字体文件太小: $fontPath, 大小: ${fontBytes.length}');
           continue;
         }
 
         try {
-          _chineseFont = PdfTrueTypeFont(fontBytes, 10);
-          _chineseFontBytes = List<int>.from(fontBytes);
-          debugPrint('✓ 成功加载中文字体: $fontPath');
-          return;
+          // 添加额外的字体验证
+          if (_isValidFontData(fontBytes)) {
+            _chineseFont = PdfTrueTypeFont(fontBytes, 10);
+            _chineseFontBytes = List<int>.from(fontBytes);
+            debugPrint('✓ 成功加载中文字体: $fontPath, 大小: ${fontBytes.length}');
+            return;
+          } else {
+            debugPrint('字体数据无效: $fontPath');
+            continue;
+          }
         } catch (e) {
-          debugPrint('创建 PdfTrueTypeFont 失败: $e');
+          debugPrint('创建 PdfTrueTypeFont 失败: $e, 字体路径: $fontPath');
           continue;
         }
       } catch (e) {
+        debugPrint('加载字体文件失败: $e, 字体路径: $fontPath');
         // 字体文件不存在，尝试下一个
       }
     }
 
-    debugPrint('⚠ 警告: 未找到可用的中文字体文件');
+    debugPrint('⚠ 警告: 未找到可用的中文字体文件，将使用默认字体');
+    // 不抛出异常，允许使用默认字体
+  }
+
+  /// 验证字体数据是否有效
+  bool _isValidFontData(List<int> fontBytes) {
+    try {
+      // 检查基本的字体文件头
+      if (fontBytes.length < 4) return false;
+
+      // 检查常见字体格式的魔数
+      final firstFourBytes = fontBytes.take(4).toList();
+
+      // TrueType/OpenType字体 (0x00010000 或 'OTTO')
+      if (firstFourBytes[0] == 0x00 && firstFourBytes[1] == 0x01 &&
+          firstFourBytes[2] == 0x00 && firstFourBytes[3] == 0x00) {
+        return true;
+      }
+
+      // CFF字体 ('OTTO')
+      if (firstFourBytes[0] == 0x4F && firstFourBytes[1] == 0x54 &&
+          firstFourBytes[2] == 0x54 && firstFourBytes[3] == 0x4F) {
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      debugPrint('验证字体数据时出错: $e');
+      return false;
+    }
   }
 
   /// 加载PDF文件
@@ -609,7 +655,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         bool isFoundField = false;
 
         for (int j = 0; j < signatureFields.length; j++) {
-          final field = signatureFields[i];
+          final field = signatureFields[j];
           if (field.name == fieldName) {
             isFoundField = true;
 
@@ -1893,33 +1939,90 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
           
           // PDF查看器
           Expanded(
-            child: SfPdfViewer.memory(
-              _pdfBytes!,
-              controller: _pdfViewerController,
-              enableDoubleTapZooming: false,
-              enableTextSelection: false,
-              canShowScrollHead: false,
-              canShowScrollStatus: false,
-              canShowSignaturePadDialog: true,
-              onDocumentLoaded: (PdfDocumentLoadedDetails details) async {
-                debugPrint('PDF文档已加载，共 ${details.document.pages.count} 页');
-                // 保存文档引用，用于保存时复制表单字段值
-                _currentDocument = details.document;
+            child: Builder(
+              builder: (context) {
+                try {
+                  return SfPdfViewer.memory(
+                    _pdfBytes!,
+                    controller: _pdfViewerController,
+                    enableDoubleTapZooming: false,
+                    enableTextSelection: false,
+                    canShowScrollHead: false,
+                    canShowScrollStatus: false,
+                    canShowSignaturePadDialog: true,
+                    onDocumentLoaded: (PdfDocumentLoadedDetails details) async {
+                      try {
+                        debugPrint('PDF文档已加载，共 ${details.document.pages.count} 页');
+                        // 保存文档引用，用于保存时复制表单字段值
+                        _currentDocument = details.document;
 
-                // 当前签署状态通过PDF表单直接获取，无需数据库查询
-                _cachedPreviousSignStatus = _calculateSigningStatus();
+                        // 当前签署状态通过PDF表单直接获取，无需数据库查询
+                        _cachedPreviousSignStatus = _calculateSigningStatus();
 
-                // 打印所有表单域的所有属性
-                _printAllFormFieldsProperties(details.document);
-                // 文档加载后，再次为所有表单字段设置中文字体
-                await _setFormFieldsFontAfterLoad(details.document);
-              },
-              onDocumentLoadFailed: (PdfDocumentLoadFailedDetails details)  {
-                debugPrint('PDF文档加载出错，error= ${details.error}, description= ${details.description}');
-              },
-              onPageChanged: (details) {
-                debugPrint('当前页面: ${details.newPageNumber}');
-              },
+                        // 打印所有表单域的所有属性
+                        _printAllFormFieldsProperties(details.document);
+                        // 文档加载后，再次为所有表单字段设置中文字体
+                        await _setFormFieldsFontAfterLoad(details.document);
+                      } catch (e, stackTrace) {
+                        debugPrint('PDF文档加载后处理失败: $e');
+                        debugPrint('堆栈跟踪: $stackTrace');
+                        // 不抛出异常，允许继续使用PDF查看器
+                      }
+                    },
+                    onDocumentLoadFailed: (PdfDocumentLoadFailedDetails details)  {
+                      debugPrint('PDF文档加载出错，error= ${details.error}, description= ${details.description}');
+                      // 显示错误提示
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('PDF加载失败: ${details.description}'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    onPageChanged: (details) {
+                      try {
+                        debugPrint('当前页面: ${details.newPageNumber}');
+                      } catch (e) {
+                        debugPrint('页面变化处理失败: $e');
+                      }
+                    },
+                  );
+                } catch (e) {
+                  debugPrint('创建PDF查看器失败: $e');
+                  // 显示错误界面
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.red.shade300,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'PDF查看器初始化失败',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.red.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              // 重新创建PDF查看器
+                            });
+                          },
+                          child: const Text('重试'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              }
             ),
           ),
         ],
