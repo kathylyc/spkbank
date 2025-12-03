@@ -55,9 +55,10 @@ class _RouterPageState extends State<RouterPage> {
       setState(() {
         _loginUser = loginUser;
         if (_isAccountManager) {
-          // _openTabs.remove(context.S.templateManagement);
+          _openTabs.remove(context.S.templateManagement);
           _openTabs.remove('客户经理管理');
-          if (_selectedFunction == FunctionType.accountManager) {
+          if (_selectedFunction == FunctionType.pdfTemplate ||
+              _selectedFunction == FunctionType.accountManager) {
             _selectedFunction = FunctionType.dashboard;
           }
         }
@@ -74,9 +75,7 @@ class _RouterPageState extends State<RouterPage> {
 
   /// 切换功能
   void _switchFunction(FunctionType functionType) {
-    if (_isAccountManager &&
-        (functionType == FunctionType.pdfTemplate ||
-            functionType == FunctionType.accountManager)) {
+    if (_isAccountManager && functionType == FunctionType.accountManager) {
       return;
     }
     setState(() {
@@ -393,14 +392,12 @@ class _RouterPageState extends State<RouterPage> {
                   ),
                   const SizedBox(height: 8),
                   // 模板管理图标
-                  if (!_isAccountManager) ...[
-                    _buildFunctionIcon(
-                      icon: Icons.description_outlined,
-                      isSelected: _selectedFunction == FunctionType.pdfTemplate,
-                      onTap: () => _switchFunction(FunctionType.pdfTemplate),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
+                  _buildFunctionIcon(
+                    icon: Icons.description_outlined,
+                    isSelected: _selectedFunction == FunctionType.pdfTemplate,
+                    onTap: () => _switchFunction(FunctionType.pdfTemplate),
+                  ),
+                  const SizedBox(height: 8),
                   // 客户管理图标
                   _buildFunctionIcon(
                     icon: Icons.people_outline,
@@ -527,7 +524,7 @@ class _RouterPageState extends State<RouterPage> {
   Widget _buildTabBar() {
     final visibleTabs = _openTabs.where((tabName) {
       if (_isAccountManager) {
-        return tabName != context.S.templateManagement && tabName != '客户经理管理';
+        return tabName != '客户经理管理';
       }
       return true;
     }).toList();
