@@ -55,10 +55,9 @@ class _RouterPageState extends State<RouterPage> {
       setState(() {
         _loginUser = loginUser;
         if (_isAccountManager) {
-          _openTabs.remove(context.S.templateManagement);
+          // _openTabs.remove(context.S.templateManagement);
           _openTabs.remove('客户经理管理');
-          if (_selectedFunction == FunctionType.pdfTemplate ||
-              _selectedFunction == FunctionType.accountManager) {
+          if (_selectedFunction == FunctionType.accountManager) {
             _selectedFunction = FunctionType.dashboard;
           }
         }
