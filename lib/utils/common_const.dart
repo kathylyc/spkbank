@@ -50,7 +50,7 @@ const Map<String, PdfTemplateInfo> ConstPdfTemplateMap = {
   "1": PdfTemplateInfo(
       signCode: '265xxaq545a2xq6x',
       assetsPath: 'assets/pdf/Account Mandate for BusinessAccount_201908.pdf',
-      signFields: ['SignName01', 'SignName02'],
+      signFields: ['Signature1', 'Signature2'],
   ),
   "2": PdfTemplateInfo(
       signCode: 'x8q8a3d9dz771ds6',
@@ -77,7 +77,8 @@ const Map<String, PdfTemplateInfo> ConstPdfTemplateMap = {
       assetsPath: 'assets/pdf/Application Form for CorporateAccount_202212_clean (FINAL VERSION).pdf',
       signFields: [
         'Signature1', 'Signature2', 'Signature3', 'Signature4', 'Signature5',
-        'Signature6', 'Signature7', 'Signature8', 'Signature9', 'Signature',
+        'Signature6', 'Signature7', 'Signature8', 'Signature9', 'Signature10',
+        'Signature11', 'Signature12', 'Signature',
       ],
   ),
   "7": PdfTemplateInfo(
