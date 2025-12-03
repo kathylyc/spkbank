@@ -24,6 +24,17 @@ class ExtraExcelFile {
   });
 }
 
+/// 简化的结果对象，包含成功状态和错误信息
+class Result {
+  final bool isSuccess;
+  final String? errMsg;
+
+  const Result({required this.isSuccess, this.errMsg});
+
+  static Result success({String? message}) => Result(isSuccess: true, errMsg: message);
+  static Result failure(String error) => Result(isSuccess: false, errMsg: error);
+}
+
 /// 导入导出工具类
 /// 提供通用的导入导出功能，包括密码保护、文件选择、压缩解压等
 class ImportExportUtils {
@@ -887,7 +898,7 @@ class ImportExportUtils {
     BuildContext context, {
     required String excelFileNamePrefix,
     Future<String?> Function(File excelFile)? validateExcelFile,
-    required Future<String?> Function(File excelFile, String importDirPath) processExcelData,
+    required Future<Result> Function(File excelFile, String importDirPath) processExcelData,
     String loadingMessage = '正在导入数据...',
     Function(String? successMessage)? onSuccess,
     Function(String error)? onError,
@@ -1078,7 +1089,38 @@ class ImportExportUtils {
         }
 
         // 处理Excel数据
-        final successMessage = await processExcelData(excelFile, importCurrentDir.path);
+        final result = await processExcelData(excelFile, importCurrentDir.path);
+
+        // 检查结果是否成功
+        if (!result.isSuccess) {
+          // 处理错误情况
+          final errorMessage = result.errMsg ?? '导入失败';
+
+          // 删除临时文件
+          try {
+            if (await targetZipFile.exists()) {
+              await targetZipFile.delete();
+            }
+            if (await importCurrentDir.exists()) {
+              await importCurrentDir.delete(recursive: true);
+            }
+          } catch (deleteError) {
+            debugPrint('删除临时文件失败: $deleteError');
+          }
+
+          if (context.mounted) {
+            hideLoadingDialog(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(errorMessage),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+          onError?.call(errorMessage);
+          return;
+        }
 
         // 删除临时文件
         try {
@@ -1097,14 +1139,14 @@ class ImportExportUtils {
           hideLoadingDialog(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(successMessage ?? '导入成功'),
+              content: Text(result.errMsg ?? '导入成功'),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 3),
             ),
           );
         }
 
-        onSuccess?.call(successMessage);
+        onSuccess?.call(result.errMsg);
       } catch (e, s) {
         // 解压失败（可能是密码错误）
         debugPrint('解压失败: $e');

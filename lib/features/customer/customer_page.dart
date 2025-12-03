@@ -384,7 +384,7 @@ class _CustomerPageState extends State<CustomerPage> {
   }
 
   /// 处理客户Excel数据
-  Future<String?> _processCustomerExcelData(File excelFile, String importDirPath) async {
+  Future<Result> _processCustomerExcelData(File excelFile, String importDirPath) async {
     final excelBytes = await excelFile.readAsBytes();
     final excelBook = excel.Excel.decodeBytes(excelBytes);
     final sheetName = excelBook.tables.isNotEmpty
@@ -649,7 +649,7 @@ class _CustomerPageState extends State<CustomerPage> {
         ? '；附件：新增 $attachmentInsertCount 条，更新 $attachmentUpdateCount 条'
         : '';
     
-    return '导入成功：新增 $insertCount 条，更新 $updateCount 条$attachmentMessage';
+    return Result.success(message: '导入成功：新增 $insertCount 条，更新 $updateCount 条$attachmentMessage');
   }
 
   /// 导入客户

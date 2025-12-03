@@ -513,7 +513,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   }
 
   /// 处理开户文件Excel数据
-  Future<String?> _processAccountFileExcelData(File excelFile, String importDirPath) async {
+  Future<Result> _processAccountFileExcelData(File excelFile, String importDirPath) async {
     final excelBytes = await excelFile.readAsBytes();
     final excelBook = excel.Excel.decodeBytes(excelBytes);
     final sheetName = excelBook.tables.isNotEmpty
@@ -625,6 +625,17 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         if (manager == null) {
           debugPrint('客户经理不存在，跳过: managerAccount=$managerAccount, accountFileName=$accountFileName');
           continue; // 跳过客户经理不存在的行
+        }
+      }
+
+      // 验证excel文件里的客户是否属于当前登录用户所在的团队，如果不属于当前团队，则返回错误
+      if (loginUser != null
+          && loginUser.groupCode.isNotEmpty
+          && managerAccount.isNotEmpty
+          && loginUser.userType == '01') {
+        final customerManager = await _userRepository.findByUserName(managerAccount);
+        if (customerManager != null && customerManager.groupCode != loginUser.groupCode) {
+          return Result.failure('客户 ${customer.customerName} 的客户经理 $managerAccount 不属于当前团队，无法导入');
         }
       }
 
@@ -804,7 +815,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     // 重新加载数据
     _loadData();
 
-    return '导入成功：新增 $insertCount 条，更新 $updateCount 条';
+    return Result.success(message: '导入成功：新增 $insertCount 条，更新 $updateCount 条');
   }
 
   /// 导入开户文件
