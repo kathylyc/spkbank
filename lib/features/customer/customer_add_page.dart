@@ -151,7 +151,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
     final String phone = _phoneController.text.trim();
     final String address = _addressController.text.trim();
     final String company = _companyController.text.trim();
-    final String? customerTag = _selectedTags.isEmpty ? null : _joinTags(_selectedTags);
+    final String? customerTag = _selectedTags.isEmpty ? '' : _joinTags(_selectedTags);
 
     setState(() {
       _isSaving = true;
