@@ -391,7 +391,7 @@ class _CustomerPageState extends State<CustomerPage> {
         ? excelBook.tables.keys.first
         : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : null);
     if (sheetName == null) {
-      throw Exception('无法读取Excel工作表');
+      return Result.failure('无法读取Excel工作表');
     }
 
       final sheet = excelBook[sheetName];
@@ -442,7 +442,7 @@ class _CustomerPageState extends State<CustomerPage> {
       // 验证客户经理是否存在
       final manager = await _userRepository.findByUserName(managerAccount);
       if (manager == null) {
-        continue; // 跳过客户经理不存在的行
+        return Result.failure('客户经理不存在，请先导入客户经理的信息');
       }
 
       // 尝试匹配现有客户（优先使用customerUid，其次使用客户姓名和客户经理编码）
@@ -563,7 +563,7 @@ class _CustomerPageState extends State<CustomerPage> {
           final customer = customersByUidMap[attachmentCustomerUid];
           if (customer == null) {
             debugPrint('客户不存在，跳过附件: customerUid=$attachmentCustomerUid, attachmentType=$attachmentType');
-            continue; // 跳过客户不存在的附件
+            return Result.failure('客户不存在，请先导入该客户的信息');
           }
           
           // 处理文件路径：如果Excel中有相对路径，且files目录存在，则复制文件到APP缓存目录

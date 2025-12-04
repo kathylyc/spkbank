@@ -739,7 +739,7 @@ class ImportExportUtils {
   static Future<void> importFromExcel(
     BuildContext context, {
     Future<String?> Function(File excelFile)? validateExcelFile,
-    required Future<String?> Function(File excelFile, String importDirPath) processExcelData,
+    required Future<Result> Function(File excelFile, String importDirPath) processExcelData,
     String loadingMessage = '正在导入数据...',
     Function(String? successMessage)? onSuccess,
     Function(String error)? onError,
@@ -847,7 +847,38 @@ class ImportExportUtils {
       }
 
       // 处理Excel数据
-      final successMessage = await processExcelData(targetExcelFile, importCurrentDir.path);
+      final processResult = await processExcelData(targetExcelFile, importCurrentDir.path);
+
+      // 检查结果是否成功
+      if (!processResult.isSuccess) {
+        // 处理错误情况
+        final errorMessage = processResult.errMsg ?? '导入失败';
+
+        // 删除临时文件
+        try {
+          if (await targetExcelFile.exists()) {
+            await targetExcelFile.delete();
+          }
+          if (await importCurrentDir.exists()) {
+            await importCurrentDir.delete(recursive: true);
+          }
+        } catch (deleteError) {
+          debugPrint('删除临时文件失败: $deleteError');
+        }
+
+        if (context.mounted) {
+          hideLoadingDialog(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+        onError?.call(errorMessage);
+        return;
+      }
 
       // 删除临时文件
       try {
@@ -866,14 +897,14 @@ class ImportExportUtils {
         hideLoadingDialog(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(successMessage ?? '导入成功'),
+            content: Text(processResult.errMsg ?? '导入成功'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
           ),
         );
       }
 
-      onSuccess?.call(successMessage);
+      onSuccess?.call(processResult.errMsg);
     } catch (e, s) {
       debugPrint('导入Excel数据失败: $e');
       debugPrintStack(stackTrace: s);

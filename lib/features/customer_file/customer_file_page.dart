@@ -520,7 +520,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         ? excelBook.tables.keys.first
         : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : null);
     if (sheetName == null) {
-      throw Exception('无法读取Excel工作表');
+      return Result.failure('无法读取Excel工作表');
     }
 
     final sheet = excelBook[sheetName];
@@ -616,7 +616,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       final customer = customersByUidMap[customerUid];
       if (customer == null) {
         debugPrint('客户不存在，跳过: customerUid=$customerUid, accountFileName=$accountFileName');
-        continue; // 跳过客户不存在的行
+        return Result.failure('客户不存在，请先导入该客户的信息');
       }
 
       // 验证客户经理是否存在
@@ -624,7 +624,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         final manager = await _userRepository.findByUserName(managerAccount);
         if (manager == null) {
           debugPrint('客户经理不存在，跳过: managerAccount=$managerAccount, accountFileName=$accountFileName');
-          continue; // 跳过客户经理不存在的行
+          return Result.failure('客户经理不存在，请先导入客户经理的信息');
         }
       }
 
@@ -747,24 +747,6 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
 
           // 3. 更新原版本数据（保持原版本号不变）
           String? appCacheFilePath = await copyOrReplaceToAppCacheFile();
-          // final updatedFile = existingFile.copyWith(
-          //   accountFileName: accountFileName.isNotEmpty ? accountFileName : existingFile.accountFileName,
-          //   fileVersion: currentFileVersion, // 保持原版本号
-          //   filePath: appCacheFilePath ?? existingFile.filePath, // 如果有新文件路径则更新，否则保持原路径
-          //   signStatus: signStatus ?? existingFile.signStatus,
-          //   fileSrcType: fileSrcType?.isNotEmpty == true ? fileSrcType : existingFile.fileSrcType,
-          //   templateName: templateName?.isNotEmpty == true ? templateName : existingFile.templateName,
-          //   templateSignCode: templateSignCode?.isNotEmpty == true ? templateSignCode : existingFile.templateSignCode,
-          //   updateBy: loginUser?.userName,
-          //   updateTime: now,
-          // );
-          // 其实数据并没有变化，所以不需要更新DB
-          // await _repository.addAccountFile(
-          //   updatedFile,
-          //   conflictAlgorithm: ConflictAlgorithm.replace,
-          // );
-          // updateCount++;
-          // debugPrint('更新原版本成功: accountFileUid=${existingFile.accountFileUid}, 版本=$currentFileVersion');
 
         } catch (e) {
           debugPrint('处理现有文件时出错: $e');

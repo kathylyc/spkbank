@@ -365,20 +365,17 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
   }
 
   /// 处理客户经理Excel数据
-  Future<String?> _processManagerExcelData(File excelFile, String importDirPath) async {
+  Future<Result> _processManagerExcelData(File excelFile, String importDirPath) async {
     final excelBytes = await excelFile.readAsBytes();
     final excelBook = excel.Excel.decodeBytes(excelBytes);
     final sheetName = excelBook.tables.isNotEmpty
         ? excelBook.tables.keys.first
         : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : null);
     if (sheetName == null) {
-      throw Exception('无法读取Excel工作表');
+      return Result.failure('无法读取Excel工作表');
     }
 
     final sheet = excelBook[sheetName];
-    if (sheet == null) {
-      throw Exception('无法访问Excel工作表');
-    }
 
     // 读取 Excel 数据并导入数据库
     final loginUser = await StorageUtils.getLoginUser();
@@ -446,7 +443,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
     // 重新加载数据
     _loadData();
 
-    return '导入成功：新增 $insertCount 条，更新 $updateCount 条';
+    return Result.success(message: '导入成功：新增 $insertCount 条，更新 $updateCount 条');
   }
 
   /// 导入客户经理
