@@ -92,6 +92,9 @@ ios/Runner/*.entitlements.orig  # 权限配置备份文件
 ios/Runner/en.lproj/*.orig
 ios/Runner/Base.lproj/*.orig
 
+# Ad Hoc打包文件
+ios/Runner 20*/
+
 # Swift Package Manager
 **/ios/.swiftpm/
 **/ios/.build/
