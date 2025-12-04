@@ -143,7 +143,8 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   final CustomerRepository _repository = CustomerRepository();
 
   // 签署状态缓存相关
-  int? _cachedPreviousSignStatus;  // 缓存历史签署状态（懒加载）
+  bool _isCalcPreviousSignStatus = false;
+  int? _cachedPreviousSignStatus;  // 缓存历史签署状态
 
   @override
   void initState() {
@@ -595,7 +596,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   }
 
   /// 计算文档签署状态
-  int? _calculateSigningStatus() {
+  Future<int?> _calculateSigningStatus() async {
     try {
       // 1. 获取当前文档的signCode
       final currentSignCode = widget.templateSignCode;
@@ -656,13 +657,14 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
         for (int j = 0; j < signatureFields.length; j++) {
           final field = signatureFields[j];
+          debugPrint('遍历签名域：i=${i}, fieldName=${fieldName}, j=${j}, field.name=${field.name}, isFoundField=${field.name == fieldName}');
           if (field.name == fieldName) {
             isFoundField = true;
 
             dynamic fieldDynamic = field;
             final signature = fieldDynamic.signature;
             if (signature != null && signature.isNotEmpty) {
-              isSigned = true;
+              isSigned = true;debugPrint('遍历签名域：isSigned=true');
               break;
             }
           }
@@ -679,8 +681,10 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       }
       // 5. 确定签署状态，已签的数量==常量定义的签名域的数量，视为已签署
       if (signedFieldCount == expectedSignFields.length) {
+        debugPrint('===已签名');
         return 1;
       } else {
+        debugPrint('===未签名');
         return 0;
       }
     } catch (e) {
@@ -756,7 +760,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
       // 0. 检测签署状态变更
       final int? previousSignStatus = _cachedPreviousSignStatus;
-      final int? currentSignStatus = _calculateSigningStatus();
+      final int? currentSignStatus = await _calculateSigningStatus();
       // 判断是否从未签署变为已签署
       final bool isSigningStatusChanged =
           (previousSignStatus == null || previousSignStatus == 0) &&
@@ -1956,8 +1960,11 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                         // 保存文档引用，用于保存时复制表单字段值
                         _currentDocument = details.document;
 
-                        // 当前签署状态通过PDF表单直接获取，无需数据库查询
-                        _cachedPreviousSignStatus = _calculateSigningStatus();
+                        // 当前签署状态通过PDF表单直接获取，无需数据库查询；仅在首次加载时计算 上一次的签名状态
+                        if (!_isCalcPreviousSignStatus) {
+                          _cachedPreviousSignStatus = await _calculateSigningStatus();
+                          _isCalcPreviousSignStatus = true;
+                        }
 
                         // 打印所有表单域的所有属性
                         _printAllFormFieldsProperties(details.document);
