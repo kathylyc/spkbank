@@ -741,6 +741,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
 
           if (backupResult != null) {
             debugPrint('备份成功，继续更新原版本');
+            insertCount++;
           } else {
             debugPrint('备份失败，但仍继续更新原版本');
           }
