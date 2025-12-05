@@ -11,6 +11,7 @@ import '../pdf_template/pdf_template_page.dart';
 import '../customer/customer_page.dart';
 import '../customer_file/customer_file_page.dart';
 import '../account_manager/account_manager_page.dart';
+import '../usage/usage_page.dart';
 
 /// 功能类型枚举
 enum FunctionType {
@@ -19,6 +20,7 @@ enum FunctionType {
   customer,
   customerFile,
   accountManager,
+  usage,
 }
 
 class RouterPage extends StatefulWidget {
@@ -101,6 +103,8 @@ class _RouterPageState extends State<RouterPage> {
         return '开户文件管理';
       case FunctionType.accountManager:
         return '客户经理管理';
+      case FunctionType.usage:
+        return '使用说明';
     }
   }
 
@@ -420,8 +424,14 @@ class _RouterPageState extends State<RouterPage> {
                       onTap: () => _switchFunction(FunctionType.accountManager),
                     ),
                   ],
-                  const SizedBox(height: 8),
                   // 可以添加更多功能图标
+                  const SizedBox(height: 8),
+                  // 使用说明图标
+                  _buildFunctionIcon(
+                    icon: Icons.help_outline,
+                    isSelected: _selectedFunction == FunctionType.usage,
+                    onTap: () => _switchFunction(FunctionType.usage),
+                  ),
                 ],
               ),
             ),
@@ -561,6 +571,8 @@ class _RouterPageState extends State<RouterPage> {
                       _switchFunction(FunctionType.customer);
                     } else if (tabName == '开户文件管理') {
                       _switchFunction(FunctionType.customerFile);
+                    } else if (tabName == '使用说明') {
+                      _switchFunction(FunctionType.usage);
                     } else if (tabName == '客户经理管理') {
                       _switchFunction(FunctionType.accountManager);
                     }
@@ -653,6 +665,8 @@ class _RouterPageState extends State<RouterPage> {
         return const CustomerPage();
       case FunctionType.customerFile:
         return const CustomerFilePage();
+      case FunctionType.usage:
+        return const UsagePage();
       case FunctionType.accountManager:
         return const AccountManagerPage();
     }
