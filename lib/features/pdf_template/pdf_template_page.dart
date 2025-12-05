@@ -220,7 +220,7 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
         // 显示文件操作对话框
         await FileUtils.showFileActionDialog(
           context,
-          fileName: fileName,
+          fileName: '$fileName.pdf',
           filePath: savedPath,
         );
       }
