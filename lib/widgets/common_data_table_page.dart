@@ -5,40 +5,43 @@ import 'package:flutter/material.dart';
 class CommonDataTablePage extends StatefulWidget {
   /// 查询条件区域的widget
   final Widget querySection;
-  
+
   /// 表格区域的标题描述
   final String tableTitle;
-  
+
   /// 右上角的功能按钮列表
   final List<ActionButton> actionButtons;
-  
+
   /// 表格列定义
   final List<DataTableColumn> columns;
-  
+
   /// 表格数据
   final List<Map<String, dynamic>> data;
-  
+
   /// 每页显示的条数
   final int itemsPerPage;
-  
+
   /// 当前页码（从1开始）
   final int currentPage;
-  
+
   /// 总记录数
   final int totalItems;
-  
+
   /// 页码变化回调
   final Function(int page)? onPageChanged;
-  
+
   /// 是否显示复选框列
   final bool showCheckbox;
-  
+
   /// 复选框选中状态变化回调
   final Function(List<int> selectedIds)? onSelectionChanged;
-  
+
   /// 自定义列宽（可选）
   /// 如果不提供，将使用默认的列宽配置
   final List<double>? columnWidths;
+
+  /// 是否禁用外层容器padding（用于在dashboard等已有padding的容器中使用）
+  final bool disableOuterPadding;
 
   const CommonDataTablePage({
     super.key,
@@ -54,6 +57,7 @@ class CommonDataTablePage extends StatefulWidget {
     this.showCheckbox = true,
     this.onSelectionChanged,
     this.columnWidths,
+    this.disableOuterPadding = false,
   });
 
   @override
@@ -195,7 +199,7 @@ class _CommonDataTablePageState extends State<CommonDataTablePage> {
         _columnWidths = _calculateColumnWidths(availableWidth);
         
         return Container(
-          padding: const EdgeInsets.all(24.0),
+          padding: widget.disableOuterPadding ? EdgeInsets.zero : const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -204,7 +208,7 @@ class _CommonDataTablePageState extends State<CommonDataTablePage> {
                 _buildQuerySection(),
                 const SizedBox(height: 24),
               ],
-              
+
               // 表格区域
               Expanded(
                 child: _buildTableSection(),

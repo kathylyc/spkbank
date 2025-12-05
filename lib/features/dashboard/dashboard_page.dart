@@ -2,6 +2,7 @@ import 'package:bank_flutter/utils/version_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../utils/context_extensions.dart';
+import '../../utils/screen_utils.dart';
 import '../../utils/storage_utils.dart';
 import '../../widgets/common_data_table_page.dart';
 import '../../data/models/user.dart';
@@ -210,15 +211,18 @@ class _DashboardPageState extends State<DashboardPage> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 10.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade700,
+            SizedBox(
+              height: ScreenUtils.isPhonePortrait(context) ? 80: 40,
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade700,
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -239,23 +243,31 @@ class _DashboardPageState extends State<DashboardPage> {
   /// 构建最近生成的PDF文件表格
   Widget _buildRecentPdfFilesTable(BuildContext context) {
     if (_isLoadingPdfFiles) {
-      return const SizedBox(
-        height: 400,
-        child: Center(
+      return Container(
+        height: 450,
+        padding: const EdgeInsets.all(20.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        margin: const EdgeInsets.symmetric(horizontal: 0),
+        child: const Center(
           child: CircularProgressIndicator(),
         ),
       );
     }
 
-    return SizedBox(
-      height: 400,
+    return Container(
+      height: 450,
+      margin: const EdgeInsets.symmetric(horizontal: 0),
       child: CommonDataTablePage(
         // 无查询条件区域
         querySection: const SizedBox.shrink(),
-        
+
         // 表格标题
         tableTitle: context.S.recentlyGeneratedPdfFiles,
-        
+
         // 右上角按钮（查看全部）
         actionButtons: [
           ActionButton(
@@ -267,10 +279,13 @@ class _DashboardPageState extends State<DashboardPage> {
             },
           ),
         ],
-        
+
         // 不显示复选框
         showCheckbox: false,
-        
+
+        // 禁用外层容器padding，因为dashboard已经有padding了
+        disableOuterPadding: true,
+
         // 表格列定义
         columns: [
           DataTableColumn(
@@ -302,7 +317,7 @@ class _DashboardPageState extends State<DashboardPage> {
             builder: (row, context) => Text(row['updateTime']),
           ),
         ],
-        
+
         // 自定义列宽
         columnWidths: const [
           60,   // id
@@ -314,10 +329,10 @@ class _DashboardPageState extends State<DashboardPage> {
           140,  // 客户经理姓名
           120,  // 更新时间
         ],
-        
+
         // 数据
         data: _recentPdfFiles,
-        
+
         // 不显示分页（设置totalItems=0）
         currentPage: 1,
         totalItems: 0,
@@ -406,8 +421,11 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ),
               const SizedBox(height: 20),
-              const Center(
-                child: Text('暂无数据'),
+              SizedBox(
+                height: 250,
+                child: const Center(
+                    child: Text('暂无数据'),
+                  ),
               ),
             ],
           ),
@@ -433,31 +451,34 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ),
             const SizedBox(height: 20),
-            Row(
-              children: [
-                // 饼图
-                Expanded(
-                  flex: 2,
-                  child: SizedBox(
-                    height: 200,
-                    child: PieChart(
-                      PieChartData(
-                        sections: pieSections,
-                        sectionsSpace: 2,
-                        centerSpaceRadius: 40,
+            SizedBox(
+              height: 250,
+              child: Row(
+                children: [
+                  // 饼图
+                  Expanded(
+                    flex: 2,
+                    child: SizedBox(
+                      height: 200,
+                      child: PieChart(
+                        PieChartData(
+                          sections: pieSections,
+                          sectionsSpace: 2,
+                          centerSpaceRadius: 40,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                // 图例
-                Expanded(
-                  flex: 1,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: legendItems,
+                  // 图例
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: legendItems,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              )
             ),
           ],
         ),
@@ -559,8 +580,11 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ),
               const SizedBox(height: 20),
-              const Center(
-                child: Text('暂无数据'),
+              SizedBox(
+                height: 250,
+                child: const Center(
+                  child: Text('暂无数据'),
+                ),
               ),
             ],
           ),
