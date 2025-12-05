@@ -212,7 +212,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
   }
 
   /// 生成预览
-  void _handleGeneratePreview() {
+  Future<void> _handleGeneratePreview() async {
     // 根据当前Tab判断验证条件
     final isTemplateTab = _tabController.index == 0;
     dynamic fileNameController = isTemplateTab ? _fileNameController1 : _fileNameController2;
@@ -255,15 +255,17 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
     final templateSignCode = template['signCode'] as String?;
     
     // 跳转到预览页面，传递模板的完整信息
-    Navigator.of(context).push(
+    final result = await Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) {
           return CustomerFilePreviewPage(
             customerName: customer.customerName,
+            customerUid: customer.customerUid,
             fileName: fileNameController.text,
             templateName: template['name'] as String,
             templateAssetPath: template['assetPath'] as String,
             templateSignCode: templateSignCode,
+            isNewMode: true,
           );
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -272,6 +274,12 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
         transitionDuration: const Duration(milliseconds: 300),
       ),
     );
+
+    // 如果保存成功，刷新数据
+    if (result == true && mounted) {
+      // 返回上一页
+      Navigator.of(context).pop(true);
+    }
   }
 
   /// 生成开户文件

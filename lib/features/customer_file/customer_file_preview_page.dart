@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:syncfusion_flutter_signaturepad/signaturepad.dart';
+import 'package:uuid/uuid.dart';
 import '../../data/models/customer_account_file.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../utils/file_manager.dart';
@@ -98,6 +99,7 @@ class CustomerFilePreviewPage extends StatefulWidget {
   final String? templateAssetPath; // PDF 模板的 asset 路径（可选）
   final String? filePath; // PDF 文件的实际路径（可选，优先使用此路径）
   final bool isEditMode; // 是否为编辑模式
+  final bool isNewMode; // 是否为新建模式（从开户文件-生成预览 进入）
   final String? accountFileUid; // 账户文件 UID（用于保存）
   final String? customerUid; // 客户 UID（用于保存）
   final int? fileVersion; // 文件版本（用于保存）
@@ -112,6 +114,7 @@ class CustomerFilePreviewPage extends StatefulWidget {
     this.templateAssetPath,
     this.filePath,
     this.isEditMode = false,
+    this.isNewMode = false,
     this.accountFileUid,
     this.customerUid,
     this.fileVersion,
@@ -141,6 +144,9 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
   // Repository
   final CustomerRepository _repository = CustomerRepository();
+
+  // UUID生成器
+  static const _uuid = Uuid();
 
   // 签署状态缓存相关
   bool _isCalcPreviousSignStatus = false;
@@ -696,9 +702,53 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   /// 保存PDF文件（支持选择扁平化配置）
   Future<void> _handleSave({PdfFlattenConfig flattenConfig = PdfFlattenConfig.none}) async {
     // 验证必要参数
-    if (widget.accountFileUid == null ||
-        widget.customerUid == null ||
-        widget.fileVersion == null ||
+    String? targetAccountFileUid = widget.accountFileUid;
+    String? targetCustomerUid = widget.customerUid;
+    if (widget.isNewMode) {
+      // 1. 判断当前表中是否存在使用了当前选中模板的数据
+      final existingFile = await _repository.findLatestByCustomerUidAndTemplate(
+        targetCustomerUid!,
+        widget.templateName!,
+      );
+
+      if (existingFile != null) {
+        // 如果存在，先做一个Dialog确认，如果用户点击确定，则继续往下走，否则退出该流程；Dialog的空白区域不可关闭
+        final shouldContinue = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false, // Dialog的空白区域不可关闭
+          builder: (context) => AlertDialog(
+            title: const Text('提示'),
+            content: const Text('该开户文件已存在，是否生成最新版本？'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: TextButton.styleFrom(foregroundColor: Colors.blue),
+                child: const Text('确定'),
+              ),
+            ],
+          ),
+        );
+
+        // 如果用户取消或点击取消，退出该流程
+        if (shouldContinue != true) {
+          return;
+        }
+
+        // 如果存在，使用现有的 account_file_uid，查询该 account_file_uid 的最大版本号并加一
+        targetAccountFileUid = existingFile.accountFileUid;
+      } else {
+        // 如果不存在，使用 UUID 生成 account_file_uid，file_version 设为 1
+        targetAccountFileUid = _uuid.v4().replaceAll('-', '');
+      }
+    }
+
+
+    if (targetAccountFileUid == null ||
+        targetCustomerUid == null ||
         _originalPdfBytes == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -722,7 +772,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
       // 1. 查询该 account_file_uid 的最大版本号并加一
       int newFileVersion;
-      final maxVersion = await _repository.findMaxVersionByAccountFileUid(widget.accountFileUid!);
+      final maxVersion = await _repository.findMaxVersionByAccountFileUid(targetAccountFileUid);
       if (maxVersion != null) {
         newFileVersion = VersionUtils.incrementMajorIntVersion(maxVersion);
       } else {
@@ -732,14 +782,14 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       // 2. 构建目标文件路径
       // 使用 FileManager 的方式构建路径，但我们需要先创建一个临时文件
       final tempDir = await getTemporaryDirectory();
-      final tempOriginalPath = '${tempDir.path}/temp_original_${widget.accountFileUid}.pdf';
+      final tempOriginalPath = '${tempDir.path}/temp_original_$targetAccountFileUid.pdf';
       final tempOriginalFile = File(tempOriginalPath);
       await tempOriginalFile.writeAsBytes(_originalPdfBytes!);
 
       // 使用 FileManager 创建目标路径（它会复制文件）
       final savedFilePath = await FileManager.saveAccountFileWithName(
         sourcePath: tempOriginalPath,
-        accountFileUid: widget.accountFileUid!,
+        accountFileUid: targetAccountFileUid,
         fileVersion: newFileVersion,
       );
 
@@ -769,8 +819,8 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
       // 4. 保存到数据库（已签署版本）
       final accountFile = CustomerAccountFile(
-        accountFileUid: widget.accountFileUid!,
-        customerUid: widget.customerUid!,
+        accountFileUid: targetAccountFileUid,
+        customerUid: targetCustomerUid,
         accountFileName: widget.fileName!,
         fileVersion: newFileVersion,
         filePath: savedFilePath,
@@ -799,14 +849,14 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
           // 创建临时文件保存未签署PDF
           final tempDir = await getTemporaryDirectory();
-          final tempUnsignedPath = '${tempDir.path}/temp_unsigned_backup_${widget.accountFileUid}_$backupVersion.pdf';
+          final tempUnsignedPath = '${tempDir.path}/temp_unsigned_backup_${targetAccountFileUid}_$backupVersion.pdf';
           final tempUnsignedFile = File(tempUnsignedPath);
           await tempUnsignedFile.writeAsBytes(unsignedBytes);
 
           // 使用临时未签署文件创建备份版本
           final backupFilePath = await FileManager.saveAccountFileWithName(
             sourcePath: tempUnsignedPath,
-            accountFileUid: widget.accountFileUid!,
+            accountFileUid: targetAccountFileUid!,
             fileVersion: backupVersion,
           );
 
@@ -817,8 +867,8 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
           // 保存备份版本到数据库（signStatus=0）
           final backupAccountFile = CustomerAccountFile(
-            accountFileUid: widget.accountFileUid!,
-            customerUid: widget.customerUid!,
+            accountFileUid: targetAccountFileUid,
+            customerUid: targetCustomerUid,
             accountFileName: widget.fileName!,
             fileVersion: backupVersion,
             filePath: backupFilePath,
@@ -843,7 +893,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
       if (!mounted) return;
 
-      String successMessage = '开户文件保存成功 (${flattenConfig.shortDescription})';
+      String successMessage = '开户文件保存成功';
       if (isSigningStatusChanged) {
         successMessage += '，已自动创建未签署备份版本';
       }
@@ -1735,7 +1785,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         actions: [
           if (_pdfViewerController != null && _pdfBytes != null) ...[
             // 编辑模式下显示保存选项
-            if (widget.isEditMode) ...[
+            if (widget.isEditMode || widget.isNewMode) ...[
               // // 保存选项菜单
               // Padding(
               //   padding: const EdgeInsets.only(left: 8),
