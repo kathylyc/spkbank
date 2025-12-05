@@ -116,8 +116,7 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
   Future<void> _pickFile(String type) async {
     try {
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
+        type: FileType.any,
         allowMultiple: false,
       );
       if (result == null || result.files.isEmpty) {
@@ -434,7 +433,8 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
         if (selectedName != null) {
           displayText = selectedName;
         } else if (existingName != null && !state.isMarkedForDeletion) {
-          displayText = '已上传: $existingName';
+          // displayText = '已上传: $existingName';
+          displayText = '已上传';
         } else {
           displayText = '点击选择文件';
         }

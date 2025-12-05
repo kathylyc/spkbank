@@ -41,6 +41,8 @@ PODS:
     - ZIPFoundation (= 0.9.19)
   - image_picker_ios (0.0.1):
     - Flutter
+  - package_info_plus (0.4.5):
+    - Flutter
   - path_provider_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -98,6 +100,7 @@ DEPENDENCIES:
   - Flutter (from `Flutter`)
   - flutter_archive (from `.symlinks/plugins/flutter_archive/ios`)
   - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
+  - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - pdfx (from `.symlinks/plugins/pdfx/ios`)
   - share_plus (from `.symlinks/plugins/share_plus/ios`)
@@ -128,6 +131,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_archive/ios"
   image_picker_ios:
     :path: ".symlinks/plugins/image_picker_ios/ios"
+  package_info_plus:
+    :path: ".symlinks/plugins/package_info_plus/ios"
   path_provider_foundation:
     :path: ".symlinks/plugins/path_provider_foundation/darwin"
   pdfx:
@@ -155,6 +160,7 @@ SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_archive: ad8edfd7f7d1bb12058d05424ba93e27d9930efe
   image_picker_ios: e0ece4aa2a75771a7de3fa735d26d90817041326
+  package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
   path_provider_foundation: bb55f6dbba17d0dccd6737fe6f7f34fbd0376880
   pdfx: 77f4dddc48361fbb01486fa2bdee4532cbb97ef3
   SDWebImage: 16309af6d214ba3f77a7c6f6fdda888cb313a50a
