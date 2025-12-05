@@ -36,16 +36,20 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
   static const List<_AttachmentConfig> _attachmentConfigs = [
     _AttachmentConfig(
       type: ConstCustomerAttachmentType.idCardFront,
-      title: '身份证正面',
+      title: '',
     ),
-    _AttachmentConfig(
-      type: ConstCustomerAttachmentType.idCardBack,
-      title: '身份证背面',
-    ),
-    _AttachmentConfig(
-      type: ConstCustomerAttachmentType.businessLicense,
-      title: '营业执照',
-    ),
+    // _AttachmentConfig(
+    //   type: ConstCustomerAttachmentType.idCardFront,
+    //   title: '身份证正面',
+    // ),
+    // _AttachmentConfig(
+    //   type: ConstCustomerAttachmentType.idCardBack,
+    //   title: '身份证背面',
+    // ),
+    // _AttachmentConfig(
+    //   type: ConstCustomerAttachmentType.businessLicense,
+    //   title: '营业执照',
+    // ),
   ];
 
   @override
@@ -345,7 +349,7 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
                     Expanded(
                       child: GridView.builder(
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
+                          crossAxisCount: 3,
                           crossAxisSpacing: 16,
                           mainAxisSpacing: 16,
                           childAspectRatio: 0.7,
@@ -445,21 +449,23 @@ class _CustomerAttachmentPageState extends State<CustomerAttachmentPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            config.title,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
+          if (config.title.isNotEmpty) ...[
+            Text(
+              config.title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
+          ],
           // 预览区域（始终显示）
           InkWell(
             onTap: () => _pickFile(config.type),
             borderRadius: BorderRadius.circular(8),
             child: Container(
               width: 200,
-              height: 150,
+              height: 180,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.grey.shade300),

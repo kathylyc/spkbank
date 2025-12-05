@@ -1288,7 +1288,8 @@ class _CustomerPageState extends State<CustomerPage> {
         ),
       );
     }
-    final displayText = attachments.join(', ');
+    // final displayText = attachments.join(', ');
+    final displayText = "附件1";
     return InkWell(
       onTap: () {
         // 查看附件
