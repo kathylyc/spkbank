@@ -209,7 +209,7 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
       // 使用平台特定的文件保存方法
       final savedPath = await FileUtils.saveFileForPlatform(
         bytes: Uint8List.fromList(bytes),
-        fileName: fileName,
+        fileName: '$fileName.pdf',
       );
 
       if (savedPath == null) {
