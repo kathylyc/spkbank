@@ -489,6 +489,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
             fileVersion: newFileVersion,
             filePath: backupFilePath,
             enableStatus: 0,// 备份的这条，生效状态改为false
+            createTime: updateTime,
             updateBy: updateBy,
             updateTime: updateTime,
           );
@@ -1109,10 +1110,10 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       
       // 表格列定义
       columns: [
-        DataTableColumn(
-          label: '开户文件uid',
-          builder: (row, context) => Text(row['account_file_uid'].toString()),
-        ),
+        // DataTableColumn(
+        //   label: '开户文件uid',
+        //   builder: (row, context) => Text(row['account_file_uid'].toString()),
+        // ),
         DataTableColumn(
           label: '公司名称（中文/英文）',
           builder: (row, context) => Text(row['company']?.toString() ?? '-'),
