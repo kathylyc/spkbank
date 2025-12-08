@@ -119,6 +119,7 @@ class _LoginPageState extends State<LoginPage> {
             MaterialPageRoute(
               builder: (context) => ForceResetPwdPage(
                 user: foundUser,
+                trigger: PasswordChangeTrigger.loginPage,
                 onPasswordChanged: () {
                   Navigator.of(context).pop();
                   // 修改密码后重新登录
@@ -128,6 +129,8 @@ class _LoginPageState extends State<LoginPage> {
                       backgroundColor: Colors.green,
                     ),
                   );
+                  // 清空密码框
+                  _passwordController.clear();
                 },
               ),
             ),

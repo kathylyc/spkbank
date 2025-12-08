@@ -7,14 +7,19 @@ import '../../data/repositories/user_repository.dart';
 // 密码强度枚举
 enum PasswordStrength { weak, medium, strong }
 
+// 触发场景枚举
+enum PasswordChangeTrigger { loginPage, routerPage }
+
 class ForceResetPwdPage extends StatefulWidget {
   final User user;
   final VoidCallback onPasswordChanged;
+  final PasswordChangeTrigger trigger;
 
   const ForceResetPwdPage({
     super.key,
     required this.user,
     required this.onPasswordChanged,
+    this.trigger = PasswordChangeTrigger.loginPage,
   });
 
   @override
@@ -97,6 +102,21 @@ class _ForceResetPwdPageState extends State<ForceResetPwdPage> {
 
   String? _validatePasswordFormat(String password) {
     return PasswordUtils.validatePasswordFormat(password);
+  }
+
+  // 根据触发场景和用户状态获取描述文本
+  String _getDescriptionText() {
+    if (widget.trigger == PasswordChangeTrigger.routerPage) {
+      // 从路由页面主动修改密码的场景
+      return '修改成功后需要重新登录';
+    } else {
+      // 从登录页面强制修改密码的场景
+      if (widget.user.isFirstLogin == true) {
+        return '您是首次登录，请修改密码';
+      } else {
+        return '您的密码已超过3个月未修改，请更新密码';
+      }
+    }
   }
 
   String? _validateOldPassword(String? value) {
@@ -305,37 +325,44 @@ class _ForceResetPwdPageState extends State<ForceResetPwdPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('修改密码'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // 显示确认对话框
-            showDialog(
-              context: context,
-              builder: (BuildContext context) {
-                return AlertDialog(
-                  title: const Text('确认退出'),
-                  content: const Text('您必须修改密码才能继续使用系统'),
-                  actions: [
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop(); // 关闭对话框
-                      },
-                      child: const Text('继续修改'),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop(); // 关闭对话框
-                        Navigator.of(context).pop(); // 关闭当前页面
-                      },
-                      style: TextButton.styleFrom(foregroundColor: Colors.red),
-                      child: const Text('返回'),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-        ),
+        leading: widget.trigger == PasswordChangeTrigger.loginPage
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  // 登录页面强制修改密码场景，显示确认对话框
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: const Text('确认退出'),
+                        content: const Text('您必须修改密码才能继续使用系统'),
+                        actions: [
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pop(); // 关闭对话框
+                            },
+                            child: const Text('继续修改'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pop(); // 关闭对话框
+                              Navigator.of(context).pop(); // 关闭当前页面
+                            },
+                            style: TextButton.styleFrom(foregroundColor: Colors.red),
+                            child: const Text('返回'),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              )
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  Navigator.of(context).pop(); // 路由页面场景，直接关闭
+                },
+              ),
       ),
       body: SafeArea(
         child: Padding(
@@ -353,9 +380,7 @@ class _ForceResetPwdPageState extends State<ForceResetPwdPage> {
                         Padding(
                           padding: const EdgeInsets.only(bottom: 24),
                           child: Text(
-                            widget.user.isFirstLogin == true
-                                ? '您是首次登录，请修改密码'
-                                : '您的密码已超过3个月未修改，请更新密码',
+                            _getDescriptionText(),
                             style: TextStyle(
                               color: Colors.grey.shade600,
                               fontSize: 14,

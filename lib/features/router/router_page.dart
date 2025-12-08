@@ -1,17 +1,14 @@
-import 'package:bcrypt/bcrypt.dart';
 import 'package:flutter/material.dart';
 import '../../data/models/user.dart';
-import '../../data/repositories/user_repository.dart';
-import '../../utils/screen_utils.dart';
 import '../../utils/context_extensions.dart';
 import '../../utils/storage_utils.dart';
-import '../../utils/password_utils.dart';
 import '../dashboard/dashboard_page.dart';
 import '../pdf_template/pdf_template_page.dart';
 import '../customer/customer_page.dart';
 import '../customer_file/customer_file_page.dart';
 import '../account_manager/account_manager_page.dart';
 import '../usage/usage_page.dart';
+import '../admin_user/force_reset_pwd.dart';
 
 /// 功能类型枚举
 enum FunctionType {
@@ -39,8 +36,6 @@ class _RouterPageState extends State<RouterPage> {
   User? _loginUser;
   FunctionType _selectedFunction = FunctionType.dashboard;
   final List<String> _openTabs = ['首页']; // 打开的标签页列表
-  final TextEditingController _oldPasswordController = TextEditingController();
-  final TextEditingController _newPasswordController = TextEditingController();
 
   bool get _isAccountManager => _loginUser?.userType == '01';
 
@@ -70,8 +65,6 @@ class _RouterPageState extends State<RouterPage> {
 
   @override
   void dispose() {
-    _oldPasswordController.dispose();
-    _newPasswordController.dispose();
     super.dispose();
   }
 
@@ -128,169 +121,23 @@ class _RouterPageState extends State<RouterPage> {
 
   /// 处理修改密码
   Future<void> _handleChangePassword() async {
-    final formKey = GlobalKey<FormState>();
+    if (_loginUser == null) return;
 
-    _oldPasswordController.clear();
-    _newPasswordController.clear();
-
-    bool? confirmed;
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        bool oldObscure = true;
-        bool newObscure = true;
-
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Text(context.S.changePassword),
-              content: SizedBox(
-                width: 400,
-                child: Form(
-                  key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextFormField(
-                        controller: _oldPasswordController,
-                        obscureText: oldObscure,
-                        decoration: InputDecoration(
-                          labelText: context.S.oldPassword,
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              oldObscure ? Icons.visibility_off : Icons.visibility,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                oldObscure = !oldObscure;
-                              });
-                            },
-                          ),
-                        ),
-                        validator: (value) {
-                          if ((value ?? '').isEmpty) {
-                            return context.S.oldPasswordRequired;
-                          }
-                          if (value == _newPasswordController.text) {
-                            return context.S.oldNewPasswordSame;
-                          }
-                          if (!BCrypt.checkpw(value!, _loginUser!.password)) {
-                            return context.S.oldPasswordIncorrect;
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _newPasswordController,
-                        obscureText: newObscure,
-                        decoration: InputDecoration(
-                          labelText: context.S.newPassword,
-                          helperText: '8位+大小写字母+数字+特殊字符',
-                          helperStyle: TextStyle(fontSize: 12),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              newObscure ? Icons.visibility_off : Icons.visibility,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                newObscure = !newObscure;
-                              });
-                            },
-                          ),
-                        ),
-                        validator: (value) {
-                          if ((value ?? '').isEmpty) {
-                            return context.S.newPasswordRequired;
-                          }
-                          if (value == _oldPasswordController.text) {
-                            return context.S.oldNewPasswordSame;
-                          }
-
-                          // 验证密码格式
-                          final formatError = PasswordUtils.validatePasswordFormat(value!);
-                          if (formatError != null) {
-                            return formatError;
-                          }
-
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      // 显示密码过期提醒
-                      if (_loginUser?.pwdUpdateDate != null)
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.info_outline, color: Colors.blue.shade600, size: 16),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  '密码有效期：${PasswordUtils.getPasswordExpiryDays(_loginUser?.pwdUpdateDate)}天',
-                                  style: TextStyle(
-                                    color: Colors.blue.shade600,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    confirmed = false;
-                    Navigator.of(dialogContext).pop();
-                  },
-                  child: Text(context.S.cancel),
-                ),
-                TextButton(
-                  onPressed: () {
-                    if (formKey.currentState?.validate() ?? false) {
-                      confirmed = true;
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-                  child: Text(context.S.confirm),
-                ),
-              ],
-            );
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) => ForceResetPwdPage(
+          user: _loginUser!,
+          trigger: PasswordChangeTrigger.routerPage,
+          onPasswordChanged: () {
+            // 密码修改成功后返回 true
+            Navigator.of(context).pop(true);
           },
-        );
-      },
+        ),
+      ),
     );
 
-    if (confirmed == true && mounted) {
-      // 保存新密码
-      final newPwdEncrypt = BCrypt.hashpw(_newPasswordController.text, BCrypt.gensalt());
-      final userRepo = UserRepository();
-      final updateTime = DateTime.now();
-      userRepo.updatePassword(_loginUser!.userName, newPwdEncrypt, updateTime);
-      if (mounted) {
-        setState(() {
-          _loginUser = _loginUser?.copyWith(
-            password: newPwdEncrypt,
-            pwdUpdateDate: updateTime,
-          );
-        });
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${context.S.changePassword}成功'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      // 修改成功后退出登录
+    // 如果密码修改成功，则退出登录
+    if (result == true && mounted) {
       _doLogout();
     }
   }
