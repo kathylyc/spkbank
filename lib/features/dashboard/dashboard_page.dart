@@ -291,7 +291,7 @@ class _DashboardPageState extends State<DashboardPage> {
         // 表格列定义
         columns: [
           DataTableColumn(
-            label: '公司名称',
+            label: '公司名称（中文/英文）',
             builder: (row, context) => Text(row['company']),
           ),
           DataTableColumn(
@@ -318,18 +318,6 @@ class _DashboardPageState extends State<DashboardPage> {
             label: context.S.updateTime,
             builder: (row, context) => Text(row['updateTime']),
           ),
-        ],
-
-        // 自定义列宽
-        columnWidths: const [
-          60,   // id
-          120,  // 客户姓名
-          280,  // 开户文件名称
-          80,   // 文件版本
-          280,  // 使用的模板
-          140,  // 客户经理编码
-          140,  // 客户经理姓名
-          120,  // 更新时间
         ],
 
         // 数据

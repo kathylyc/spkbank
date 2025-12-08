@@ -416,8 +416,8 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
                             requiredField: true,
                           ),
                           _buildField(
-                            label: '公司名称',
-                            hint: '请输入公司名称',
+                            label: '公司名称（中文/英文）',
+                            hint: '请输入公司名称（中文/英文）',
                             controller: _companyController,
                             requiredField: true,
                           ),

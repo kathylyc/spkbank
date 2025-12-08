@@ -103,15 +103,22 @@ class _CommonDataTablePageState extends State<CommonDataTablePage> {
   /// [availableWidth] 可用的总宽度（用于自动填充）
   List<double> _calculateColumnWidths(double availableWidth) {
     List<double> baseWidths;
-    
-    // 获取基础列宽
+
+    // 获取基础列宽 - 优先使用列定义中的width，然后是CommonDataTablePage的columnWidths，最后是智能计算的默认宽度
     if (widget.columnWidths != null && widget.columnWidths!.length == widget.columns.length) {
       baseWidths = List.from(widget.columnWidths!);
     } else {
-      // 使用智能计算的默认宽度
+      // 优先使用列定义中的width，否则使用智能计算的默认宽度
       baseWidths = List.generate(widget.columns.length, (index) {
-        final label = widget.columns[index].label;
-        
+        final column = widget.columns[index];
+
+        // 如果列定义中有指定width，优先使用
+        if (column.width != null) {
+          return column.width!;
+        }
+
+        final label = column.label;
+
         // 根据列标签和常见内容类型设置不同的宽度
         if (label.toLowerCase() == 'id' || label == '序号') {
           return 80.0;
@@ -119,8 +126,11 @@ class _CommonDataTablePageState extends State<CommonDataTablePage> {
         if (label.contains('姓名') || label.contains('电话') || label.contains('编码')) {
           return 140.0;
         }
-        if (label.contains('地址')) {
-          return 300.0;
+        if (label.contains('公司') || label.contains('地址') || label.contains('开户文件名') || label.contains('使用模板')) {
+          return 220.0;
+        }
+        if (label.contains('文件版本')) {
+          return 100.0;
         }
         if (label.contains('标签')) {
           return 200.0;
@@ -623,10 +633,12 @@ class ActionButton {
 class DataTableColumn {
   final String label;
   final Widget Function(Map<String, dynamic> row, BuildContext context) builder;
+  final double? width;
 
   const DataTableColumn({
     required this.label,
     required this.builder,
+    this.width,
   });
 }
 

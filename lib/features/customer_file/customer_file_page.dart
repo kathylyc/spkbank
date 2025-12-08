@@ -1114,7 +1114,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           builder: (row, context) => Text(row['account_file_uid'].toString()),
         ),
         DataTableColumn(
-          label: '公司名称',
+          label: '公司名称（中文/英文）',
           builder: (row, context) => Text(row['company']?.toString() ?? '-'),
         ),
         DataTableColumn(

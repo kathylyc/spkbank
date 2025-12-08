@@ -353,7 +353,7 @@ class _CustomerPageState extends State<CustomerPage> {
 
       final sheet = excelBook[sheetName];
 
-      const expectedHeaders = ['客户编号', '客户姓名', '公司名称', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'];
+      const expectedHeaders = ['客户编号', '客户姓名', '公司名称（中文/英文）', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'];
       final headerRow = sheet.rows[0];
       if (headerRow.length < expectedHeaders.length) {
         return '非标准压缩包，不支持导入2';
@@ -693,7 +693,7 @@ class _CustomerPageState extends State<CustomerPage> {
       excelFileName: 'customer_info_export',
       addTimestamp: true,
       data: selectedData,
-      headers: const ['客户编号', '客户姓名', '公司名称', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'],
+      headers: const ['客户编号', '客户姓名', '公司名称（中文/英文）', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'],
       beforeDataToExcelRows: (exportDirPath) async {
         // 复制附件文件到files文件夹，并返回相对路径映射
         final filesDir = Directory(p.join(exportDirPath, 'files'));
@@ -984,7 +984,7 @@ class _CustomerPageState extends State<CustomerPage> {
           builder: (row, context) => Text(row['name']),
         ),
         DataTableColumn(
-          label: '公司名称',
+          label: '公司名称（中文/英文）',
           builder: (row, context) => Text(row['company']),
         ),
         DataTableColumn(
@@ -1022,6 +1022,7 @@ class _CustomerPageState extends State<CustomerPage> {
         ),
         DataTableColumn(
           label: '操作',
+          width: 160,
           builder: (row, context) => _buildActions(row),
         ),
       ],
