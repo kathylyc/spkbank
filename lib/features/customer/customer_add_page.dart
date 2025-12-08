@@ -1,7 +1,11 @@
+import 'package:bank_flutter/utils/file_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 
 import '../../data/models/customer.dart';
+import '../../data/models/customer_attachment_file.dart';
 import '../../data/models/user.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/user_repository.dart';
@@ -35,6 +39,10 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
   final Set<String> _selectedTags = <String>{};
   String _selectedCountryCode = 'CN';
   bool _isSaving = false;
+
+  // 附件相关数据
+  final List<_AttachmentInfo> _attachments = <_AttachmentInfo>[];
+  List<_AttachmentInfo> _initialAttachments = <_AttachmentInfo>[];
 
   bool get _isEdit => _initialCustomer != null;
 
@@ -72,6 +80,9 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
       _selectedCountryCode = _countryOptions.first.code;
     }
     _loadUserInfo();
+    if (_isEdit) {
+      _loadAttachments();
+    }
   }
 
   @override
@@ -97,17 +108,66 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
     }
   }
 
+  /// 加载客户的附件信息
+  Future<void> _loadAttachments() async {
+    if (_initialCustomer == null) return;
+
+    try {
+      final attachmentFiles = await _customerRepository.findAttachmentFiles(_initialCustomer!.customerUid);
+
+      final List<_AttachmentInfo> loadedAttachments = [];
+      for (final attachmentFile in attachmentFiles) {
+        // 从文件路径中提取文件名
+        final filePath = attachmentFile.filePath;
+        final fileName = filePath.split('/').last;
+
+        // 检查文件是否存在以获取文件大小
+        final file = File(filePath);
+        int fileSize = 0;
+        if (await file.exists()) {
+          fileSize = await file.length();
+        }
+
+        loadedAttachments.add(_AttachmentInfo(
+          fileName: fileName,
+          filePath: filePath,
+          fileSize: fileSize,
+        ));
+      }
+
+      if (mounted) {
+        setState(() {
+          _attachments.clear();
+          _attachments.addAll(loadedAttachments);
+          // 保存初始附件列表的副本
+          _initialAttachments = List<_AttachmentInfo>.from(_attachments);
+        });
+      }
+    } catch (e) {
+      debugPrint('加载附件失败: $e');
+      // 不显示错误提示，避免影响用户体验
+    }
+  }
+
   bool get _hasUnsavedChanges {
     final String initialTagString = _normalizeTags(_initialCustomer?.customerTag);
     final String currentTagString = _normalizeTags(_joinTags(_selectedTags));
     final String initialCountryCode = _resolveCountryCode(_initialCustomer?.countryCode);
+
+    // 检查附件是否有变更
+    final bool attachmentsChanged = _attachments.length != _initialAttachments.length ||
+        !_attachments.every((attachment) => _initialAttachments.any((initial) =>
+            initial.fileName == attachment.fileName &&
+            initial.filePath == attachment.filePath));
+
     return _nameController.text.trim() != (_initialCustomer?.customerName ?? '') ||
         _managerAccountController.text.trim() != (_initialCustomer?.managerAccount ?? '') ||
         _selectedCountryCode != initialCountryCode ||
         _phoneController.text.trim() != (_initialCustomer?.phone ?? '') ||
         _addressController.text.trim() != (_initialCustomer?.address ?? '') ||
         _companyController.text.trim() != (_initialCustomer?.company ?? '') ||
-        currentTagString != initialTagString;
+        currentTagString != initialTagString ||
+        attachmentsChanged;
   }
 
   Future<bool> _handleWillPop() async {
@@ -214,9 +274,10 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
 
       final DateTime now = DateTime.now();
 
+      Customer customer;
       if (_isEdit) {
         final Customer existing = _initialCustomer!;
-        final Customer updated = existing.copyWith(
+        customer = existing.copyWith(
           customerName: customerName,
           managerAccount: managerAccount,
           countryCode: countryCode,
@@ -227,9 +288,9 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
           updateBy: _loginUser?.userName ?? existing.updateBy,
           updateTime: now,
         );
-        await _customerRepository.upsert(updated);
+        await _customerRepository.upsert(customer);
       } else {
-        await _customerRepository.create(
+        customer = await _customerRepository.create(
           customerName: customerName,
           countryCode: countryCode,
           managerAccount: managerAccount,
@@ -240,6 +301,51 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
           createBy: _loginUser?.userName,
           createTime: now,
         );
+      }
+
+      // 处理附件信息
+      if (_isEdit) {
+        // 编辑模式：比较附件变更
+        final existingAttachments = await _customerRepository.findAttachmentFiles(customer.customerUid);
+
+        // 找出需要删除的附件（在初始列表中但不在当前列表中）
+        for (final existing in existingAttachments) {
+          final bool isDeleted = !_attachments.any((current) =>
+            current.filePath == existing.filePath && current.fileName == existing.filePath.split('/').last);
+
+          if (isDeleted) {
+            await _customerRepository.deleteAttachmentFile(existing.id!);
+            // 删除附件文件
+            await FileManager.deleteCustomerAttachment(existing.filePath);
+          }
+        }
+
+        // 找出需要新增的附件（在当前列表中但不在初始列表中）
+        for (final attachment in _attachments) {
+          final bool isNew = !_initialAttachments.any((initial) =>
+            initial.fileName == attachment.fileName && initial.filePath == attachment.filePath);
+
+          if (isNew) {
+            final attachmentFile = CustomerAttachmentFile(
+              customerUid: customer.customerUid,
+              filePath: await FileManager.saveCustomerAttachment(sourcePath: attachment.filePath, customerUid: customer.customerUid),
+              createBy: _loginUser?.userName,
+              createTime: now,
+            );
+            await _customerRepository.addAttachmentFile(attachmentFile);
+          }
+        }
+      } else {
+        // 新增模式：保存所有附件
+        for (final attachment in _attachments) {
+          final attachmentFile = CustomerAttachmentFile(
+            customerUid: customer.customerUid,
+            filePath: await FileManager.saveCustomerAttachment(sourcePath: attachment.filePath, customerUid: customer.customerUid),
+            createBy: _loginUser?.userName,
+            createTime: now,
+          );
+          await _customerRepository.addAttachmentFile(attachmentFile);
+        }
       }
 
       if (!mounted) return;
@@ -323,6 +429,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
                             maxLines: 3,
                           ),
                           _buildTagSelector(),
+                          _buildAttachmentUpload(),
                         ],
                       ),
                     ),
@@ -648,6 +755,191 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
     );
   }
 
+  Widget _buildAttachmentUpload() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                '客户信息附件',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade800,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '(仅支持jpg，png，pdf格式，最多上传3个附件，每个大小不超过5MB。)',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // 显示已上传的附件列表
+          ..._attachments.asMap().entries.map((entry) {
+            final index = entry.key;
+            final attachment = entry.value;
+            return _buildAttachmentItem(attachment, index);
+          }),
+          // 上传按钮（当附件数量小于3个时显示）
+          if (_attachments.length < 3)
+            _buildUploadButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttachmentItem(_AttachmentInfo attachment, int index) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        width: double.infinity,
+        height: 48,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                attachment.fileName,
+                style: const TextStyle(fontSize: 14),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: () => _showDeleteAttachmentDialog(attachment, index),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(
+                minWidth: 48,
+                minHeight: 48,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 显示删除附件确认对话框
+  Future<void> _showDeleteAttachmentDialog(_AttachmentInfo attachment, int index) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('确认删除'),
+          content: Text('确定要删除附件 "${attachment.fileName}" 吗？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('删除'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete == true) {
+      setState(() {
+        _attachments.removeAt(index);
+      });
+    }
+  }
+
+  Widget _buildUploadButton() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: SizedBox(
+        width: double.infinity,
+        height: 48,
+        child: OutlinedButton.icon(
+          onPressed: _pickFile,
+          icon: const Icon(Icons.upload_file, color: Colors.blue),
+          label: const Text(
+            '上传附件',
+            style: TextStyle(color: Colors.blue),
+          ),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: Colors.grey.shade300),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 选择文件
+  Future<void> _pickFile() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+        allowMultiple: false,
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        final fileName = result.files.single.name;
+        final fileSize = result.files.single.size;
+
+        // 检查文件大小（5MB = 5 * 1024 * 1024 bytes）
+        const maxSize = 5 * 1024 * 1024;
+        if (fileSize > maxSize) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('文件大小不能超过5MB'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        // 检查是否已达到最大数量
+        if (_attachments.length >= 3) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('最多只能上传3个附件'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        setState(() {
+          _attachments.add(_AttachmentInfo(
+            fileName: fileName,
+            filePath: file.path,
+            fileSize: fileSize,
+          ));
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('选择文件失败: $e')),
+      );
+    }
+  }
+
   String _resolveCountryCode(String? rawCode) {
     if (rawCode == null || rawCode.trim().isEmpty) {
       return _countryOptions.first.code;
@@ -699,5 +991,17 @@ class _CountryOption {
   final String code;
   final String dialCode;
   final String label;
+}
+
+class _AttachmentInfo {
+  const _AttachmentInfo({
+    required this.fileName,
+    required this.filePath,
+    required this.fileSize,
+  });
+
+  final String fileName;
+  final String filePath;
+  final int fileSize;
 }
 

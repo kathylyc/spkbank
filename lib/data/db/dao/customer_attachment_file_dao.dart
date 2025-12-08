@@ -47,16 +47,5 @@ class CustomerAttachmentFileDao {
     );
     return rows.map(CustomerAttachmentFile.fromMap).toList();
   }
-
-  Future<List<CustomerAttachmentFile>> findByType(String customerUid, String attachmentType) async {
-    final db = await _manager.database;
-    final rows = await db.query(
-      CustomerAttachmentFile.tableName,
-      where: 'customer_uid = ? AND attachment_type = ?',
-      whereArgs: [customerUid, attachmentType],
-      orderBy: 'create_time DESC',
-    );
-    return rows.map(CustomerAttachmentFile.fromMap).toList();
-  }
 }
 

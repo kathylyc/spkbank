@@ -19,7 +19,6 @@ import '../../utils/import_export_utils.dart';
 import '../../utils/storage_utils.dart';
 import '../../widgets/common_data_table_page.dart';
 import 'customer_add_page.dart';
-import 'customer_attachment_page.dart';
 
 /// 客户管理页面
 class CustomerPage extends StatefulWidget {
@@ -147,7 +146,7 @@ class _CustomerPageState extends State<CustomerPage> {
           'phone': customer.phone ?? '',
           'address': customer.address ?? '',
           'tags': _resolveTags(customer),
-          'attachments': attachments.map((file) => file.attachmentType).toList(),
+          'attachments': attachments.map((file) => p.basename(file.filePath)).toList(),
           'groupCode': manager?.groupCode.isEmpty ?? true ? '' : manager!.groupCode,
           'managerCode': customer.managerAccount,
           'managerName': _resolveManagerName(manager, customer.managerAccount),
@@ -232,17 +231,6 @@ class _CustomerPageState extends State<CustomerPage> {
   Future<void> _handleEditCustomer(Customer customer) async {
     final bool? hasChanged = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (context) => CustomerAddPage(customer: customer)),
-    );
-    if (hasChanged == true) {
-      _loadData();
-    }
-  }
-
-  Future<void> _handleUploadAttachment(Customer customer) async {
-    final bool? hasChanged = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (context) => CustomerAttachmentPage(customer: customer),
-      ),
     );
     if (hasChanged == true) {
       _loadData();
@@ -477,9 +465,9 @@ class _CustomerPageState extends State<CustomerPage> {
           countryCode: '86', // 默认国家代码
           managerAccount: managerAccount,
           phone: phone?.isNotEmpty == true ? phone : null,
-          address: address?.isNotEmpty == true ? address : null,
+          address: address?.isNotEmpty == true ? address : '',
           company: company, // 使用 Excel 中的公司名称
-          customerTag: customerTag?.isNotEmpty == true ? customerTag : null,
+          customerTag: customerTag?.isNotEmpty == true ? customerTag : '',
           createBy: loginUser?.userName,
           createTime: now,
         );
@@ -538,7 +526,7 @@ class _CustomerPageState extends State<CustomerPage> {
         for (final customerUid in customersByUidMap.keys) {
           final attachments = await _customerRepository.findAttachmentFiles(customerUid);
           for (final attachment in attachments) {
-            final key = '${attachment.customerUid}_${attachment.attachmentType}';
+            final key = '${attachment.customerUid}_${p.basename(attachment.filePath)}';
             allExistingAttachments[key] = attachment;
           }
         }
@@ -552,17 +540,12 @@ class _CustomerPageState extends State<CustomerPage> {
           
           final attachmentCustomerUid = (row[0]?.value?.toString() ?? '').trim();
           final phone = (row[1]?.value?.toString() ?? '').trim();
-          final attachmentType = (row[2]?.value?.toString() ?? '').trim(); // 文件名（文件类型）
-          final relativeFilePath = (row[3]?.value?.toString() ?? '').trim(); // 文件路径（相对路径）
-          
-          if (attachmentCustomerUid.isEmpty || attachmentType.isEmpty) {
-            continue; // 跳过客户编码或附件类型为空的行
-          }
-          
+          final relativeFilePath = (row[2]?.value?.toString() ?? '').trim(); // 文件路径（相对路径）
+
           // 验证客户是否存在
           final customer = customersByUidMap[attachmentCustomerUid];
           if (customer == null) {
-            debugPrint('客户不存在，跳过附件: customerUid=$attachmentCustomerUid, attachmentType=$attachmentType');
+            debugPrint('客户不存在，跳过附件: customerUid=$attachmentCustomerUid');
             return Result.failure('客户不存在，请先导入该客户的信息');
           }
           
@@ -612,7 +595,7 @@ class _CustomerPageState extends State<CustomerPage> {
           }
           
           // 尝试匹配现有附件
-          final key = '${attachmentCustomerUid}_$attachmentType';
+          final key = '${attachmentCustomerUid}_${p.basename(relativeFilePath)}';
           final existingAttachment = allExistingAttachments[key];
           
           if (existingAttachment != null) {
@@ -628,7 +611,6 @@ class _CustomerPageState extends State<CustomerPage> {
             // 插入新附件
             final newAttachment = CustomerAttachmentFile(
               customerUid: attachmentCustomerUid,
-              attachmentType: attachmentType,
               filePath: appCacheFilePath,
               createBy: loginUser?.userName,
               createTime: now,
@@ -791,7 +773,7 @@ class _CustomerPageState extends State<CustomerPage> {
         String attachmentSheetName;
         excel.Sheet attachmentSheet;
         bool useTemplate = true;
-        const attachmentHeaders = ['客户编码', '电话号码', '文件名（文件类型）', '文件路径'];
+        const attachmentHeaders = ['客户编码', '电话号码', '文件存储路径', '文件MD5', '文件大小'];
 
         try {
           // 加载模板文件并修复 numFmtId 问题
@@ -845,14 +827,10 @@ class _CustomerPageState extends State<CustomerPage> {
           attachmentSheet
               .cell(excel.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
               .value = excel.TextCellValue(phone);
-          // 文件名（文件类型）
-          attachmentSheet
-              .cell(excel.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
-              .value = excel.TextCellValue(attachment.attachmentType);
           // 文件路径（相对路径）
           final relativePath = filePathMap?[await FileManager.getFullPath(attachment.filePath)] ?? attachment.filePath;
           attachmentSheet
-              .cell(excel.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
+              .cell(excel.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
               .value = excel.TextCellValue(relativePath);
         }
 
@@ -1288,12 +1266,11 @@ class _CustomerPageState extends State<CustomerPage> {
         ),
       );
     }
-    // final displayText = attachments.join(', ');
-    final displayText = "附件1";
+    final displayText = attachments.join(', \n');
     return InkWell(
       onTap: () {
         // 查看附件
-        _handleUploadAttachment(customer);
+        _handleEditCustomer(customer);
       },
       child: Text(
         displayText,
@@ -1325,24 +1302,6 @@ class _CustomerPageState extends State<CustomerPage> {
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
           child: const Text('修改', style: TextStyle(fontSize: 13)),
-        ),
-        
-        const SizedBox(width: 8),
-        
-        // 上传附件按钮
-        ElevatedButton(
-          onPressed: () => _handleUploadAttachment(customer),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
-            ),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          child: const Text('上传附件', style: TextStyle(fontSize: 13)),
         ),
         
         const SizedBox(width: 8),

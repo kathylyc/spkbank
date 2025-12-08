@@ -112,20 +112,6 @@ class FileManager {
     return accountDir;
   }
 
-  /// 将附件类型转换为文件名前缀
-  static String _getFileNamePrefix(String attachmentType) {
-    switch (attachmentType) {
-      case ConstCustomerAttachmentType.idCardFront:
-        return 'idCard_front';
-      case ConstCustomerAttachmentType.idCardBack:
-        return 'idCard_back';
-      case ConstCustomerAttachmentType.businessLicense:
-        return 'businessLicense';
-      default:
-        return attachmentType;
-    }
-  }
-
   /// 保存客户附件文件
   ///
   /// [sourcePath] 源文件路径
@@ -136,7 +122,6 @@ class FileManager {
   static Future<String> saveCustomerAttachment({
     required String sourcePath,
     required String customerUid,
-    required String attachmentType,
   }) async {
     final sourceFile = File(sourcePath);
     if (!await sourceFile.exists()) {
@@ -145,13 +130,9 @@ class FileManager {
 
     // 获取目标目录
     final targetDir = await _getCustomerAttachmentDir(customerUid);
-
-    // 获取文件扩展名
-    final extension = p.extension(sourcePath);
     
     // 生成文件名
-    final fileNamePrefix = _getFileNamePrefix(attachmentType);
-    final fileName = '$fileNamePrefix$extension';
+    final fileName = p.basename(sourcePath);
     final targetPath = p.join(targetDir.path, fileName);
 
     // 复制文件

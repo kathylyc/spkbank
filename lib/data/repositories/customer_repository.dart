@@ -198,8 +198,9 @@ class CustomerRepository {
 
   Future<CustomerAttachmentFile> addAttachmentFile(CustomerAttachmentFile entity,
       {ConflictAlgorithm conflictAlgorithm = ConflictAlgorithm.replace}) async {
-    final id = await _provider.customerAttachmentFileDao.insert(entity, conflictAlgorithm: conflictAlgorithm);
-    return entity.copyWith(id: id);
+    CustomerAttachmentFile tmp = entity.copyWith(attachmentType: 'other');
+    final id = await _provider.customerAttachmentFileDao.insert(tmp, conflictAlgorithm: conflictAlgorithm);
+    return tmp.copyWith(id: id);
   }
 
   Future<int> updateAttachmentFile(CustomerAttachmentFile entity) async {
@@ -208,9 +209,6 @@ class CustomerRepository {
 
   Future<List<CustomerAttachmentFile>> findAttachmentFiles(String customerUid) =>
       _provider.customerAttachmentFileDao.findByCustomerUid(customerUid);
-
-  Future<List<CustomerAttachmentFile>> findAttachmentFilesByType(String customerUid, String type) =>
-      _provider.customerAttachmentFileDao.findByType(customerUid, type);
 
   Future<int> deleteAttachmentFile(int id) => _provider.customerAttachmentFileDao.deleteById(id);
 

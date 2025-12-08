@@ -20,13 +20,6 @@ class ConstSignatureStatus  {
   static const notSigned = 2;// 未签署
 }
 
-class ConstCustomerAttachmentType  {
-  static const idCardFront = "idCardFront";// 身份证-正面
-  static const idCardBack = "idCardBack";// 身份证-背面
-  static const businessLicense = "businessLicense";// 营业执照
-  static const other = "other";// 其他
-}
-
 class PdfTemplateInfo {
   const PdfTemplateInfo({
     required this.signCode,

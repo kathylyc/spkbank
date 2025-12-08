@@ -5,7 +5,7 @@ class CustomerAttachmentFile {
   const CustomerAttachmentFile({
     this.id,
     required this.customerUid,
-    required this.attachmentType,
+    this.attachmentType,
     required this.filePath,
     this.createBy,
     this.createTime,
@@ -17,7 +17,7 @@ class CustomerAttachmentFile {
 
   final int? id;
   final String customerUid;
-  final String attachmentType;
+  final String? attachmentType;
   final String filePath;
   final String? createBy;
   final DateTime? createTime;
