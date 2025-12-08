@@ -5,6 +5,7 @@ import 'package:archive/archive.dart';
 import 'package:excel/excel.dart' as excel;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -35,7 +36,8 @@ class _CustomerPageState extends State<CustomerPage> {
   String? _selectedTag;
   final CustomerRepository _customerRepository = CustomerRepository();
   final UserRepository _userRepository = UserRepository();
-  
+  final DateFormat _dateFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
+
   static const int _itemsPerPage = 20;
   
   // 分页
@@ -933,7 +935,7 @@ class _CustomerPageState extends State<CustomerPage> {
 
     try {
       final dateTime = DateTime.parse(dateTimeStr);
-      return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')}';
+      return _dateFormatter.format(dateTime);
     } catch (e) {
       return dateTimeStr;
     }

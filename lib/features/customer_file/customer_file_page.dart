@@ -68,6 +68,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   // Repository
   final CustomerRepository _repository = CustomerRepository();
   final UserRepository _userRepository = UserRepository();
+  final DateFormat _dateFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
   
   User? _loginUser;
   
@@ -1323,7 +1324,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
 
     try {
       final dateTime = DateTime.parse(dateTimeStr);
-      return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')}';
+      return _dateFormatter.format(dateTime);
     } catch (e) {
       return dateTimeStr;
     }

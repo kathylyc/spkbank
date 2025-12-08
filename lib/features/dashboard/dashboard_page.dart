@@ -1,6 +1,7 @@
 import 'package:bank_flutter/utils/version_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
 import '../../utils/context_extensions.dart';
 import '../../utils/screen_utils.dart';
 import '../../utils/storage_utils.dart';
@@ -23,7 +24,8 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   final CustomerRepository _repository = CustomerRepository();
-  
+  final DateFormat _dateFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
+
   // 统计数据
   int _templateCount = 0;
   int _customerCount = 0;
@@ -118,7 +120,7 @@ class _DashboardPageState extends State<DashboardPage> {
     if (updateTime != null && updateTime.isNotEmpty) {
       try {
         final dateTime = DateTime.parse(updateTime);
-        formattedTime = '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')}';
+        formattedTime = _dateFormatter.format(dateTime);
       } catch (e) {
         formattedTime = updateTime;
       }

@@ -31,7 +31,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
   final TextEditingController _managerPhoneController = TextEditingController();
   final CustomerRepository _customerRepository = CustomerRepository();
   final UserRepository _userRepository = UserRepository();
-  final DateFormat _dateFormatter = DateFormat('yyyy-MM-dd');
+  final DateFormat _dateFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
   
   static const int _itemsPerPage = 20;
   
