@@ -320,7 +320,6 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
                             label: '联系地址',
                             hint: '请输入联系地址',
                             controller: _addressController,
-                            requiredField: true,
                             maxLines: 3,
                           ),
                           _buildTagSelector(),
