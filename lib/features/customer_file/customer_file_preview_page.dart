@@ -948,6 +948,10 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
         // 如果用户取消或点击取消，退出该流程
         if (shouldContinue != true) {
+          // 设置处理状态，禁用按钮
+          setState(() {
+            _isProcessing = false;
+          });
           return;
         }
 
@@ -2091,7 +2095,16 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                 padding: const EdgeInsets.only(right: 16),
                 child: ElevatedButton.icon(
                   onPressed: _isProcessing ? null : () => _handleSave(flattenConfig: PdfFlattenConfig.none),
-                  icon: const Icon(Icons.save, size: 16),
+                  icon: _isProcessing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Icon(Icons.save, size: 16),
                   label: const Text('保存'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
@@ -2318,14 +2331,6 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
   /// 选择并验证PDF文件
   Future<void> _pickAndValidatePdf() async {
-    // 防止重复操作
-    if (_isProcessing) return;
-
-    // 设置处理状态，禁用按钮
-    setState(() {
-      _isProcessing = true;
-    });
-
     try {
       // 1. 文件选择
       final result = await FilePicker.platform.pickFiles(
@@ -2398,12 +2403,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       _hideLoadingDialog();
       _showValidationDialog(false, '验证过程中发生错误：$e');
     } finally {
-      // 恢复按钮状态
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
+
     }
   }
 

@@ -351,12 +351,15 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
   /// 导航到预览页面
   Future<void> _navigateToPreviewPage(Map<String, dynamic> row, {required bool isEditMode}) async {
     final assetPath = row['assetPath']?.toString();
+    final signCode = row['signCode'] as String;
     final result = await Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) {
           return CustomerFilePreviewPage(
             templateAssetPath: assetPath,
+            templateSignCode: signCode,
             isEditMode: false,
+            isNewMode: false,
           );
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
