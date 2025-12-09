@@ -9,12 +9,91 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:syncfusion_flutter_signaturepad/signaturepad.dart';
 import 'package:uuid/uuid.dart';
+import 'package:flutter/foundation.dart';
 import '../../data/models/customer_account_file.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../utils/file_manager.dart';
 import '../../utils/storage_utils.dart';
 import '../../utils/common_const.dart';
 import '../../utils/version_utils.dart';
+
+/// 用于在 isolate 中传递表单字段数据的数据类
+class FormFieldData {
+  final String name;
+  final String type; // 'TextBox', 'ComboBox', 'ListBox', 'CheckBox', 'Signature'
+  final String? textValue;
+  final String? selectedValue;
+  final List<String>? selectedValues;
+  final bool? isChecked;
+  final bool isSignature; // 标识是否为签名字段
+
+  final bool kIsPrintPdfFields = false;
+
+  FormFieldData({
+    required this.name,
+    required this.type,
+    this.textValue,
+    this.selectedValue,
+    this.selectedValues,
+    this.isChecked,
+    this.isSignature = false,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'type': type,
+      'textValue': textValue,
+      'selectedValue': selectedValue,
+      'selectedValues': selectedValues,
+      'isChecked': isChecked,
+      'isSignature': isSignature,
+    };
+  }
+
+  factory FormFieldData.fromMap(Map<String, dynamic> map) {
+    return FormFieldData(
+      name: map['name'],
+      type: map['type'],
+      textValue: map['textValue'],
+      selectedValue: map['selectedValue'],
+      selectedValues: map['selectedValues']?.cast<String>(),
+      isChecked: map['isChecked'],
+      isSignature: map['isSignature'] ?? false,
+    );
+  }
+}
+
+/// 用于在 isolate 中传递 PDF 处理数据的数据类
+class UnsignedPdfData {
+  final Uint8List originalPdfBytes;
+  final List<FormFieldData> formFields;
+  final List<int>? chineseFontBytes;
+
+  UnsignedPdfData({
+    required this.originalPdfBytes,
+    required this.formFields,
+    this.chineseFontBytes,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'originalPdfBytes': originalPdfBytes,
+      'formFields': formFields.map((f) => f.toMap()).toList(),
+      'chineseFontBytes': chineseFontBytes,
+    };
+  }
+
+  factory UnsignedPdfData.fromMap(Map<String, dynamic> map) {
+    return UnsignedPdfData(
+      originalPdfBytes: map['originalPdfBytes'],
+      formFields: (map['formFields'] as List)
+          .map((f) => FormFieldData.fromMap(f))
+          .toList(),
+      chineseFontBytes: map['chineseFontBytes'],
+    );
+  }
+}
 
 /// PDF扁平化配置枚举
 enum PdfFlattenConfig {
@@ -91,6 +170,114 @@ extension PdfFlattenConfigDescriptionExtension on PdfFlattenConfig {
   }
 }
 
+/// 在 isolate 中生成未签署版本 PDF 的顶级函数
+/// 这个函数必须在 isolate 上下文中运行，不能访问类成员变量
+Future<List<int>> _createUnsignedPdfBytesInIsolate(UnsignedPdfData data) async {
+  try {
+    debugPrint('=== [Isolate] 开始生成未签署版本PDF ===');
+
+    // 1. 检查必要的数据
+    if (data.originalPdfBytes.isEmpty) {
+      throw Exception('原始PDF数据为空');
+    }
+
+    // 2. 从原始模板创建新文档
+    final PdfDocument unsignedDocument = PdfDocument(inputBytes: data.originalPdfBytes);
+    final PdfForm saveForm = unsignedDocument.form;
+
+    // 3. 创建字体（如果提供了字体字节数据）
+    PdfTrueTypeFont? font;
+    if (data.chineseFontBytes != null && data.chineseFontBytes!.isNotEmpty) {
+      try {
+        font = PdfTrueTypeFont(data.chineseFontBytes!, 10);
+        debugPrint('✓ [Isolate] 成功创建中文字体');
+      } catch (e) {
+        debugPrint('⚠ [Isolate] 创建中文字体失败: $e');
+      }
+    }
+
+    int copyCount = 0;
+    int skipCount = 0;
+
+    // 4. 复制表单字段值（跳过签名字段）
+    for (final fieldData in data.formFields) {
+      try {
+        // 在保存文档中查找同名字段
+        PdfField? saveField;
+        for (int j = 0; j < saveForm.fields.count; j++) {
+          if (saveForm.fields[j].name == fieldData.name) {
+            saveField = saveForm.fields[j];
+            break;
+          }
+        }
+
+        if (saveField == null) {
+          debugPrint('⚠ [Isolate] 未找到保存文档中的字段: ${fieldData.name}');
+          skipCount++;
+          continue;
+        }
+
+        // 根据字段类型复制值
+        switch (fieldData.type) {
+          case 'TextBox':
+            if (saveField is PdfTextBoxField) {
+              saveField.text = fieldData.textValue ?? '';
+              if (font != null) saveField.font = font;
+              copyCount++;
+            }
+            break;
+          case 'ComboBox':
+            if (saveField is PdfComboBoxField) {
+              saveField.selectedValue = fieldData.selectedValue ?? '';
+              if (font != null) saveField.font = font;
+              copyCount++;
+            }
+            break;
+          case 'ListBox':
+            if (saveField is PdfListBoxField) {
+              saveField.selectedValues = fieldData.selectedValues ?? [];
+              if (font != null) saveField.font = font;
+              copyCount++;
+            }
+            break;
+          case 'CheckBox':
+            if (saveField is PdfCheckBoxField) {
+              saveField.isChecked = fieldData.isChecked ?? false;
+              copyCount++;
+            }
+            break;
+          case 'Signature':
+            // 跳过签名字段，不复制签名数据
+            debugPrint('⏭ [Isolate] 跳过签名字段: ${fieldData.name}');
+            skipCount++;
+            break;
+          default:
+            debugPrint('⚠ [Isolate] 不支持的字段类型: ${fieldData.type} - ${fieldData.name}');
+            skipCount++;
+        }
+      } catch (e) {
+        debugPrint('⚠ [Isolate] 复制字段 ${fieldData.name} 失败: $e');
+        skipCount++;
+      }
+    }
+
+    // 5. 保存处理后的文档
+    final List<int> unsignedBytes = await unsignedDocument.save();
+    unsignedDocument.dispose();
+
+    debugPrint('✓ [Isolate] 未签署版本PDF生成完成: 复制了 $copyCount 个非签名字段，跳过 $skipCount 个字段');
+    return unsignedBytes;
+  } catch (e) {
+    debugPrint('⚠ [Isolate] 生成未签署版本PDF失败: $e');
+    // 如果生成失败，返回原始模板
+    if (data.originalPdfBytes.isNotEmpty) {
+      return data.originalPdfBytes.toList();
+    } else {
+      throw Exception('无法生成未签署版本PDF：缺少原始数据');
+    }
+  }
+}
+
 /// 开户文件预览页面
 class CustomerFilePreviewPage extends StatefulWidget {
   final String? customerName;
@@ -153,7 +340,9 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   int? _cachedPreviousSignStatus;  // 缓存历史签署状态
 
   // 按钮状态管理
-  bool _isProcessing = false;  // 是否正在处理（保存或上传）
+  bool _isProcessing = false;
+
+  bool get kIsPrintPdfFields => false;  // 是否正在处理（保存或上传）
 
   @override
   void initState() {
@@ -723,6 +912,8 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       _isProcessing = true;
     });
 
+    await Future.delayed(const Duration(seconds: 1));
+
     // 验证必要参数
     String? targetAccountFileUid = widget.accountFileUid;
     String? targetCustomerUid = widget.customerUid;
@@ -825,6 +1016,8 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       final List<int> savedBytes = await _savePdfWithFlattenConfig(
         flattenConfig: flattenConfig,
       );
+
+      await Future.delayed(const Duration(seconds: 1));
 
       // 将保存的PDF字节写入文件
       final savedFile = File(await FileManager.getFullPath(savedFilePath));
@@ -970,6 +1163,9 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
   /// 打印所有表单域的所有属性
   void _printAllFormFieldsProperties(PdfDocument document) {
+    if (!kIsPrintPdfFields) {
+      return;
+    }
     try {
       final PdfForm form = document.form;
       if (form.fields.count == 0) {
@@ -2324,10 +2520,10 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
     }
   }
 
-  /// 生成未签署版本的PDF字节数据
+  /// 生成未签署版本的PDF字节数据（原始版本备份）
   /// 从原始模板复制当前表单值，但跳过签名字段
-  Future<List<int>> _createUnsignedPdfBytes() async {
-    debugPrint('=== 开始生成未签署版本PDF ===');
+  Future<List<int>> _createUnsignedPdfBytesOriginal() async {
+    debugPrint('=== 开始生成未签署版本PDF（原始版本） ===');
 
     try {
       // 1. 检查必要的数据
@@ -2406,6 +2602,92 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       } else {
         throw Exception('无法生成未签署版本PDF：缺少原始数据');
       }
+    }
+  }
+
+  /// 生成未签署版本的PDF字节数据（使用Isolate compute版本）
+  /// 从原始模板复制当前表单值，但跳过签名字段
+  Future<List<int>> _createUnsignedPdfBytes() async {
+    debugPrint('=== 开始生成未签署版本PDF（使用Isolate） ===');
+
+    try {
+      // 1. 检查必要的数据
+      if (_originalPdfBytes == null || _currentDocument == null) {
+        throw Exception('缺少原始PDF数据或当前文档');
+      }
+
+      // 2. 提取当前文档的表单字段数据
+      final PdfForm viewerForm = _currentDocument!.form;
+      final List<FormFieldData> formFields = [];
+
+      for (int i = 0; i < viewerForm.fields.count; i++) {
+        final PdfField viewerField = viewerForm.fields[i];
+        final String? fieldName = viewerField.name;
+
+        if (fieldName == null) continue;
+
+        FormFieldData? fieldData;
+
+        try {
+          if (viewerField is PdfTextBoxField) {
+            fieldData = FormFieldData(
+              name: fieldName,
+              type: 'TextBox',
+              textValue: viewerField.text,
+            );
+          } else if (viewerField is PdfComboBoxField) {
+            fieldData = FormFieldData(
+              name: fieldName,
+              type: 'ComboBox',
+              selectedValue: viewerField.selectedValue,
+            );
+          } else if (viewerField is PdfListBoxField) {
+            fieldData = FormFieldData(
+              name: fieldName,
+              type: 'ListBox',
+              selectedValues: viewerField.selectedValues.cast<String>(),
+            );
+          } else if (viewerField is PdfCheckBoxField) {
+            fieldData = FormFieldData(
+              name: fieldName,
+              type: 'CheckBox',
+              isChecked: viewerField.isChecked,
+            );
+          } else if (viewerField is PdfSignatureField) {
+            fieldData = FormFieldData(
+              name: fieldName,
+              type: 'Signature',
+              isSignature: true,
+            );
+          } else {
+            debugPrint('⚠ 不支持的字段类型: $fieldName');
+            continue;
+          }
+
+          formFields.add(fieldData);
+        } catch (e) {
+          debugPrint('⚠ 提取字段 $fieldName 数据失败: $e');
+        }
+      }
+
+      // 3. 准备传递给 isolate 的数据
+      final data = UnsignedPdfData(
+        originalPdfBytes: _originalPdfBytes!,
+        formFields: formFields,
+        chineseFontBytes: _chineseFontBytes,
+      );
+
+      // 4. 使用 compute 在 isolate 中处理 PDF
+      debugPrint('🚀 启动 Isolate 处理未签署PDF生成...');
+      final List<int> unsignedBytes = await compute(_createUnsignedPdfBytesInIsolate, data);
+      debugPrint('✅ Isolate 处理完成');
+
+      return unsignedBytes;
+    } catch (e) {
+      debugPrint('⚠ 使用 Isolate 生成未签署版本PDF失败: $e');
+      // 如果 isolate 处理失败，回退到原始方法
+      debugPrint('🔄 回退到原始方法处理...');
+      return await _createUnsignedPdfBytesOriginal();
     }
   }
 }
