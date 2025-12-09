@@ -152,6 +152,9 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   bool _isCalcPreviousSignStatus = false;
   int? _cachedPreviousSignStatus;  // 缓存历史签署状态
 
+  // 按钮状态管理
+  bool _isProcessing = false;  // 是否正在处理（保存或上传）
+
   @override
   void initState() {
     super.initState();
@@ -261,7 +264,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   }
 
   /// 加载PDF文件
-  Future<void> _loadPdf() async {
+  Future<void> _loadPdf({Uint8List? forceBytes}) async {
     try {
       setState(() {
         _isLoading = true;
@@ -270,36 +273,47 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
       Uint8List bytes;
 
-      // 优先使用文件路径加载
-      if (widget.filePath != null && widget.filePath!.isNotEmpty) {
-        try {
-          // 使用FileManager处理相对路径
-          final fullPath = await FileManager.getFullPath(widget.filePath!);
-          final file = File(fullPath);
-          if (await file.exists()) {
-            bytes = await file.readAsBytes();
-            debugPrint('从文件路径加载PDF成功: ${widget.filePath}');
-          } else {
-            throw Exception('文件不存在: ${widget.filePath}');
+      if (forceBytes != null) {
+        // 重新加载pdf时使用
+        bytes = forceBytes;
+      }
+      else {
+        // 优先使用文件路径加载
+        if (widget.filePath != null && widget.filePath!.isNotEmpty) {
+          try {
+            // 使用FileManager处理相对路径
+            final fullPath = await FileManager.getFullPath(widget.filePath!);
+            final file = File(fullPath);
+            if (await file.exists()) {
+              bytes = await file.readAsBytes();
+              debugPrint('从文件路径加载PDF成功: ${widget.filePath}');
+            } else {
+              throw Exception('文件不存在: ${widget.filePath}');
+            }
+          } catch (e) {
+            debugPrint('从文件路径加载PDF失败: $e');
+            // 如果文件路径加载失败，尝试使用 asset 路径
+            if (widget.templateAssetPath != null &&
+                widget.templateAssetPath!.isNotEmpty) {
+              final ByteData data = await rootBundle.load(
+                  widget.templateAssetPath!);
+              bytes = data.buffer.asUint8List();
+              debugPrint(
+                  '回退到 asset 路径加载PDF: ${widget.templateAssetPath}');
+            } else {
+              throw Exception('文件路径不存在且未提供 asset 路径');
+            }
           }
-        } catch (e) {
-          debugPrint('从文件路径加载PDF失败: $e');
-          // 如果文件路径加载失败，尝试使用 asset 路径
-          if (widget.templateAssetPath != null && widget.templateAssetPath!.isNotEmpty) {
-            final ByteData data = await rootBundle.load(widget.templateAssetPath!);
-            bytes = data.buffer.asUint8List();
-            debugPrint('回退到 asset 路径加载PDF: ${widget.templateAssetPath}');
-          } else {
-            throw Exception('文件路径不存在且未提供 asset 路径');
-          }
+        } else if (widget.templateAssetPath != null &&
+            widget.templateAssetPath!.isNotEmpty) {
+          // 使用 asset 路径加载
+          final ByteData data = await rootBundle.load(
+              widget.templateAssetPath!);
+          bytes = data.buffer.asUint8List();
+          debugPrint('从 asset 路径加载PDF成功: ${widget.templateAssetPath}');
+        } else {
+          throw Exception('未提供有效的 PDF 文件路径或 asset 路径');
         }
-      } else if (widget.templateAssetPath != null && widget.templateAssetPath!.isNotEmpty) {
-        // 使用 asset 路径加载
-        final ByteData data = await rootBundle.load(widget.templateAssetPath!);
-        bytes = data.buffer.asUint8List();
-        debugPrint('从 asset 路径加载PDF成功: ${widget.templateAssetPath}');
-      } else {
-        throw Exception('未提供有效的 PDF 文件路径或 asset 路径');
       }
 
       setState(() {
@@ -701,6 +715,14 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
   /// 保存PDF文件（支持选择扁平化配置）
   Future<void> _handleSave({PdfFlattenConfig flattenConfig = PdfFlattenConfig.none}) async {
+    // 防止重复操作
+    if (_isProcessing) return;
+
+    // 设置处理状态，禁用按钮
+    setState(() {
+      _isProcessing = true;
+    });
+
     // 验证必要参数
     String? targetAccountFileUid = widget.accountFileUid;
     String? targetCustomerUid = widget.customerUid;
@@ -915,6 +937,13 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         );
       }
       debugPrint('保存PDF失败: $e');
+    } finally {
+      // 恢复按钮状态
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
     }
   }
 
@@ -1844,7 +1873,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
               Padding(
                 padding: const EdgeInsets.only(right: 16),
                 child: ElevatedButton.icon(
-                  onPressed: _pickAndValidatePdf,
+                  onPressed: _isProcessing ? null : _pickAndValidatePdf,
                   icon: const Icon(Icons.upload, size: 16),
                   label: const Text('上传PDF'),
                   style: ElevatedButton.styleFrom(
@@ -1865,7 +1894,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
               Padding(
                 padding: const EdgeInsets.only(right: 16),
                 child: ElevatedButton.icon(
-                  onPressed: () => _handleSave(flattenConfig: PdfFlattenConfig.none),
+                  onPressed: _isProcessing ? null : () => _handleSave(flattenConfig: PdfFlattenConfig.none),
                   icon: const Icon(Icons.save, size: 16),
                   label: const Text('保存'),
                   style: ElevatedButton.styleFrom(
@@ -2093,6 +2122,14 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
   /// 选择并验证PDF文件
   Future<void> _pickAndValidatePdf() async {
+    // 防止重复操作
+    if (_isProcessing) return;
+
+    // 设置处理状态，禁用按钮
+    setState(() {
+      _isProcessing = true;
+    });
+
     try {
       // 1. 文件选择
       final result = await FilePicker.platform.pickFiles(
@@ -2164,6 +2201,13 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
     } catch (e) {
       _hideLoadingDialog();
       _showValidationDialog(false, '验证过程中发生错误：$e');
+    } finally {
+      // 恢复按钮状态
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
     }
   }
 
@@ -2260,15 +2304,8 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       final tempFile = File(_tempPdfPath!);
       final newPdfBytes = await tempFile.readAsBytes();
 
-      // 更新状态
-      setState(() {
-        _pdfBytes = newPdfBytes;
-        _isLoading = true;
-        _error = null;
-      });
-
       // 重新加载PDF
-      await _loadPdf();
+      await _loadPdf(forceBytes: newPdfBytes);
 
     } catch (e) {
       setState(() {
