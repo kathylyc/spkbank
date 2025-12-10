@@ -208,6 +208,11 @@ class _RouterPageState extends State<RouterPage> {
     return Scaffold(
       resizeToAvoidBottomInset: false, // 防止软键盘弹起时调整布局
       body: SafeArea(
+        // 确保 SafeArea 正确处理 iPad 的底部安全区域
+        top: false,
+        bottom: false,
+        left: true,
+        right: true,
         child: Row(
           children: [
             // 左侧边栏

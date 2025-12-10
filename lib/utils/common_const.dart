@@ -1,7 +1,7 @@
 import 'package:path/path.dart' as p;
 
 class ConstZip {
-  static const pcPwd = "265xxaq545a2xq6x";// PC端导出的默认密码
+  static const pcPwd = "MVJNGVvEXKp7NVy3";// PC端导出的默认密码
 }
 
 class ConstCustomerTag  {
