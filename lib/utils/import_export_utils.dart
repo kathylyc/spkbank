@@ -902,12 +902,24 @@ class ImportExportUtils {
           await zipFile.copy(targetZipPath);
 
           for (final file in archive) {
-            final filePath = p.join(importCurrentDir.path, file.name);
+            // 统一路径分隔符，并移除开头的斜杠
+            var normalizedPath = file.name.replaceAll('\\', '/');
+            if (normalizedPath.startsWith('/')) {
+              normalizedPath = normalizedPath.substring(1);
+            }
+
+            final filePath = p.join(importCurrentDir.path, normalizedPath);
+
             if (file.isFile) {
+              // 确保父目录存在
+              final parentDir = Directory(p.dirname(filePath));
+              await parentDir.create(recursive: true);
+
+              // 写入文件
               final outFile = File(filePath);
-              await outFile.create(recursive: true);
               await outFile.writeAsBytes(file.content as List<int>);
             } else {
+              // 创建目录
               await Directory(filePath).create(recursive: true);
             }
           }
@@ -978,12 +990,24 @@ class ImportExportUtils {
 
         // 解压到 cache/import 目录
         for (final file in archive) {
-          final filePath = p.join(importCurrentDir.path, file.name);
+          // 统一路径分隔符，并移除开头的斜杠
+          var normalizedPath = file.name.replaceAll('\\', '/');
+          if (normalizedPath.startsWith('/')) {
+            normalizedPath = normalizedPath.substring(1);
+          }
+
+          final filePath = p.join(importCurrentDir.path, normalizedPath);
+
           if (file.isFile) {
+            // 确保父目录存在
+            final parentDir = Directory(p.dirname(filePath));
+            await parentDir.create(recursive: true);
+
+            // 写入文件
             final outFile = File(filePath);
-            await outFile.create(recursive: true);
             await outFile.writeAsBytes(file.content as List<int>);
           } else {
+            // 创建目录
             await Directory(filePath).create(recursive: true);
           }
         }

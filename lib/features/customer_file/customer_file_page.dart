@@ -604,6 +604,12 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       final templateSignCode = row[8]?.value?.toString().trim();
       final managerAccount = (row[9]?.value?.toString() ?? '').trim();
 
+
+      // 去除开头的/的路径
+      final filterRelativeFilePath = relativeFilePath.startsWith('/')
+          ? relativeFilePath.substring(1, relativeFilePath.length)
+          : relativeFilePath;
+
       if (accountFileName.isEmpty) {
         continue; // 跳过开户文件名为空的行
       }
@@ -644,12 +650,14 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       Future<String?> copyOrReplaceToAppCacheFile() async {
         String? appCacheFilePath = null;
         if (relativeFilePath.isNotEmpty &&
-            relativeFilePath != '-' &&
-            hasFilesDir &&
-            relativeFilePath.startsWith('files/')) {
+            relativeFilePath != '-'
+            // &&
+            // hasFilesDir &&
+            // relativeFilePath.startsWith('files/')
+        ) {
           try {
             // 获取源文件路径（在解压目录中）
-            final sourceFilePath = p.join(importDirPath, relativeFilePath);
+            final sourceFilePath = p.join(importDirPath, filterRelativeFilePath);
             final sourceFile = File(sourceFilePath);
 
             if (await sourceFile.exists()) {

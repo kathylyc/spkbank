@@ -478,7 +478,7 @@ class _CustomerPageState extends State<CustomerPage> {
       for (final file in files) {
         if (file is File) {
           final fileName = p.basename(file.path);
-          if (fileName.toLowerCase().startsWith('customer_attachment_info') &&
+          if (fileName.toLowerCase().startsWith('customer_attachment') &&
               fileName.toLowerCase().endsWith('.xlsx')) {
             attachmentInfoFile = file;
             break;
@@ -525,7 +525,13 @@ class _CustomerPageState extends State<CustomerPage> {
           
           final attachmentCustomerUid = (row[0]?.value?.toString() ?? '').trim();
           final phone = (row[1]?.value?.toString() ?? '').trim();
-          final relativeFilePath = (row[2]?.value?.toString() ?? '').trim(); // 文件路径（相对路径）
+          final fileName = (row[2]?.value?.toString() ?? '').trim();
+          final relativeFilePath = (row[3]?.value?.toString() ?? '').trim(); // 文件路径（相对路径）
+
+          // 去除开头的/的路径
+          final filterRelativeFilePath = relativeFilePath.startsWith('/')
+              ? relativeFilePath.substring(1, relativeFilePath.length)
+              : relativeFilePath;
 
           // 验证客户是否存在
           final customer = customersByUidMap[attachmentCustomerUid];
@@ -537,12 +543,14 @@ class _CustomerPageState extends State<CustomerPage> {
           // 处理文件路径：如果Excel中有相对路径，且files目录存在，则复制文件到APP缓存目录
           String? appCacheFilePath;
           if (relativeFilePath.isNotEmpty && 
-              relativeFilePath != '-' && 
-              hasFilesDir && 
-              relativeFilePath.startsWith('files/')) {
+              relativeFilePath != '-'
+              // &&
+              // hasFilesDir &&
+              // relativeFilePath.startsWith('files/')
+          ) {
             try {
               // 获取源文件路径（在解压目录中）
-              final sourceFilePath = p.join(importDirPath, relativeFilePath);
+              final sourceFilePath = p.join(importDirPath, filterRelativeFilePath);
               final sourceFile = File(sourceFilePath);
               
               if (await sourceFile.exists()) {
@@ -553,7 +561,7 @@ class _CustomerPageState extends State<CustomerPage> {
                 }
                 
                 // 生成目标文件名：使用原始文件名
-                final fileName = p.basename(relativeFilePath);
+                final fileName = p.basename(filterRelativeFilePath);
                 final targetFilePath = p.join(customerAttachmentDir.path, fileName);
                 final targetFile = File(targetFilePath);
                 
@@ -569,7 +577,7 @@ class _CustomerPageState extends State<CustomerPage> {
                 debugPrint('附件文件不存在，跳过: $sourceFilePath');
               }
             } catch (e) {
-              debugPrint('复制附件文件失败: $relativeFilePath, 错误: $e');
+              debugPrint('复制附件文件失败: $filterRelativeFilePath, 错误: $e');
               // 继续处理，不中断导入流程
             }
           }
@@ -812,10 +820,14 @@ class _CustomerPageState extends State<CustomerPage> {
           attachmentSheet
               .cell(excel.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
               .value = excel.TextCellValue(phone);
-          // 文件路径（相对路径）
+          // 文件名称
           final relativePath = filePathMap?[await FileManager.getFullPath(attachment.filePath)] ?? attachment.filePath;
           attachmentSheet
               .cell(excel.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
+              .value = excel.TextCellValue(p.basename(relativePath));
+          // 文件路径（相对路径）
+          attachmentSheet
+              .cell(excel.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
               .value = excel.TextCellValue(relativePath);
         }
 
