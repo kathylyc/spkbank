@@ -12,6 +12,7 @@ import '../../data/repositories/user_repository.dart';
 import '../../utils/file_manager.dart';
 import '../../utils/import_export_utils.dart';
 import '../../utils/password_utils.dart';
+import '../../utils/snackbar_utils.dart';
 import '../../utils/storage_utils.dart';
 import '../../widgets/common_data_table_page.dart';
 import 'account_manager_add_page.dart';
@@ -127,11 +128,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
       });
     } catch (error) {
       if (!mounted) return;
-      // 在 setState 之前保存 ScaffoldMessenger 引用
-      final scaffoldMessenger = ScaffoldMessenger.of(context);
-      scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('加载客户经理数据失败: $error')),
-      );
+      SnackbarUtils.error('加载客户经理数据失败: $error', context);
       setState(() {
         _currentPage = 1;
         _totalItems = 0;
@@ -167,16 +164,12 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
 
   /// 删除客户经理
   Future<void> _handleDeleteManager(Map<String, dynamic> row) async {
-    // 在异步操作前保存 ScaffoldMessenger 引用
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     final managerAccount = row['managerAccount'] as String?;
     final managerName = row['managerName'] as String?;
     
     if (managerAccount == null || managerAccount.isEmpty) {
       if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          const SnackBar(content: Text('无法获取客户经理编号')),
-        );
+        SnackbarUtils.error('无法获取客户经理编号', context);
       }
       return;
     }
@@ -190,13 +183,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
       if (accountFileCount > 0) {
         // 存在关联信息，不可删除
         if (mounted) {
-          scaffoldMessenger.showSnackBar(
-            const SnackBar(
-              content: Text('存在关联信息，不可删除'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 3),
-            ),
-          );
+          SnackbarUtils.warning('存在关联信息，不可删除', context);
         }
         return;
       }
@@ -251,28 +238,14 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
       }
 
       if (mounted) {
-        // 在异步操作后使用保存的引用
-        final scaffoldMessenger = ScaffoldMessenger.of(context);
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text('已删除: ${managerName ?? managerAccount}'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        SnackbarUtils.success('已删除: ${managerName ?? managerAccount}', context);
         // 重新加载数据
         _loadData();
       }
     } catch (error) {
       debugPrint('删除客户经理失败: $error');
       if (mounted) {
-        // 在异步操作后使用保存的引用
-        final scaffoldMessenger = ScaffoldMessenger.of(context);
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text('删除失败: $error'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarUtils.error('删除失败: $error', context);
       }
     }
   }
@@ -297,8 +270,6 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
 
   /// 新增客户经理
   Future<void> _handleAddManager() async {
-    // 在异步操作前保存 ScaffoldMessenger 引用
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     final saved = await Navigator.of(context).push<bool>(
           MaterialPageRoute(
             builder: (context) => const AccountManagerAddPage(),
@@ -308,9 +279,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
 
     if (!mounted) return;
     if (saved) {
-      scaffoldMessenger.showSnackBar(
-        const SnackBar(content: Text('保存成功')),
-      );
+      SnackbarUtils.success('保存成功', context);
       _loadData();
     }
   }
@@ -728,22 +697,16 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
         // 修改按钮（蓝色）
         ElevatedButton(
           onPressed: () async {
-            // 在异步操作前保存 ScaffoldMessenger 引用
-            final scaffoldMessenger = ScaffoldMessenger.of(context);
             final managerAccount = row['managerAccount'] as String?;
             if (managerAccount == null || managerAccount.isEmpty) {
-              scaffoldMessenger.showSnackBar(
-                const SnackBar(content: Text('无法获取客户经理编号')),
-              );
+              SnackbarUtils.error('无法获取客户经理编号', context);
               return;
             }
             try {
               final manager = await _userRepository.findByUserName(managerAccount);
               if (!mounted) return;
               if (manager == null) {
-                scaffoldMessenger.showSnackBar(
-                  const SnackBar(content: Text('未找到该客户经理')),
-                );
+                SnackbarUtils.error('未找到该客户经理', context);
                 return;
               }
               final saved = await Navigator.of(context).push<bool>(
@@ -754,16 +717,12 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
                   false;
               if (!mounted) return;
               if (saved) {
-                scaffoldMessenger.showSnackBar(
-                  const SnackBar(content: Text('保存成功')),
-                );
+                SnackbarUtils.success('保存成功', context);
                 _loadData();
               }
             } catch (error) {
               if (!mounted) return;
-              scaffoldMessenger.showSnackBar(
-                SnackBar(content: Text('加载客户经理信息失败: $error')),
-              );
+              SnackbarUtils.error('加载客户经理信息失败: $error', context);
             }
           },
           style: ElevatedButton.styleFrom(
@@ -798,13 +757,9 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
                   TextButton(
                     onPressed: () async {
                       Navigator.pop(context);
-                      // 在异步操作前保存 ScaffoldMessenger 引用
-                      final scaffoldMessenger = ScaffoldMessenger.of(context);
                       if (managerAccount == null || managerAccount.isEmpty) {
                         if (mounted) {
-                          scaffoldMessenger.showSnackBar(
-                            const SnackBar(content: Text('无法获取客户经理编号')),
-                          );
+                          SnackbarUtils.error('无法获取客户经理编号', context);
                         }
                         return;
                       }
@@ -821,20 +776,13 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
                         // 重置密码成功后自动解锁账号
                         await _userRepository.unlockAccount(managerAccount);
                         if (mounted) {
-                          scaffoldMessenger.showSnackBar(
-                            SnackBar(
-                              content: Text('已重置密码: ${row['managerName']}'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
+                          SnackbarUtils.success('已重置密码: ${row['managerName']}', context);
                           _loadData(); // 重新加载数据以更新状态
                         }
                       } catch (error, stackTrace) {
                         debugPrintStack(stackTrace: stackTrace);
                         if (mounted) {
-                          scaffoldMessenger.showSnackBar(
-                            SnackBar(content: Text('重置密码失败: $error')),
-                          );
+                          SnackbarUtils.error('重置密码失败: $error', context);
                         }
                       }
                     },
