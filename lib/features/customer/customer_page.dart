@@ -336,7 +336,7 @@ class _CustomerPageState extends State<CustomerPage> {
 
       final sheet = excelBook[sheetName];
 
-      const expectedHeaders = ['客户编号', '客户姓名', '公司名称（中文/英文）', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'];
+      const expectedHeaders = ['客户编号', '公司名称（中文/英文）', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'];
       final headerRow = sheet.rows[0];
       if (headerRow.length < expectedHeaders.length) {
         return '非标准压缩包，不支持导入2';
@@ -396,13 +396,12 @@ class _CustomerPageState extends State<CustomerPage> {
 
       final customerUid = (row[0]?.value?.toString() ?? '').trim();
       final customerName = (row[1]?.value?.toString() ?? '').trim();
-      final company = (row[2]?.value?.toString() ?? '').trim();
-      final phone = row[3]?.value?.toString()?.trim();
-      final address = row[4]?.value?.toString()?.trim();
-      final customerTag = row[5]?.value?.toString()?.trim();
-      final managerName = (row[6]?.value?.toString() ?? '').trim();
-      final managerAccount = (row[7]?.value?.toString() ?? '').trim();
-      final updateTime = (row[8]?.value?.toString() ?? '').trim();
+      final phone = row[2]?.value?.toString()?.trim();
+      final address = row[3]?.value?.toString()?.trim();
+      final customerTag = row[4]?.value?.toString()?.trim();
+      final managerName = (row[5]?.value?.toString() ?? '').trim();
+      final managerAccount = (row[6]?.value?.toString() ?? '').trim();
+      final updateTime = (row[7]?.value?.toString() ?? '').trim();
 
       if (customerName.isEmpty) {
         continue; // 跳过客户姓名为空的行
@@ -432,7 +431,7 @@ class _CustomerPageState extends State<CustomerPage> {
       if (existingCustomer != null) {
         // 更新现有客户
         final updatedCustomer = existingCustomer.copyWith(
-          company: company.isNotEmpty ? company : existingCustomer.company,
+          company: '', // 20251210 UPDATE：客户名称就是公司，所以公司字段至为空
           phone: phone?.isNotEmpty == true ? phone : existingCustomer.phone,
           address: address?.isNotEmpty == true ? address : existingCustomer.address,
           customerTag: customerTag?.isNotEmpty == true ? customerTag : existingCustomer.customerTag,
@@ -451,7 +450,7 @@ class _CustomerPageState extends State<CustomerPage> {
           managerAccount: managerAccount,
           phone: phone?.isNotEmpty == true ? phone : null,
           address: address?.isNotEmpty == true ? address : '',
-          company: company, // 使用 Excel 中的公司名称
+          company: '',  // 20251210 UPDATE：客户名称就是公司，所以公司字段至为空
           customerTag: customerTag?.isNotEmpty == true ? customerTag : '',
           createBy: loginUser?.userName,
           createTime: now,
@@ -676,7 +675,7 @@ class _CustomerPageState extends State<CustomerPage> {
       excelFileName: 'customer_info_export',
       addTimestamp: true,
       data: selectedData,
-      headers: const ['客户编号', '客户姓名', '公司名称（中文/英文）', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'],
+      headers: const ['客户编号', '公司名称（中文/英文）', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'],
       beforeDataToExcelRows: (exportDirPath) async {
         // 复制附件文件到files文件夹，并返回相对路径映射
         final filesDir = Directory(p.join(exportDirPath, 'files'));
@@ -843,40 +842,36 @@ class _CustomerPageState extends State<CustomerPage> {
         sheet
             .cell(excel.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
             .value = excel.TextCellValue(customer.customerUid);
-        // 客户姓名
+        // 公司名称
         sheet
             .cell(excel.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
             .value = excel.TextCellValue(customer.customerName);
-        // 公司名称
-        sheet
-            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
-            .value = excel.TextCellValue(customer.company);
         // 电话号码
         sheet
-            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
             .value = excel.TextCellValue(customer.phone ?? '');
         // 客户地址
         sheet
-            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
             .value = excel.TextCellValue(customer.address ?? '');
         // 客户标签
         sheet
-            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIndex))
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
             .value = excel.TextCellValue(customer.customerTag ?? '');
         // 客户经理姓名
         sheet
-            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex))
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIndex))
             .value = excel.TextCellValue(rowData['managerName'] ?? '');
         // 客户经理编码
         sheet
-            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIndex))
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex))
             .value = excel.TextCellValue(customer.managerAccount);
         // 最后更新时间
         final updateTimeStr = customer.updateTime != null
             ? customer.updateTime!.toIso8601String()
             : '';
         sheet
-            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: rowIndex))
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIndex))
             .value = excel.TextCellValue(updateTimeStr);
       },
       onSuccess: () {
@@ -958,17 +953,13 @@ class _CustomerPageState extends State<CustomerPage> {
       
       // 表格列定义
       columns: [
-        DataTableColumn(
-          label: '客户编号',
-          builder: (row, context) => Text(row['customerUid']),
-        ),
-        DataTableColumn(
-          label: '客户姓名',
-          builder: (row, context) => Text(row['name']),
-        ),
+        // DataTableColumn(
+        //   label: '客户编号',
+        //   builder: (row, context) => Text(row['customerUid']),
+        // ),
         DataTableColumn(
           label: '公司名称（中文/英文）',
-          builder: (row, context) => Text(row['company']),
+          builder: (row, context) => Text(row['name']),
         ),
         DataTableColumn(
           label: '电话号码',

@@ -1115,11 +1115,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         // ),
         DataTableColumn(
           label: '公司名称（中文/英文）',
-          builder: (row, context) => Text(row['company']?.toString() ?? '-'),
-        ),
-        DataTableColumn(
-          label: '客户姓名',
-          builder: (row, context) => Text(row['customerName']?.toString() ?? ''),
+          builder: (row, context) => Text(row['customerName']?.toString() ?? '-'),
         ),
         DataTableColumn(
           label: '电话号码',

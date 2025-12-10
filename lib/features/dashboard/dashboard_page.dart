@@ -288,7 +288,7 @@ class _DashboardPageState extends State<DashboardPage> {
         columns: [
           DataTableColumn(
             label: '公司名称（中文/英文）',
-            builder: (row, context) => Text(row['company']),
+            builder: (row, context) => Text(row['customerName']),
           ),
           DataTableColumn(
             label: context.S.accountFileName,

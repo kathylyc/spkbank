@@ -29,7 +29,6 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
   final TextEditingController _managerAccountController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
-  final TextEditingController _companyController = TextEditingController();
   final CustomerRepository _customerRepository = CustomerRepository();
   final UserRepository _userRepository = UserRepository();
   bool get _isAccountManager => _loginUser?.userType == '01';
@@ -72,7 +71,6 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
       _managerAccountController.text = _initialCustomer!.managerAccount;
       _phoneController.text = _initialCustomer!.phone ?? '';
       _addressController.text = _initialCustomer!.address ?? '';
-      _companyController.text = _initialCustomer!.company;
       _selectedCountryCode = _resolveCountryCode(_initialCustomer!.countryCode);
       _selectedTags
         ..clear()
@@ -92,7 +90,6 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
     _managerAccountController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
-    _companyController.dispose();
     super.dispose();
   }
 
@@ -166,7 +163,6 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
         _selectedCountryCode != initialCountryCode ||
         _phoneController.text.trim() != (_initialCustomer?.phone ?? '') ||
         _addressController.text.trim() != (_initialCustomer?.address ?? '') ||
-        _companyController.text.trim() != (_initialCustomer?.company ?? '') ||
         currentTagString != initialTagString ||
         attachmentsChanged;
   }
@@ -211,7 +207,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
     final String countryCode = _selectedCountryCode;
     final String phone = _phoneController.text.trim();
     final String address = _addressController.text.trim();
-    final String company = _companyController.text.trim();
+    final String company = ''; // 20251210 UPDATE：客户名称就是公司，所以公司字段至为空
     final String? customerTag = _selectedTags.isEmpty ? '' : _joinTags(_selectedTags);
 
     setState(() {
@@ -396,16 +392,16 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
                                 style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                               ),
                             ),
-                          _buildField(
-                            label: '客户姓名',
-                            hint: '请输入客户姓名',
-                            controller: _nameController,
-                            requiredField: true,
-                          ),
+                          // _buildField(
+                          //   label: '客户姓名',
+                          //   hint: '请输入客户姓名',
+                          //   controller: _nameController,
+                          //   requiredField: true,
+                          // ),
                           _buildField(
                             label: '公司名称（中文/英文）',
                             hint: '请输入公司名称（中文/英文）',
-                            controller: _companyController,
+                            controller: _nameController,
                             requiredField: true,
                           ),
                           _buildPhoneField(),
@@ -570,45 +566,45 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                width: 120,
-                child: DropdownButtonFormField<String>(
-                  initialValue: selectedOption.code,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      borderSide: const BorderSide(color: Colors.blue),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                  ),
-                  items: options
-                      .map(
-                        (option) => DropdownMenuItem<String>(
-                          value: option.code,
-                          child: Text(option.dialCode),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() {
-                      _selectedCountryCode = value;
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
+              // SizedBox(
+              //   width: 120,
+              //   child: DropdownButtonFormField<String>(
+              //     initialValue: selectedOption.code,
+              //     decoration: InputDecoration(
+              //       border: OutlineInputBorder(
+              //         borderRadius: BorderRadius.circular(4),
+              //         borderSide: BorderSide(color: Colors.grey.shade300),
+              //       ),
+              //       enabledBorder: OutlineInputBorder(
+              //         borderRadius: BorderRadius.circular(4),
+              //         borderSide: BorderSide(color: Colors.grey.shade300),
+              //       ),
+              //       focusedBorder: OutlineInputBorder(
+              //         borderRadius: BorderRadius.circular(4),
+              //         borderSide: const BorderSide(color: Colors.blue),
+              //       ),
+              //       contentPadding: const EdgeInsets.symmetric(
+              //         horizontal: 12,
+              //         vertical: 12,
+              //       ),
+              //     ),
+              //     items: options
+              //         .map(
+              //           (option) => DropdownMenuItem<String>(
+              //             value: option.code,
+              //             child: Text(option.dialCode),
+              //           ),
+              //         )
+              //         .toList(),
+              //     onChanged: (value) {
+              //       if (value == null) return;
+              //       setState(() {
+              //         _selectedCountryCode = value;
+              //       });
+              //     },
+              //   ),
+              // ),
+              // const SizedBox(width: 12),
               Expanded(
                 child: TextFormField(
                   controller: _phoneController,

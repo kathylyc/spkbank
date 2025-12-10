@@ -48,6 +48,8 @@ class CustomerRepository {
       managerAccount: managerAccount,
       createBy: createBy,
       createTime: now,
+      updateBy: createBy,
+      updateTime: now,
     );
     debugPrint('customer_repository.create()==>customerUid=$customerUid, genCustomerUid=${customer
         .customerUid}');
