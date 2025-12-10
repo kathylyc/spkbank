@@ -882,7 +882,40 @@ class ImportExportUtils {
       if (ConstZip.pcPwd.isNotEmpty) {
         try {
           final zipBytes = await zipFile.readAsBytes();
-          ZipDecoder().decodeBytes(zipBytes, verify: true, password: ConstZip.pcPwd);
+          final archive = ZipDecoder().decodeBytes(zipBytes, verify: false, password: ConstZip.pcPwd);
+
+          // 尝试解压到 cache/import-temp 目录，不论解压成功与否都删除临时目录
+          final cacheDir = await getTemporaryDirectory();
+          final importTempDir = Directory(p.join(cacheDir.path, 'import-temp'));
+          if (!await importTempDir.exists()) {
+            await importTempDir.create(recursive: true);
+          }
+          // 复制 zip 文件到 cache/import-temp 目录
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final importCurrentDir = Directory(p.join(importTempDir.path, '$timestamp'));
+          if (!await importCurrentDir.exists()) {
+            await importCurrentDir.create(recursive: true);
+          }
+          final targetZipName = 'import_$timestamp.zip';
+          final targetZipPath = p.join(importCurrentDir.path, targetZipName);
+          final targetZipFile = File(targetZipPath);
+          await zipFile.copy(targetZipPath);
+
+          for (final file in archive) {
+            final filePath = p.join(importCurrentDir.path, file.name);
+            if (file.isFile) {
+              final outFile = File(filePath);
+              await outFile.create(recursive: true);
+              await outFile.writeAsBytes(file.content as List<int>);
+            } else {
+              await Directory(filePath).create(recursive: true);
+            }
+          }
+
+          // 最后删除临时目录
+          await importTempDir.delete(recursive: true);
+
+
           unzipSuccess = true;
           usedPassword = ConstZip.pcPwd;
           debugPrint('使用默认密码解压成功');
@@ -941,7 +974,7 @@ class ImportExportUtils {
           throw Exception('文件格式不正确，不是有效的ZIP文件');
         }
 
-        final archive = ZipDecoder().decodeBytes(zipBytes, verify: true, password: usedPassword);
+        final archive = ZipDecoder().decodeBytes(zipBytes, verify: false, password: usedPassword);
 
         // 解压到 cache/import 目录
         for (final file in archive) {
