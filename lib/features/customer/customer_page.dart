@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:archive/archive.dart';
+import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:excel/excel.dart' as excel;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -164,9 +165,7 @@ class _CustomerPageState extends State<CustomerPage> {
       });
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加载客户数据失败: $error')),
-      );
+      SnackbarUtils.error('加载客户数据失败: $error', context);
       setState(() {
         _currentPage = 1;
         _totalItems = 0;
@@ -253,13 +252,7 @@ class _CustomerPageState extends State<CustomerPage> {
       if (accountFileCount > 0) {
         // 存在关联信息，不可删除
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('存在关联信息，不可删除'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 3),
-            ),
-          );
+          SnackbarUtils.warning('存在关联信息，不可删除', context);
         }
         return;
       }
@@ -308,24 +301,14 @@ class _CustomerPageState extends State<CustomerPage> {
       await _customerRepository.deleteByUid(customerUid);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('已删除: $customerName'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        SnackbarUtils.success('已删除: $customerName', context);
         // 重新加载数据
         _loadData();
       }
     } catch (error) {
       debugPrint('删除客户失败: $error');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('删除失败: $error'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarUtils.error('删除失败: $error', context);
       }
     }
   }

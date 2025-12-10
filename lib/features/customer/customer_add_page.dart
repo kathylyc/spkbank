@@ -1,4 +1,5 @@
 import 'package:bank_flutter/utils/file_manager.dart';
+import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -222,9 +223,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
       final User? manager = await _userRepository.findByUserName(managerAccount);
       if (manager == null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('客户经理不存在，请检查编号')),
-        );
+        SnackbarUtils.error('客户经理不存在，请检查编号', context);
         setState(() {
           _isSaving = false;
         });
@@ -239,12 +238,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
       );
       if (nameExists) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('客户名称已存在，请使用其他名称'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarUtils.error('客户名称已存在，请使用其他名称', context);
         setState(() {
           _isSaving = false;
         });
@@ -259,12 +253,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
         );
         if (phoneExists) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('联系电话已存在，请使用其他电话号码'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          SnackbarUtils.error('联系电话已存在，请使用其他电话号码', context);
           setState(() {
             _isSaving = false;
           });
@@ -353,9 +342,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
     } catch (error, stackTrace) {
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存失败: $error')),
-      );
+      SnackbarUtils.error('保存失败: $error', context);
       setState(() {
         _isSaving = false;
       });
@@ -903,24 +890,14 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
         const maxSize = 5 * 1024 * 1024;
         if (fileSize > maxSize) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('文件大小不能超过5MB'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          SnackbarUtils.error('文件大小不能超过5MB', context);
           return;
         }
 
         // 检查是否已达到最大数量
         if (_attachments.length >= 3) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('最多只能上传3个附件'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          SnackbarUtils.error('最多只能上传3个附件', context);
           return;
         }
 
@@ -934,9 +911,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('选择文件失败: $e')),
-      );
+      SnackbarUtils.error('选择文件失败: $e', context);
     }
   }
 

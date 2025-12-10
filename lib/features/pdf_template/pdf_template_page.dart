@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -94,12 +95,7 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
         _isLoading = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('加载PDF文件列表失败: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarUtils.error('加载PDF文件列表失败: $e', context);
       }
     }
   }
@@ -181,12 +177,7 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
 
     if (assetPath == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('文件路径不存在'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarUtils.error('文件路径不存在', context);
       }
       return;
     }
@@ -217,13 +208,7 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
     } catch (e) {
       debugPrint('下载PDF失败: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('下载失败: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        SnackbarUtils.error('下载失败: $e', context);
       }
     }
   }
@@ -501,21 +486,11 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
       _loadData();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('备注修改成功'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        SnackbarUtils.success('备注修改成功', context);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('备注修改失败: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarUtils.error('备注修改失败: $e', context);
       }
     }
   }

@@ -1,3 +1,4 @@
+import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import '../../data/models/user.dart';
 import '../../utils/context_extensions.dart';
@@ -181,24 +182,14 @@ class _RouterPageState extends State<RouterPage> {
       await StorageUtils.logout();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(context.S.logoutSuccess),
-            backgroundColor: Colors.green,
-          ),
-        );
+        SnackbarUtils.success(context.S.logoutSuccess, context);
 
         // 通知父组件退出登录
         widget.onLogout();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('退出登录失败: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarUtils.error('退出登录失败: $e', context);
       }
     }
   }

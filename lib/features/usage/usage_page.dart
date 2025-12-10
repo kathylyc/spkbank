@@ -1,3 +1,4 @@
+import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -171,12 +172,7 @@ class _UsagePageState extends State<UsagePage> {
               onDocumentLoadFailed: (PdfDocumentLoadFailedDetails details) {
                 debugPrint('使用说明PDF加载出错: ${details.description}');
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('PDF加载失败: ${details.description}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  SnackbarUtils.error('PDF加载失败: ${details.description}', context);
                 }
               },
               onPageChanged: (details) {

@@ -1,3 +1,4 @@
+import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:bank_flutter/utils/version_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -103,12 +104,7 @@ class _DashboardPageState extends State<DashboardPage> {
         _isLoadingPdfFiles = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('加载数据失败: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarUtils.error('加载数据失败: $e', context);
       }
     }
   }
