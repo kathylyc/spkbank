@@ -135,43 +135,64 @@ class _AnimatedSnackBarState extends State<AnimatedSnackBar>
 
   @override
   Widget build(BuildContext context) {
-    return SlideTransition(
-      position: _slideAnimation,
-      child: FadeTransition(
-        opacity: _fadeAnimation,
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: widget.backgroundColor,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              if (widget.icon != null) ...[
-                Icon(
-                  widget.icon,
-                  color: widget.textColor,
-                  size: 20,
+    // 获取键盘高度和屏幕安全区域
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardHeight = mediaQuery.viewInsets.bottom;
+    final screenHeight = mediaQuery.size.height;
+    final safeBottom = mediaQuery.padding.bottom;
+
+    // 计算Snackbar的位置
+    // 如果键盘弹出，显示在键盘上方；否则显示在底部安全区域上方
+    final bottomPadding = keyboardHeight > 0
+        ? keyboardHeight + 16
+        : safeBottom + 16;
+
+    // 确保Snackbar不会超出屏幕范围，给一些安全距离
+    final maxBottom = screenHeight - 200; // 预留200px给Snackbar内容
+    final finalBottom = bottomPadding > maxBottom ? maxBottom : bottomPadding;
+
+    return Positioned(
+      bottom: finalBottom,
+      left: 16,
+      right: 16,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: widget.backgroundColor,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
                 ),
-                const SizedBox(width: 8),
               ],
-              Expanded(
-                child: Text(
-                  widget.message,
-                  style: TextStyle(
+            ),
+            child: Row(
+              children: [
+                if (widget.icon != null) ...[
+                  Icon(
+                    widget.icon,
                     color: widget.textColor,
-                    fontSize: 14,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Text(
+                    widget.message,
+                    style: TextStyle(
+                      color: widget.textColor,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -198,21 +219,20 @@ class SnackbarUtils {
     late OverlayEntry overlayEntry;
 
     overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        bottom: 16, // 初始位置在屏幕外
-        left: 16,
-        right: 16,
-        child: Material(
-          color: Colors.transparent,
-          child: AnimatedSnackBar(
-            message: message,
-            icon: icon,
-            backgroundColor: backgroundColor,
-            textColor: textColor,
-            onAnimationComplete: () {
-              overlayEntry.remove();
-            },
-          ),
+      builder: (context) => Material(
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            AnimatedSnackBar(
+              message: message,
+              icon: icon,
+              backgroundColor: backgroundColor,
+              textColor: textColor,
+              onAnimationComplete: () {
+                overlayEntry.remove();
+              },
+            ),
+          ],
         ),
       ),
     );
