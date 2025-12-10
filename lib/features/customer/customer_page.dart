@@ -331,22 +331,22 @@ class _CustomerPageState extends State<CustomerPage> {
           ? excelBook.tables.keys.first
           : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : null);
       if (sheetName == null) {
-        return '非标准压缩包，不支持导入2';
+        return '非标准压缩包，空sheet';
       }
 
       final sheet = excelBook[sheetName];
 
-      const expectedHeaders = ['客户编号', '公司名称（中文/英文）', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'];
+      const expectedHeaders = ['客户编号', '公司名称', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '团队编码', '最后更新时间'];
       final headerRow = sheet.rows[0];
       if (headerRow.length < expectedHeaders.length) {
-        return '非标准压缩包，不支持导入2';
+        return '非标准压缩包，表头不格式不合法1';
       }
 
       // 检查表头是否匹配
       for (int i = 0; i < expectedHeaders.length; i++) {
         final cellValue = headerRow[i]?.value?.toString() ?? '';
         if (cellValue != expectedHeaders[i]) {
-          return '非标准压缩包，不支持导入2';
+          return '非标准压缩包，表头不格式不合法2';
         }
       }
 
@@ -401,7 +401,8 @@ class _CustomerPageState extends State<CustomerPage> {
       final customerTag = row[4]?.value?.toString()?.trim();
       final managerName = (row[5]?.value?.toString() ?? '').trim();
       final managerAccount = (row[6]?.value?.toString() ?? '').trim();
-      final updateTime = (row[7]?.value?.toString() ?? '').trim();
+      final groupCode = (row[7]?.value?.toString() ?? '').trim();
+      final updateTime = (row[8]?.value?.toString() ?? '').trim();
 
       if (customerName.isEmpty) {
         continue; // 跳过客户姓名为空的行
@@ -866,12 +867,16 @@ class _CustomerPageState extends State<CustomerPage> {
         sheet
             .cell(excel.CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex))
             .value = excel.TextCellValue(customer.managerAccount);
+        // 团队编码
+        sheet
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIndex))
+            .value = excel.TextCellValue(rowData['groupCode']);
         // 最后更新时间
         final updateTimeStr = customer.updateTime != null
             ? customer.updateTime!.toIso8601String()
             : '';
         sheet
-            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIndex))
+            .cell(excel.CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: rowIndex))
             .value = excel.TextCellValue(updateTimeStr);
       },
       onSuccess: () {
@@ -1020,7 +1025,7 @@ class _CustomerPageState extends State<CustomerPage> {
         Expanded(
           child: _buildTextField(
             controller: _nameController,
-            label: '客户姓名',
+            label: '公司名称（中文/英文）',
             hint: '请输入',
           ),
         ),

@@ -1182,7 +1182,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         Expanded(
           child: _buildTextField(
             controller: _customerNameController,
-            label: '客户姓名',
+            label: '公司名称（中文/英文）',
             hint: '请输入',
           ),
         ),
