@@ -514,8 +514,7 @@ class ImportExportUtils {
         await exportDir.create(recursive: true);
       }
       final timestamp = DateFormat('yyyyMMddHHmmss').format(DateTime.now());
-      // final timestamp = DateTime.now().millisecondsSinceEpoch;
-      exportCurrentDir = Directory(p.join(exportDir.path, '$timestamp'));
+      exportCurrentDir = Directory(p.join(exportDir.path, timestamp));
       if (!await exportCurrentDir.exists()) {
         await exportCurrentDir.create(recursive: true);
       }
@@ -883,7 +882,7 @@ class ImportExportUtils {
       if (ConstZip.pcPwd.isNotEmpty) {
         try {
           final zipBytes = await zipFile.readAsBytes();
-          final archive = ZipDecoder().decodeBytes(zipBytes, verify: true, password: ConstZip.pcPwd);
+          ZipDecoder().decodeBytes(zipBytes, verify: true, password: ConstZip.pcPwd);
           unzipSuccess = true;
           usedPassword = ConstZip.pcPwd;
           debugPrint('使用默认密码解压成功');
@@ -928,6 +927,20 @@ class ImportExportUtils {
       // 解压 zip 文件
       try {
         final zipBytes = await targetZipFile.readAsBytes();
+
+        // 基本文件完整性检查
+        if (zipBytes.isEmpty) {
+          throw Exception('文件为空或已损坏');
+        }
+
+        // 检查ZIP文件头魔数
+        if (zipBytes.length < 4 ||
+            !(zipBytes[0] == 0x50 && zipBytes[1] == 0x4B &&
+             (zipBytes[2] == 0x03 || zipBytes[2] == 0x05 || zipBytes[2] == 0x07) &&
+             (zipBytes[3] == 0x04 || zipBytes[3] == 0x06 || zipBytes[3] == 0x08))) {
+          throw Exception('文件格式不正确，不是有效的ZIP文件');
+        }
+
         final archive = ZipDecoder().decodeBytes(zipBytes, verify: true, password: usedPassword);
 
         // 解压到 cache/import 目录
@@ -1070,12 +1083,24 @@ class ImportExportUtils {
           debugPrint('删除临时文件失败: $deleteError');
         }
 
-        final errorMessage = e.toString().contains('password') || e.toString().contains('密码')
-            ? '密码错误'
-            : e.toString();
+        // 根据错误类型提供更友好的错误信息
+        String errorMessage;
+        final errorString = e.toString().toLowerCase();
+
+        if (errorString.contains('password') || errorString.contains('密码')) {
+          errorMessage = '密码错误，请检查压缩包密码是否正确';
+        } else if (errorString.contains('crc') || errorString.contains('invalid crc')) {
+          errorMessage = '压缩包文件已损坏，请重新生成或下载文件';
+        } else if (errorString.contains('format') || errorString.contains('invalid')) {
+          errorMessage = '压缩包格式错误，请确保文件是有效的ZIP格式';
+        } else if (errorString.contains('directory') || errorString.contains('not found')) {
+          errorMessage = '压缩包内容不完整，缺少必要的文件或目录';
+        } else {
+          errorMessage = '解压失败: $e';
+        }
 
         if (context.mounted) {
-          SnackbarUtils.error('解压失败: $errorMessage', context);
+          SnackbarUtils.error(errorMessage, context);
         }
 
         onError?.call(errorMessage);
