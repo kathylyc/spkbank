@@ -345,7 +345,8 @@ class _CustomerPageState extends State<CustomerPage> {
       // 检查表头是否匹配
       for (int i = 0; i < expectedHeaders.length; i++) {
         final cellValue = headerRow[i]?.value?.toString() ?? '';
-        if (cellValue != expectedHeaders[i]) {
+        final expectedValue = expectedHeaders[i];
+        if (cellValue != expectedValue) {
           return '非标准压缩包，表头不格式不合法2';
         }
       }
@@ -684,7 +685,7 @@ class _CustomerPageState extends State<CustomerPage> {
       excelFileName: 'customer_info_export',
       addTimestamp: true,
       data: selectedData,
-      headers: const ['客户编号', '公司名称（中文/英文）', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '最后更新时间'],
+      headers: const ['客户编号', '公司名称', '电话号码', '客户地址', '客户标签', '客户经理姓名', '客户经理编号', '团队编码', '最后更新时间'],
       beforeDataToExcelRows: (exportDirPath) async {
         // 复制附件文件到files文件夹，并返回相对路径映射
         final filesDir = Directory(p.join(exportDirPath, 'files'));
