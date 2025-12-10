@@ -287,4 +287,20 @@ class SnackbarUtils {
       duration: duration,
     );
   }
+
+  /// 显示普通消息（深蓝色）
+  static void normal(
+      String message,
+      BuildContext context, {
+        Duration duration = _defaultDuration,
+      }) {
+    _showSnackbar(
+      message,
+      context,
+      backgroundColor: const Color(0xFFF2F3FA),
+      textColor: Colors.black,
+      icon: Icons.info,
+      duration: duration,
+    );
+  }
 }

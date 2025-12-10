@@ -2,6 +2,7 @@ import 'package:bcrypt/bcrypt.dart';
 import 'package:flutter/material.dart';
 import '../../utils/screen_utils.dart';
 import '../../utils/context_extensions.dart';
+import '../../utils/snackbar_utils.dart';
 import '../../utils/storage_utils.dart';
 import '../../utils/password_utils.dart';
 import '../../data/models/user.dart';
@@ -40,12 +41,7 @@ class _LoginPageState extends State<LoginPage> {
     final password = _passwordController.text;
 
     if (username.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.S.pleaseEnterUsernameAndPassword),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackbarUtils.error(context.S.pleaseEnterUsernameAndPassword, context);
       return;
     }
 
@@ -54,12 +50,7 @@ class _LoginPageState extends State<LoginPage> {
       User? foundUser = await userRepo.findByUserName(username);
 
       if (foundUser == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('用户名不存在'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarUtils.error('用户名不存在', context);
         return;
       }
 
@@ -68,12 +59,7 @@ class _LoginPageState extends State<LoginPage> {
         // 超级管理员只验证密码正确性，跳过所有其他安全检查
         bool isMatch = BCrypt.checkpw(password, foundUser.password);
         if (!isMatch) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('密码不正确'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          SnackbarUtils.error('密码不正确', context);
           return;
         }
 
@@ -86,12 +72,7 @@ class _LoginPageState extends State<LoginPage> {
         final isLocked = await userRepo.isAccountLocked(username);
         if (isLocked) {
           final lockMinutes = PasswordUtils.getLockMinutesRemaining(foundUser.lockUntil);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('账号已被锁定，请 $lockMinutes 分钟后再试'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          SnackbarUtils.error('账号已被锁定，请 $lockMinutes 分钟后再试', context);
           return;
         }
 
@@ -103,12 +84,7 @@ class _LoginPageState extends State<LoginPage> {
           final updatedUser = await userRepo.findByUserName(username);
           final remainingAttempts = PasswordUtils.maxLoginFailCount - (updatedUser?.loginFailCount ?? 0);
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('密码不正确，剩余尝试次数：$remainingAttempts'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          SnackbarUtils.error('密码不正确，剩余尝试次数：$remainingAttempts', context);
           return;
         }
 
@@ -123,12 +99,7 @@ class _LoginPageState extends State<LoginPage> {
                 onPasswordChanged: () {
                   Navigator.of(context).pop();
                   // 修改密码后重新登录
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('密码修改成功，请重新登录'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  SnackbarUtils.success('密码修改成功，请重新登录', context);
                   // 清空密码框
                   _passwordController.clear();
                 },
@@ -148,24 +119,14 @@ class _LoginPageState extends State<LoginPage> {
       StorageUtils.login(foundUser.toMap());
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('登录成功'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        SnackbarUtils.success('登录成功', context);
         // 通知父组件登录成功
         widget.onLoginSuccess();
       }
     } catch (e, stackTrace) {
       debugPrint(stackTrace.toString());
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('登录失败: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarUtils.error('登录失败: $e', context);
       }
     }
   }

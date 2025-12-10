@@ -184,14 +184,15 @@ class FileUtils {
   /// 显示文件操作对话框
   static Future<void> showFileActionDialog(
     BuildContext context, {
-    required String fileName,
-    required String filePath,
+      String title = '文件已下载',
+      required String fileName,
+      required String filePath,
   }) async {
     return showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('文件已下载'),
+          title: Text(title),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,

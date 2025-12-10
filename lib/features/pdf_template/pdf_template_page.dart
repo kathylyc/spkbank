@@ -191,16 +191,6 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
       return;
     }
 
-    // 显示下载中提示
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('正在下载: $fileName'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-
     try {
       // 从assets读取PDF文件
       final ByteData data = await rootBundle.load(assetPath);

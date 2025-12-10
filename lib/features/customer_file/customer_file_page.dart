@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:bank_flutter/utils/version_utils.dart';
 import 'package:excel/excel.dart' as excel;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
@@ -1646,16 +1647,6 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       return;
     }
 
-    // 显示导出中提示
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('正在导出: $fileName'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-
     try {
       // 使用FileManager处理相对路径
       final fullPath = await FileManager.getFullPath(filePath);
@@ -1681,6 +1672,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         // 显示文件操作对话框
         await FileUtils.showFileActionDialog(
           context,
+          title: '开户文件导出成功',
           fileName: fileName,
           filePath: savedPath,
         );

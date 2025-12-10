@@ -10,6 +10,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'common_const.dart';
+import 'file_utils.dart';
+import 'snackbar_utils.dart';
 
 /// 额外的Excel文件信息
 class ExtraExcelFile {
@@ -214,13 +216,6 @@ class ImportExportUtils {
   }) async {
     if (!context.mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('正在下载导入模板...'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-
     try {
       final downloadsDir = await getDownloadsDirectory();
       if (downloadsDir == null) {
@@ -234,44 +229,29 @@ class ImportExportUtils {
       final targetFile = File(targetPath);
 
       String finalPath = targetPath;
+      String finalFileName = '';
       if (await targetFile.exists()) {
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         final nameWithoutExt = p.basenameWithoutExtension(fileName);
         final ext = p.extension(fileName);
-        finalPath = p.join(downloadsDir.path, '${nameWithoutExt}_$timestamp$ext');
+        finalFileName = '${nameWithoutExt}_$timestamp$ext';
+        finalPath = p.join(downloadsDir.path, finalFileName);
       }
 
       await File(finalPath).writeAsBytes(bytes);
 
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('导入模板下载成功'),
-              const SizedBox(height: 4),
-              Text(
-                '保存为: ${p.basename(finalPath)}',
-                style: const TextStyle(fontSize: 12),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-        ),
+      // 显示文件操作对话框
+      await FileUtils.showFileActionDialog(
+        context,
+        title: '导入模板下载成功',
+        fileName: finalFileName,
+        filePath: p.basename(finalPath),
       );
     } catch (e) {
       debugPrint('下载导入模板失败: $e');
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('下载导入模板失败: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      SnackbarUtils.error('下载导入模板失败: $e', context);
     }
   }
 
@@ -305,12 +285,7 @@ class ImportExportUtils {
   }) async {
     if (data.isEmpty) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('当前没有可导出的数据'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        SnackbarUtils.warning('当前没有可导出的数据', context);
       }
       return;
     }
@@ -420,23 +395,12 @@ class ImportExportUtils {
       }
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(successMessage ?? '数据导出成功'),
-                const SizedBox(height: 4),
-                Text(
-                  'Excel 文件: $finalExcelName',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
+        // 显示文件操作对话框
+        await FileUtils.showFileActionDialog(
+          context,
+          title: successMessage ?? '数据导出成功',
+          fileName: finalExcelName,
+          filePath: targetExcelPath,
         );
       }
 
@@ -452,13 +416,7 @@ class ImportExportUtils {
       debugPrint('导出Excel数据失败: $errorMessage');
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('导出失败: $errorMessage'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+        SnackbarUtils.error('导出失败: $errorMessage', context);
       }
 
       // 调用错误回调
@@ -494,12 +452,7 @@ class ImportExportUtils {
   }) async {
     if (data.isEmpty) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('当前没有可导出的数据'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        SnackbarUtils.warning('当前没有可导出的数据', context);
       }
       return;
     }
@@ -676,23 +629,12 @@ class ImportExportUtils {
       }
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(successMessage ?? '数据导出成功'),
-                const SizedBox(height: 4),
-                Text(
-                  'ZIP 文件: ${p.basename(targetZipPath)}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
+        // 显示文件操作对话框
+        await FileUtils.showFileActionDialog(
+          context,
+          title: successMessage ?? '数据导出成功',
+          fileName: zipName,
+          filePath: p.basename(targetZipPath),
         );
       }
 
@@ -707,12 +649,7 @@ class ImportExportUtils {
       }
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('导出失败: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarUtils.error('导出失败: $e', context);
       }
 
       onError?.call(e.toString());
@@ -768,12 +705,7 @@ class ImportExportUtils {
       final String? excelFilePath = selectedFile.path;
       if (excelFilePath == null) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('无法获取文件路径，请重试'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          SnackbarUtils.error('无法获取文件路径，请重试', context);
         }
         return;
       }
@@ -781,12 +713,7 @@ class ImportExportUtils {
       final excelFile = File(excelFilePath);
       if (!await excelFile.exists()) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('文件不存在，请重新选择'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          SnackbarUtils.error('文件不存在，请重新选择', context);
         }
         return;
       }
@@ -833,13 +760,7 @@ class ImportExportUtils {
 
           if (context.mounted) {
             hideLoadingDialog(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(validationError),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 3),
-              ),
-            );
+            SnackbarUtils.error(validationError, context);
           }
           onError?.call(validationError);
           return;
@@ -868,13 +789,7 @@ class ImportExportUtils {
 
         if (context.mounted) {
           hideLoadingDialog(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMessage),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          SnackbarUtils.error(errorMessage, context);
         }
         onError?.call(errorMessage);
         return;
@@ -895,13 +810,7 @@ class ImportExportUtils {
       // 关闭加载对话框
       if (context.mounted) {
         hideLoadingDialog(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(processResult.errMsg ?? '导入成功'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        SnackbarUtils.success(processResult.errMsg ?? '导入成功', context);
       }
 
       onSuccess?.call(processResult.errMsg);
@@ -912,12 +821,7 @@ class ImportExportUtils {
       // 关闭加载对话框（如果还在显示）
       if (context.mounted) {
         hideLoadingDialog(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('导入失败: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarUtils.error('导入失败: $e', context);
       }
 
       onError?.call(e.toString());
@@ -958,12 +862,7 @@ class ImportExportUtils {
       final String? zipFilePath = selectedFile.path;
       if (zipFilePath == null) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('无法获取文件路径，请重试'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          SnackbarUtils.error('无法获取文件路径，请重试', context);
         }
         return;
       }
@@ -971,12 +870,7 @@ class ImportExportUtils {
       final zipFile = File(zipFilePath);
       if (!await zipFile.exists()) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('文件不存在，请重新选择'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          SnackbarUtils.error('文件不存在，请重新选择', context);
         }
         return;
       }
@@ -1076,13 +970,7 @@ class ImportExportUtils {
 
           if (context.mounted) {
             hideLoadingDialog(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('非标准压缩包，不支持导入1'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 3),
-              ),
-            );
+            SnackbarUtils.error('非标准压缩包，不支持导入1', context);
           }
           onError?.call('非标准压缩包，不支持导入1');
           return;
@@ -1106,13 +994,7 @@ class ImportExportUtils {
 
             if (context.mounted) {
               hideLoadingDialog(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(validationError),
-                  backgroundColor: Colors.red,
-                  duration: const Duration(seconds: 3),
-                ),
-              );
+              SnackbarUtils.error(validationError, context);
             }
             onError?.call(validationError);
             return;
@@ -1141,13 +1023,7 @@ class ImportExportUtils {
 
           if (context.mounted) {
             hideLoadingDialog(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(errorMessage),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 3),
-              ),
-            );
+            SnackbarUtils.error(errorMessage, context);
           }
           onError?.call(errorMessage);
           return;
@@ -1168,13 +1044,7 @@ class ImportExportUtils {
         // 关闭加载对话框
         if (context.mounted) {
           hideLoadingDialog(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result.errMsg ?? '导入成功'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          SnackbarUtils.success(result.errMsg ?? '导入成功', context);
         }
 
         onSuccess?.call(result.errMsg);
@@ -1205,13 +1075,7 @@ class ImportExportUtils {
             : e.toString();
 
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('解压失败: $errorMessage'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          SnackbarUtils.error('解压失败: $errorMessage', context);
         }
 
         onError?.call(errorMessage);
@@ -1223,12 +1087,7 @@ class ImportExportUtils {
       // 关闭加载对话框（如果还在显示）
       if (context.mounted) {
         hideLoadingDialog(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('导入失败: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarUtils.error('导入失败: $e', context);
       }
 
       onError?.call(e.toString());

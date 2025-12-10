@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../../data/models/user.dart';
 import '../../data/repositories/user_repository.dart';
 import '../../utils/dialog_utils.dart';
+import '../../utils/snackbar_utils.dart';
 import '../../utils/storage_utils.dart';
 
 class AccountManagerAddPage extends StatefulWidget {
@@ -137,9 +138,7 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
         final existing = await _userRepository.findByUserName(managerAccount);
         if (existing != null) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('客户经理编号已存在')),
-          );
+          SnackbarUtils.error('客户经理编号已存在', context);
           setState(() {
             _isSaving = false;
           });
@@ -155,12 +154,7 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
         );
         if (phoneExists) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('客户经理手机号已存在，请使用其他手机号'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          SnackbarUtils.error('客户经理手机号已存在，请使用其他手机号', context);
           setState(() {
             _isSaving = false;
           });
@@ -204,9 +198,7 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
 
       if (!mounted) return;
       if (_isRegisterMode) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('注册成功')),
-        );
+        SnackbarUtils.success('注册成功', context);
         Navigator.of(context).pop(true);
       } else {
         Navigator.of(context).pop(true);
@@ -214,9 +206,8 @@ class _AccountManagerAddPageState extends State<AccountManagerAddPage> {
     } catch (error, stackTrace) {
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_isRegisterMode ? '注册失败: $error' : '保存失败: $error')),
-      );
+      final message = _isRegisterMode ? '注册失败: $error' : '保存失败: $error';
+      SnackbarUtils.error(message, context);
       setState(() {
         _isSaving = false;
       });
