@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui show Image, ImageByteFormat;
+import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -968,9 +969,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         targetCustomerUid == null ||
         _originalPdfBytes == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('无法保存：缺少必要的信息')),
-        );
+        SnackbarUtils.error('无法保存：缺少必要的信息', context);
       }
       return;
     }
@@ -978,9 +977,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
     try {
       // 显示保存提示
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('正在保存开户文件...')),
-        );
+        SnackbarUtils.normal('正在保存开户文件...', context);
       }
 
       // 获取登录用户
@@ -1117,21 +1114,14 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         successMessage += '，已自动创建未签署备份版本';
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(successMessage),
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      SnackbarUtils.success(successMessage, context);
 
       // 保存成功后返回上一页
       Navigator.of(context).pop(true); // 传递 true 表示保存成功，可以用于刷新列表
     } catch (e, stackTrace) {
       debugPrintStack(stackTrace: stackTrace);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('保存失败: $e')),
-        );
+        SnackbarUtils.error('保存失败: $e', context);
       }
       debugPrint('保存PDF失败: $e');
     } finally {
@@ -1643,9 +1633,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   Future<void> _showCustomSignatureDialog(PdfSignatureField signatureField) async {
     if (_currentDocument == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('文档未加载完成')),
-        );
+        SnackbarUtils.normal('文档未加载完成', context);
       }
       return;
     }
@@ -1883,27 +1871,18 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                               
                               // 显示成功提示
                               if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('签名已保存'),
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
+                                SnackbarUtils.success('签名已保存', context);
                               }
                             } catch (e) {
                               debugPrint('⚠ 设置签名失败: $e');
                               if (mounted && dialogContext.mounted) {
-                                ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                  SnackBar(content: Text('保存签名失败: $e')),
-                                );
+                                SnackbarUtils.error('保存签名失败: $e', dialogContext);
                               }
                             }
                           } catch (e) {
                             debugPrint('⚠ 保存签名时出错: $e');
                             if (mounted && dialogContext.mounted) {
-                              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                SnackBar(content: Text('保存签名失败: $e')),
-                              );
+                              SnackbarUtils.error('保存签名失败: $e', dialogContext);
                             }
                           }
                         },
@@ -2268,12 +2247,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                       debugPrint('PDF文档加载出错，error= ${details.error}, description= ${details.description}');
                       // 显示错误提示
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('PDF加载失败: ${details.description}'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
+                        SnackbarUtils.error('PDF加载失败: ${details.description}', context);
                       }
                     },
                     onPageChanged: (details) {

@@ -201,9 +201,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         _isLoading = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('加载数据失败: $e')),
-        );
+        SnackbarUtils.error('加载数据失败: $e', context);
       }
     }
   }
@@ -1421,18 +1419,14 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     
     if (accountFileUid == null || accountFileUid.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('开户文件编号不能为空')),
-        );
+        SnackbarUtils.error('开户文件编号不能为空', context);
       }
       return;
     }
 
     if (fileVersion == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('文件版本号不能为空')),
-        );
+        SnackbarUtils.error('文件版本号不能为空', context);
       }
       return;
     }
@@ -1457,17 +1451,13 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已生效: ${row['fileName']}（版本 $fileVersion）')),
-        );
+        SnackbarUtils.success('已生效: ${row['fileName']}（版本 $fileVersion）', context);
         // 刷新数据
         _loadData();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('生效失败: $e')),
-        );
+        SnackbarUtils.error('生效失败: $e', context);
       }
     }
   }
@@ -1585,16 +1575,12 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
                         try {
                           await _repository.deleteByAccountFileUidAndVersion(accountFileUid, fileVersion);
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('已删除: ${row['fileName']}')),
-                            );
+                            SnackbarUtils.success('已删除: ${row['fileName']}', context);
                             _loadData();
                           }
                         } catch (e) {
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('删除失败: $e')),
-                            );
+                            SnackbarUtils.error('删除失败: $e', context);
                           }
                         }
                       }
@@ -1637,12 +1623,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
 
     if (baseFileName.isEmpty || filePath == null || filePath.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('文件路径不存在'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarUtils.error('文件路径不存在', context);
       }
       return;
     }
@@ -1680,13 +1661,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     } catch (e) {
       debugPrint('导出文件失败: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('导出失败: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        SnackbarUtils.error('导出失败: $e', context);
       }
     }
   }

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:bank_flutter/utils/version_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -99,9 +100,7 @@ class _CustomerFileAddPicturePageState extends State<CustomerFileAddPicturePage>
         _isLoadingCustomers = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('加载客户列表失败: $e')),
-        );
+        SnackbarUtils.error('加载客户列表失败: $e', context);
       }
     }
   }
@@ -177,9 +176,7 @@ class _CustomerFileAddPicturePageState extends State<CustomerFileAddPicturePage>
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('拍照失败: $e')),
-        );
+        SnackbarUtils.error('拍照失败: $e', context);
       }
     }
   }
@@ -240,38 +237,18 @@ class _CustomerFileAddPicturePageState extends State<CustomerFileAddPicturePage>
   /// 生成开户文件
   Future<void> _handleGenerateFile() async {
     if (_selectedCustomerUid == null || _fileNameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请完整填写所有必填项')),
-      );
+      SnackbarUtils.normal('请完整填写所有必填项', context);
       return;
     }
 
     if (_imagePaths.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请至少拍摄一张图片')),
-      );
+      SnackbarUtils.normal('请至少拍摄一张图片', context);
       return;
     }
 
     try {
       // 显示加载提示
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              SizedBox(width: 16),
-              Text('正在生成PDF文件...'),
-            ],
-          ),
-          duration: Duration(seconds: 5),
-        ),
-      );
 
       // 创建PDF文档
       final PdfDocument document = PdfDocument();
@@ -367,18 +344,14 @@ class _CustomerFileAddPicturePageState extends State<CustomerFileAddPicturePage>
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('开户文件保存成功')),
-      );
+      SnackbarUtils.success('开户文件保存成功', context);
 
       // 返回上一页
       Navigator.of(context).pop(true);
     } catch (e, stackTrace) {
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存开户文件失败: $e')),
-      );
+      SnackbarUtils.error('保存开户文件失败: $e', context);
     }
   }
 

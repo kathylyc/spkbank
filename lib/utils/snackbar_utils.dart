@@ -283,7 +283,7 @@ class SnackbarUtils {
       context,
       backgroundColor: const Color(0xFFFF9800),
       textColor: Colors.white,
-      icon: Icons.warning,
+      icon: Icons.info,
       duration: duration,
     );
   }
@@ -297,8 +297,8 @@ class SnackbarUtils {
     _showSnackbar(
       message,
       context,
-      backgroundColor: const Color(0xFFF2F3FA),
-      textColor: Colors.black,
+      backgroundColor: const Color(0xFF2296F3),
+      textColor: Colors.white,
       icon: Icons.info,
       duration: duration,
     );

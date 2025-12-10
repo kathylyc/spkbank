@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:bank_flutter/utils/version_utils.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -118,9 +119,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
         _isLoadingCustomers = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('加载客户列表失败: $e')),
-        );
+        SnackbarUtils.error('加载客户列表失败: $e', context);
       }
     }
   }
@@ -218,16 +217,12 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
     dynamic fileNameController = isTemplateTab ? _fileNameController1 : _fileNameController2;
 
     if (_selectedCustomerUid == null || _selectedTemplateId == null || fileNameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请完整填写所有必填项')),
-      );
+      SnackbarUtils.normal('请完整填写所有必填项', context);
       return;
     }
     
     if (_customers.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('客户列表为空')),
-      );
+      SnackbarUtils.normal('客户列表为空', context);
       return;
     }
     
@@ -237,9 +232,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
     );
     
     if (_allPdfData.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('模板列表为空')),
-      );
+      SnackbarUtils.normal('模板列表为空', context);
       return;
     }
     
@@ -289,9 +282,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
     dynamic fileNameController = isTemplateTab ? _fileNameController1 : _fileNameController2;
 
     if (_selectedCustomerUid == null || fileNameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请完整填写所有必填项')),
-      );
+      SnackbarUtils.normal('请完整填写所有必填项', context);
       return;
     }
     
@@ -302,9 +293,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
     if (isTemplateTab) {
       // 模板生成Tab：需要选择模板
       if (_selectedTemplateId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请选择模板文件')),
-        );
+        SnackbarUtils.normal('请选择模板文件', context);
         return;
       }
       final templateIndex = _allPdfData.indexWhere(
@@ -317,9 +306,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
       // 从模板信息中获取 signCode
       templateSignCode = template['signCode'] as String?;
       if (templateSignCode == null || templateSignCode.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('模板签名代码不能为空')),
-        );
+        SnackbarUtils.error('模板签名代码不能为空', context);
         return;
       }
       // 从assets加载文件到临时目录
@@ -331,25 +318,19 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
         await tempFile.writeAsBytes(data.buffer.asUint8List());
         sourceFilePath = tempPath;
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('加载模板文件失败: $e')),
-        );
+        SnackbarUtils.error('加载模板文件失败: $e', context);
         return;
       }
     } else {
       // 上传PDF Tab：需要上传PDF文件
       if (_selectedPdfPath == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请上传PDF文件')),
-        );
+        SnackbarUtils.normal('请上传PDF文件', context);
         return;
       }
       // 使用从PDF中读取的signCode
       templateSignCode = _pdfSignCode;
       if (templateSignCode == null || templateSignCode.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PDF文件验证失败，请重新选择')),
-        );
+        SnackbarUtils.normal('PDF文件验证失败，请重新选择', context);
         return;
       }
       sourceFilePath = _selectedPdfPath;
@@ -357,17 +338,13 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
     }
     
     if (sourceFilePath == null || templateName == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('文件路径或模板名称为空')),
-      );
+      SnackbarUtils.normal('文件路径或模板名称为空', context);
       return;
     }
     
     try {
       // 显示加载提示
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('正在保存开户文件...')),
-      );
+      SnackbarUtils.normal('正在保存开户文件...', context);
       
       // 获取登录用户
       final loginUser = await StorageUtils.getLoginUser();
@@ -450,19 +427,15 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
       await _repository.addAccountFile(accountFile);
       
       if (!mounted) return;
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('开户文件保存成功')),
-      );
+
+      SnackbarUtils.success('开户文件保存成功', context);
       
       // 返回上一页
       Navigator.of(context).pop(true);
     } catch (e, stackTrace) {
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存开户文件失败: $e')),
-      );
+      SnackbarUtils.error('保存开户文件失败: $e', context);
     }
   }
 
@@ -481,17 +454,13 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
       final String? path = selected.path;
       if (path == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('无法获取文件路径，请重试')),
-          );
+          SnackbarUtils.normal('无法获取文件路径，请重试', context);
         }
         return;
       }
       if (!await File(path).exists()) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('文件不存在，请重新选择')),
-          );
+          SnackbarUtils.normal('文件不存在，请重新选择', context);
         }
         return;
       }
@@ -582,9 +551,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
         // 验证signCode
         if (signCodeFromPdf == null || signCodeFromPdf.isEmpty) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('PDF文件不合法：未找到signCode表单域'), backgroundColor: Colors.red,),
-            );
+            SnackbarUtils.error('PDF文件不合法：未找到signCode表单域', context);
           }
           document.dispose();
           return;
@@ -601,9 +568,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
 
         if (!isValidSignCode) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('PDF文件不合法：signCode "$signCodeFromPdf" 不在允许的模板列表中'), backgroundColor: Colors.red,),
-            );
+            SnackbarUtils.error('PDF文件不合法：signCode "$signCodeFromPdf" 不在允许的模板列表中', context);
           }
           document.dispose();
           return;
@@ -623,9 +588,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
         await closeLoadingDialog();
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('读取PDF文件失败: $e'), backgroundColor: Colors.red,),
-          );
+          SnackbarUtils.error('读取PDF文件失败: $e', context);
         }
       }
     } catch (error, stackTrace) {
@@ -641,9 +604,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
         }
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('选择文件失败: $error'), backgroundColor: Colors.red,),
-        );
+        SnackbarUtils.error('选择文件失败: $error', context);
       }
     }
   }
