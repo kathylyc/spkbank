@@ -214,30 +214,58 @@ class SnackbarUtils {
     // 隐藏当前的 SnackBar
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
-    // 使用自定义的 Overlay 方式创建更明显的动画效果
-    final overlay = Overlay.of(context);
-    late OverlayEntry overlayEntry;
-
-    overlayEntry = OverlayEntry(
-      builder: (context) => Material(
-        color: Colors.transparent,
-        child: Stack(
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
           children: [
-            AnimatedSnackBar(
-              message: message,
-              icon: icon,
-              backgroundColor: backgroundColor,
-              textColor: textColor,
-              onAnimationComplete: () {
-                overlayEntry.remove();
-              },
+            if (icon != null) ...[
+              Icon(
+                icon,
+                color: textColor,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 14,
+                ),
+              ),
             ),
           ],
         ),
-      ),
+        backgroundColor: backgroundColor,
+        duration: duration,
+      )
     );
 
-    overlay.insert(overlayEntry);
+    // // 使用自定义的 Overlay 方式创建更明显的动画效果
+    // final overlay = Overlay.of(context);
+    // late OverlayEntry overlayEntry;
+    //
+    // overlayEntry = OverlayEntry(
+    //   builder: (context) => Material(
+    //     color: Colors.transparent,
+    //     child: Stack(
+    //       children: [
+    //         AnimatedSnackBar(
+    //           message: message,
+    //           icon: icon,
+    //           backgroundColor: backgroundColor,
+    //           textColor: textColor,
+    //           onAnimationComplete: () {
+    //             overlayEntry.remove();
+    //           },
+    //         ),
+    //       ],
+    //     ),
+    //   ),
+    // );
+    //
+    // overlay.insert(overlayEntry);
   }
 
   /// 显示成功消息（绿色）
