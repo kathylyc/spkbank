@@ -43,6 +43,12 @@ class CommonDataTablePage extends StatefulWidget {
   /// 是否禁用外层容器padding（用于在dashboard等已有padding的容器中使用）
   final bool disableOuterPadding;
 
+  /// 横向滚动条样式配置（已弃用，请使用 scrollBarConfig）
+  final ScrollBarStyle? scrollBarStyle;
+
+  /// 滚动条配置
+  final ScrollBarConfig? scrollBarConfig;
+
   const CommonDataTablePage({
     super.key,
     required this.querySection,
@@ -58,6 +64,8 @@ class CommonDataTablePage extends StatefulWidget {
     this.onSelectionChanged,
     this.columnWidths,
     this.disableOuterPadding = false,
+    this.scrollBarStyle, // 保留以向后兼容
+    this.scrollBarConfig,
   });
 
   @override
@@ -347,7 +355,7 @@ class _CommonDataTablePageState extends State<CommonDataTablePage> {
       ),
       child: Column(
         children: [
-          // 固定表头
+          // 固定表头 - 不显示滚动条
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             controller: _headerScrollController,
@@ -362,13 +370,12 @@ class _CommonDataTablePageState extends State<CommonDataTablePage> {
               child: _buildTableHeaderContent(),
             ),
           ),
-          
-          // 可滚动数据体
+
+          // 可滚动数据体 - 显示自定义滚动条
           Expanded(
-            child: SingleChildScrollView(
+            child: _buildCustomScrollBar(
               scrollDirection: Axis.horizontal,
               controller: _bodyScrollController,
-              physics: const ClampingScrollPhysics(),
               child: SingleChildScrollView(
                 scrollDirection: Axis.vertical,
                 child: _buildTableBodyContent(),
@@ -379,7 +386,80 @@ class _CommonDataTablePageState extends State<CommonDataTablePage> {
       ),
     );
   }
-  
+  /// 构建自定义滚动条
+  Widget _buildCustomScrollBar({
+    required Axis scrollDirection,
+    required ScrollController controller,
+    required Widget child,
+  }) {
+    // 优先使用新的 ScrollBarConfig，如果为空则使用旧的 ScrollBarStyle 向后兼容
+    final scrollBarConfig = widget.scrollBarConfig;
+    final scrollBarStyle = widget.scrollBarStyle;
+
+    // 如果都为空，使用默认配置
+    final effectiveConfig = scrollBarConfig ?? ScrollBarConfig.defaultConfig;
+
+    // 向后兼容：如果只传了旧的 scrollBarStyle，转换为新的配置
+    Color? thumbColor = effectiveConfig.thumbColor;
+    Color? trackColor = effectiveConfig.backgroundColor;
+    double? thickness = effectiveConfig.height;
+    BorderRadius? borderRadius = effectiveConfig.borderRadius;
+    EdgeInsets? margin = effectiveConfig.margin;
+    bool alwaysShow = effectiveConfig.alwaysShow;
+    double? minThumbLength = effectiveConfig.thumbMinLength;
+
+    // 如果有旧的 scrollBarStyle 配置，且新配置为空或默认值，则使用旧配置覆盖
+    if (scrollBarStyle != null && scrollBarConfig == null) {
+      thumbColor = thumbColor ?? scrollBarStyle.thumbColor;
+      trackColor = trackColor ?? scrollBarStyle.trackColor;
+      thickness = thickness ?? scrollBarStyle.thickness;
+      borderRadius = borderRadius ?? scrollBarStyle.borderRadius;
+      margin = margin ?? scrollBarStyle.margin;
+      alwaysShow = alwaysShow || scrollBarStyle.alwaysShow;
+      minThumbLength = minThumbLength ?? scrollBarStyle.minThumbLength;
+    }
+
+    // 计算滚动条圆角半径
+    final radius = borderRadius != null
+        ? borderRadius.topLeft
+        : const Radius.circular(4.0);
+
+    return ScrollbarTheme(
+      data: ScrollbarThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.pressed) || states.contains(WidgetState.dragged)) {
+            return (thumbColor ?? Colors.grey).withValues(alpha: 0.8);
+          }
+          return thumbColor;
+        }),
+        trackColor: WidgetStateProperty.all(trackColor),
+        thickness: WidgetStateProperty.all(thickness),
+        radius: radius,
+        mainAxisMargin: margin?.horizontal ?? 0,
+        crossAxisMargin: margin?.vertical ?? 0,
+        trackBorderColor: WidgetStateProperty.all(Colors.transparent),
+        trackVisibility: WidgetStateProperty.all(true),
+        thumbVisibility: WidgetStateProperty.all(true),
+        minThumbLength: minThumbLength,
+      ),
+      child: Scrollbar(
+        controller: controller,
+        thumbVisibility: alwaysShow,
+        scrollbarOrientation: scrollDirection == Axis.horizontal
+            ? ScrollbarOrientation.bottom
+            : ScrollbarOrientation.right,
+        thickness: thickness ?? 8.0,
+        radius: radius,
+        child: SingleChildScrollView(
+          scrollDirection: scrollDirection,
+          controller: controller,
+          physics: const ClampingScrollPhysics(),
+          child: child,
+        ),
+      ),
+    );
+  }
+
   /// 构建表头内容
   Widget _buildTableHeaderContent() {
     return Row(
@@ -640,5 +720,141 @@ class DataTableColumn {
     required this.builder,
     this.width,
   });
+}
+
+/// 滚动条配置（新增的简化配置方式）
+class ScrollBarConfig {
+  /// 滑块颜色
+  final Color? thumbColor;
+
+  /// 滑块最小长度（像素）
+  final double? thumbMinLength;
+
+  /// 滚动条背景色（轨道颜色）
+  final Color? backgroundColor;
+
+  /// 滚动条高度/厚度（像素）
+  final double? height;
+
+  /// 是否常驻显示
+  final bool alwaysShow;
+
+  /// 滚动条圆角
+  final BorderRadius? borderRadius;
+
+  /// 滚动条边距
+  final EdgeInsets? margin;
+
+  const ScrollBarConfig({
+    this.thumbColor,
+    this.thumbMinLength,
+    this.backgroundColor,
+    this.height,
+    this.alwaysShow = true,
+    this.borderRadius,
+    this.margin,
+  });
+
+  /// 默认滚动条配置
+  static const ScrollBarConfig defaultConfig = ScrollBarConfig(
+    thumbColor: Colors.grey,
+    thumbMinLength: 48.0,
+    backgroundColor: Colors.transparent,
+    height: 8.0,
+    alwaysShow: true,
+    borderRadius: BorderRadius.all(Radius.circular(4.0)),
+  );
+
+  /// 蓝色主题滚动条配置
+  static const ScrollBarConfig blueConfig = ScrollBarConfig(
+    thumbColor: Color(0xFF2196F3),
+    thumbMinLength: 48.0,
+    backgroundColor: Color(0xFFF0F0F0),
+    height: 10.0,
+    alwaysShow: true,
+    borderRadius: BorderRadius.all(Radius.circular(8.0)),
+    margin: EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+  );
+
+  /// 橙色数据密集型滚动条配置
+  static const ScrollBarConfig orangeConfig = ScrollBarConfig(
+    thumbColor: Colors.orange,
+    thumbMinLength: 64.0,
+    backgroundColor: Colors.grey,
+    height: 12.0,
+    alwaysShow: true,
+    borderRadius: BorderRadius.all(Radius.circular(6.0)),
+    margin: EdgeInsets.symmetric(horizontal: 1, vertical: 1),
+  );
+}
+
+/// 滚动条样式配置（已弃用，请使用 ScrollBarConfig）
+class ScrollBarStyle {
+  /// 滚动条颜色
+  final Color? thumbColor;
+
+  /// 滚动条轨道颜色
+  final Color? trackColor;
+
+  /// 滚动条厚度
+  final double? thickness;
+
+  /// 滚动条圆角
+  final BorderRadius? borderRadius;
+
+  /// 滚动条边距
+  final EdgeInsets? margin;
+
+  /// 是否始终显示滚动条
+  final bool alwaysShow;
+
+  /// 滚动条最小长度
+  final double? minThumbLength;
+
+  /// 滚动条主轴对齐方式
+  final MainAxisSize? mainAxisSize;
+
+  const ScrollBarStyle({
+    this.thumbColor,
+    this.trackColor,
+    this.thickness,
+    this.borderRadius,
+    this.margin,
+    this.alwaysShow = false,
+    this.minThumbLength,
+    this.mainAxisSize,
+  });
+
+  /// 默认滚动条样式
+  static const ScrollBarStyle defaultStyle = ScrollBarStyle(
+    thumbColor: Colors.grey,
+    trackColor: Colors.transparent,
+    thickness: 8.0,
+    alwaysShow: true, // 修改为始终显示
+    minThumbLength: 48.0,
+    borderRadius: BorderRadius.all(Radius.circular(4.0)),
+  );
+
+  /// 自定义蓝色滚动条样式
+  static const ScrollBarStyle blueStyle = ScrollBarStyle(
+    thumbColor: Color(0xFF2196F3),
+    trackColor: Color(0xFFF0F0F0),
+    thickness: 10.0,
+    alwaysShow: true,
+    minThumbLength: 48.0,
+    borderRadius: BorderRadius.all(Radius.circular(8.0)),
+    margin: EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+  );
+
+  /// 自定义橙色滚动条样式（适用于数据密集型表格）
+  static const ScrollBarStyle orangeStyle = ScrollBarStyle(
+    thumbColor: Colors.orange,
+    trackColor: Colors.grey,
+    thickness: 12.0,
+    alwaysShow: true,
+    minThumbLength: 64.0,
+    borderRadius: BorderRadius.all(Radius.circular(6.0)),
+    margin: EdgeInsets.symmetric(horizontal: 1, vertical: 1),
+  );
 }
 

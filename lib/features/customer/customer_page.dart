@@ -1001,7 +1001,7 @@ class _CustomerPageState extends State<CustomerPage> {
             builder: (row, context) => Text(row['groupCode']),
           ),
         DataTableColumn(
-          label: '客户经理编码',
+          label: '客户经理编号',
           builder: (row, context) => Text(row['managerCode']),
         ),
         DataTableColumn(

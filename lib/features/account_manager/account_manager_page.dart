@@ -527,7 +527,7 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
         //   builder: (row, context) => Text(row['id'].toString()),
         // ),
         DataTableColumn(
-          label: '客户经理编码',
+          label: '客户经理编号',
           builder: (row, context) => Text(row['managerCode']),
         ),
         DataTableColumn(
