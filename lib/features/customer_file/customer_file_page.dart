@@ -417,7 +417,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         '文件版本',
         '文件路径',
         '签署状态',
-        '开户方式',
+        '文件类型',
         '使用模板',
         '模板编码',
         '客户经理编号'
@@ -948,7 +948,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         '文件版本',
         '文件路径',
         '签署状态',
-        '开户方式',
+        '文件类型',
         '使用模板',
         '模板编码',
         '客户经理编号'
@@ -1053,7 +1053,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         sheet
             .cell(excel.CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIndex))
             .value = excel.TextCellValue(statusText);
-        // 开户方式
+        // 文件类型
         sheet
             .cell(excel.CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex))
             .value = excel.TextCellValue(rowData['file_src_type']?.toString() ?? '');
@@ -1146,7 +1146,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           builder: (row, context) => _buildEnableStatusBadge(row['enableStatus']),
         ),
         DataTableColumn(
-          label: '开户方式',
+          label: '文件类型',
           builder: (row, context) => Text(row['file_src_type']?.toString() ?? ''),
         ),
         DataTableColumn(
