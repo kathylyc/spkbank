@@ -9,6 +9,7 @@ import 'package:excel/excel.dart' as excel;
 import '../../data/models/user.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/user_repository.dart';
+import '../../utils/excel_utils.dart';
 import '../../utils/file_manager.dart';
 import '../../utils/import_export_utils.dart';
 import '../../utils/password_utils.dart';
@@ -299,7 +300,9 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
   Future<String?> _validateManagerExcelFile(File excelFile) async {
     try {
       final excelBytes = await excelFile.readAsBytes();
-      final excelBook = excel.Excel.decodeBytes(excelBytes);
+      // 修复模板文件中的 numFmtId 问题
+      final excelBook = ExcelUtils.decodeBytesOrFixExcelNumFmtIdIfNeed(excelBytes);
+
       final sheetName = excelBook.tables.isNotEmpty
           ? excelBook.tables.keys.first
           : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : null);
@@ -336,7 +339,8 @@ class _AccountManagerPageState extends State<AccountManagerPage> {
   /// 处理客户经理Excel数据
   Future<Result> _processManagerExcelData(File excelFile, String importDirPath) async {
     final excelBytes = await excelFile.readAsBytes();
-    final excelBook = excel.Excel.decodeBytes(excelBytes);
+    // 修复模板文件中的 numFmtId 问题
+    final excelBook = ExcelUtils.decodeBytesOrFixExcelNumFmtIdIfNeed(excelBytes);
     final sheetName = excelBook.tables.isNotEmpty
         ? excelBook.tables.keys.first
         : (excelBook.sheets.isNotEmpty ? excelBook.sheets.keys.first : null);
