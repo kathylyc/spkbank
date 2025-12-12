@@ -955,10 +955,10 @@ class _CustomerPageState extends State<CustomerPage> {
           label: '新增客户',
           onPressed: _handleAddCustomer,
         ),
-        ActionButton(
-          label: '下载导入模板',
-          onPressed: _handleDownloadTemplate,
-        ),
+        // ActionButton(
+        //   label: '下载导入模板',
+        //   onPressed: _handleDownloadTemplate,
+        // ),
         ActionButton(
           label: '导入客户',
           onPressed: _handleImportCustomer,
