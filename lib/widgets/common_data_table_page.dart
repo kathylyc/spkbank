@@ -442,19 +442,24 @@ class _CommonDataTablePageState extends State<CommonDataTablePage> {
         thumbVisibility: WidgetStateProperty.all(true),
         minThumbLength: minThumbLength,
       ),
-      child: Scrollbar(
-        controller: controller,
-        thumbVisibility: alwaysShow,
-        scrollbarOrientation: scrollDirection == Axis.horizontal
-            ? ScrollbarOrientation.bottom
-            : ScrollbarOrientation.right,
-        thickness: thickness ?? 8.0,
-        radius: radius,
-        child: SingleChildScrollView(
-          scrollDirection: scrollDirection,
+      child: MediaQuery.removePadding(
+        context: context,
+        removeBottom: scrollDirection == Axis.horizontal,
+        removeRight: scrollDirection == Axis.vertical,
+        child: Scrollbar(
           controller: controller,
-          physics: const ClampingScrollPhysics(),
-          child: child,
+          thumbVisibility: alwaysShow,
+          scrollbarOrientation: scrollDirection == Axis.horizontal
+              ? ScrollbarOrientation.bottom
+              : ScrollbarOrientation.right,
+          thickness: thickness ?? 8.0,
+          radius: radius,
+          child: SingleChildScrollView(
+            scrollDirection: scrollDirection,
+            controller: controller,
+            physics: const ClampingScrollPhysics(),
+            child: child,
+          ),
         ),
       ),
     );
