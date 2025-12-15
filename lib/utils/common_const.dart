@@ -20,16 +20,63 @@ class ConstSignatureStatus  {
   static const notSigned = 2;// 未签署
 }
 
+/// PDF表单字段默认值配置
+class PdfFormFieldDefault {
+  const PdfFormFieldDefault({
+    required this.fieldName,
+    required this.customerProperty,
+    this.defaultValue,
+    this.fieldType = 'text',
+  });
+
+  /// 表单字段名称
+  final String fieldName;
+
+  /// 对应的客户信息属性 (如: 'customerName', 'idCardNumber', 'phoneNumber')
+  final String customerProperty;
+
+  /// 静态默认值 (当无法从客户信息获取时使用)
+  final String? defaultValue;
+
+  /// 字段类型 ('text', 'combobox', 'checkbox')
+  final String fieldType;
+}
+
+/// PDF表单字段配置类
+class PdfFormConfig {
+  const PdfFormConfig({
+    this.fieldDefaults,
+  });
+
+  /// 字段默认值配置列表
+  final List<PdfFormFieldDefault>? fieldDefaults;
+
+  /// 根据字段名获取默认值配置
+  PdfFormFieldDefault? getFieldConfig(String fieldName) {
+    if (fieldDefaults == null) return null;
+
+    try {
+      return fieldDefaults!.firstWhere((config) => config.fieldName == fieldName);
+    } catch (e) {
+      return null;
+    }
+  }
+}
+
 class PdfTemplateInfo {
   const PdfTemplateInfo({
     required this.signCode,
     required this.assetsPath,
     required this.signFields,
+    this.formConfig,
   });
 
   final String signCode;
   final String assetsPath;
   final List<String>? signFields;
+
+  /// 表单字段配置
+  final PdfFormConfig? formConfig;
 
   String get fileName {
     if (assetsPath.isEmpty) {
@@ -44,7 +91,7 @@ const Map<String, PdfTemplateInfo> ConstPdfTemplateMap = {
   "1": PdfTemplateInfo(
       signCode: '265xxaq545a2xq6x',
       assetsPath: 'assets/pdf/Account Mandate for BusinessAccount_201908.pdf',
-      signFields: ['Signature1', 'Signature2'],
+      signFields: ['Signature1', 'Signature2']
   ),
   "2": PdfTemplateInfo(
       signCode: 'x8q8a3d9dz771ds6',
@@ -55,6 +102,23 @@ const Map<String, PdfTemplateInfo> ConstPdfTemplateMap = {
       signCode: 'fd50f3s9a15wagf3',
       assetsPath: 'assets/pdf/Appendix M (10) CustomerDeclaration and Undertaking in respect of Tax Evasion.pdf',
       signFields: ['Signature1', 'Signature2'],
+      // formConfig: PdfFormConfig(
+      //   fieldDefaults: [
+      //     PdfFormFieldDefault(
+      //       fieldName: 'directorName',
+      //       customerProperty: 'customerName',
+      //     ),
+      //     // PdfFormFieldDefault(
+      //     //   fieldName: 'companyName',
+      //     //   customerProperty: 'company',
+      //     // ),
+      //     // PdfFormFieldDefault(
+      //     //   fieldName: 'Email Address',
+      //     //   customerProperty: '', // 空字符串表示不从客户信息获取
+      //     //   defaultValue: 'XXXXXXXXXXX',
+      //     // ),
+      //   ],
+      // ),
   ),
   "4": PdfTemplateInfo(
       signCode: 'ds26dsvxv52a22cs',

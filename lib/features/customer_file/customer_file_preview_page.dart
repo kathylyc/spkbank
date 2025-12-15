@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui show Image, ImageByteFormat;
 import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:file_picker/file_picker.dart';
@@ -12,6 +11,7 @@ import 'package:syncfusion_flutter_signaturepad/signaturepad.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter/foundation.dart';
 import '../../data/models/customer_account_file.dart';
+import '../../data/models/customer.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../utils/file_manager.dart';
 import '../../utils/storage_utils.dart';
@@ -27,8 +27,6 @@ class FormFieldData {
   final List<String>? selectedValues;
   final bool? isChecked;
   final bool isSignature; // 标识是否为签名字段
-
-  final bool kIsPrintPdfFields = false;
 
   FormFieldData({
     required this.name,
@@ -325,6 +323,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   // 临时文件相关
   String? _tempPdfPath; // 临时PDF文件路径
   File? _currentTempFile; // 当前临时文件引用
+  String? _defaultValuesTempPath; // 表单默认值设置后的临时文件路径
 
   // 字体相关
   PdfTrueTypeFont? _chineseFont;
@@ -343,7 +342,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   // 按钮状态管理
   bool _isProcessing = false;
 
-  bool get kIsPrintPdfFields => false;  // 是否正在处理（保存或上传）
+  bool get kIsPrintPdfFields => false;  // 是否打印pdf的每个字段
 
   @override
   void initState() {
@@ -506,11 +505,46 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         }
       }
 
-      setState(() {
-        _pdfBytes = bytes;
-        _originalPdfBytes = Uint8List.fromList(bytes); // 保存原始 PDF 的副本
-        _isLoading = false;
-      });
+      try {
+        Uint8List? processedBytes;
+        // 如果当前isEditMode==false并且isNewMode==false（查看模式），则将所有表单域设为readOnly
+        if (!widget.isEditMode && !widget.isNewMode) {
+          processedBytes = await _setFormFieldsReadOnly(bytes);
+        }
+        else {
+          // 编辑模式，尝试为PDF字节数据设置表单默认值
+          processedBytes = await _setFormFieldsDefaultValuesToBytes(bytes);
+        }
+        if (processedBytes != null) {
+          // 将设置成功默认值的bytes保存到临时文件
+          final tempDir = await getTemporaryDirectory();
+          _defaultValuesTempPath = '${tempDir.path}/temp_default_values_${DateTime.now().millisecondsSinceEpoch}.pdf';
+          final tempFile = File(_defaultValuesTempPath!);
+          await tempFile.writeAsBytes(processedBytes);
+
+          setState(() {
+            _pdfBytes = processedBytes;
+            _originalPdfBytes = Uint8List.fromList(processedBytes!); // 保存处理后的 PDF 的副本
+            _isLoading = false;
+          });
+        } else {
+          // 默认值设置失败，使用原始bytes
+          debugPrint('⚠ 表单默认值设置失败，使用原始PDF数据');
+          setState(() {
+            _pdfBytes = bytes;
+            _originalPdfBytes = Uint8List.fromList(bytes); // 保存原始 PDF 的副本
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        // 默认值设置出错，使用原始bytes
+        debugPrint('⚠ 表单默认值设置过程出错: $e，使用原始PDF数据');
+        setState(() {
+          _pdfBytes = bytes;
+          _originalPdfBytes = Uint8List.fromList(bytes); // 保存原始 PDF 的副本
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       setState(() {
         _error = '加载PDF失败: $e';
@@ -818,14 +852,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       debugPrint('🔍 开始计算签署状态，当前signCode: $currentSignCode');
 
       // 2. 在ConstPdfTemplateMap中查找匹配的模板
-      PdfTemplateInfo? matchingTemplate;
-      for (final entry in ConstPdfTemplateMap.entries) {
-        if (entry.value.signCode == currentSignCode) {
-          matchingTemplate = entry.value;
-          debugPrint('📋 找到匹配模板: ID=${entry.key}, signCode=${entry.value.signCode}');
-          break;
-        }
-      }
+      PdfTemplateInfo? matchingTemplate = _getPdfTemplateInfoBySignCode(currentSignCode);
 
       if (matchingTemplate == null) {
         debugPrint('⚠ 无法计算签署状态：未找到匹配的模板，signCode=$currentSignCode');
@@ -1171,6 +1198,22 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
       debugPrint('═══════════════════════════════════════════════════════');
       debugPrint('📋 PDF表单字段信息: 共 ${form.fields.count} 个字段');
+
+      // 显示模板配置信息
+      final String? templateCode = widget.templateSignCode;
+      if (templateCode != null) {
+        final PdfTemplateInfo? templateInfo = ConstPdfTemplateMap[templateCode];
+        if (templateInfo?.formConfig?.fieldDefaults != null) {
+          debugPrint('🔧 当前模板配置 ($templateCode):');
+          for (var fieldConfig in templateInfo!.formConfig!.fieldDefaults!) {
+            debugPrint('  - ${fieldConfig.fieldName} → ${fieldConfig.customerProperty}${fieldConfig.defaultValue != null ? ' (默认: ${fieldConfig.defaultValue})' : ''}');
+          }
+        } else {
+          debugPrint('🔧 当前模板 ($templateCode): 无字段默认值配置');
+        }
+      } else {
+        debugPrint('🔧 当前模板: 无模板代码');
+      }
       debugPrint('═══════════════════════════════════════════════════════');
 
       for (int i = 0; i < form.fields.count; i++) {
@@ -1265,6 +1308,18 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         if (field is PdfTextBoxField) {
           debugPrint('  ───────────────────────────────────────────────────');
           debugPrint('  📝 TextBox 特定属性:');
+
+          // 检查字段映射配置
+          final String? templateCode = widget.templateSignCode;
+          if (templateCode != null) {
+            final PdfTemplateInfo? templateInfo = ConstPdfTemplateMap[templateCode];
+            final PdfFormFieldDefault? fieldConfig = templateInfo?.formConfig?.getFieldConfig(fieldName);
+            if (fieldConfig != null) {
+              debugPrint('    🔧 字段配置映射: ${fieldConfig.customerProperty}${fieldConfig.defaultValue != null ? ' (静态默认值: ${fieldConfig.defaultValue})' : ''}');
+            } else {
+              debugPrint('    🔧 字段配置映射: 无配置');
+            }
+          }
           try {
             final textValue = field.text;
             debugPrint('    - 当前表单值 (text): ${textValue ?? "(空)"}');
@@ -1296,6 +1351,12 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
             try {
               if (fieldDynamic.defaultText != null) {
                 debugPrint('    - 默认文本 (defaultText): ${fieldDynamic.defaultText}');
+              }
+            } catch (e) {}
+
+            try {
+              if (fieldDynamic.defaultValue != null) {
+                debugPrint('    - 默认值 (defaultValue): ${fieldDynamic.defaultValue}');
               }
             } catch (e) {}
 
@@ -1904,6 +1965,222 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
     );
   }
 
+  PdfTemplateInfo? _getPdfTemplateInfoBySignCode(currentSignCode) {
+    PdfTemplateInfo? matchingTemplate;
+    for (final entry in ConstPdfTemplateMap.entries) {
+      if (entry.value.signCode == currentSignCode) {
+        matchingTemplate = entry.value;
+        debugPrint('📋 找到匹配模板: ID=${entry.key}, signCode=${entry.value.signCode}');
+        break;
+      }
+    }
+    return matchingTemplate;
+  }
+
+  /// 根据属性名从客户对象获取属性值
+  String? _getCustomerPropertyValue(Customer customer, String propertyName) {
+    switch (propertyName) {
+      case 'customerName':
+        return customer.customerName;
+      case 'phone':
+        return customer.phone;
+      case 'address':
+        return customer.address;
+      case 'countryCode':
+        return customer.countryCode;
+      case 'customerTag':
+        return customer.customerTag;
+      case 'managerAccount':
+        return customer.managerAccount;
+      default:
+        debugPrint('未知的客户属性: $propertyName');
+        return null;
+    }
+  }
+
+  /// 设置表单字段的值
+  Future<void> _setFieldValue(PdfField field, String value, String fieldType) async {
+    try {
+      if (field is PdfTextBoxField) {
+        // 对于文本框字段，设置text属性
+        // field.font = _chineseFont!; // 强制设置字体
+        field.text = value;
+        debugPrint('设置TextBox字段 ${field.name} 的值为: $value');
+      } else if (field is PdfComboBoxField) {
+        // 对于下拉框字段，设置selectedValue属性
+        // field.font = _chineseFont!; // 强制设置字体
+        field.selectedValue = value;
+        debugPrint('设置ComboBox字段 ${field.name} 的选中值为: $value，当前字体为：${field.font}');
+      } else {
+        debugPrint('不支持的字段类型 ${field.runtimeType}，字段名: ${field.name}');
+      }
+    } catch (e) {
+      debugPrint('设置字段 ${field.name} 值时发生错误: $e');
+      rethrow;
+    }
+  }
+
+  /// 为PDF字节数据设置表单默认值（基于bytes版本）
+  /// 返回设置默认值后的PDF字节数据
+  Future<Uint8List?> _setFormFieldsDefaultValuesToBytes(Uint8List pdfBytes) async {
+    try {
+      debugPrint('=== 开始为PDF字节数据设置表单默认值 ===');
+
+      // 获取当前PDF模板配置
+      final String? templateCode = widget.templateSignCode;
+      if (templateCode == null) {
+        debugPrint('未找到PDF模板代码，跳过默认值设置');
+        return null;
+      }
+
+      final PdfTemplateInfo? matchingTemplate = _getPdfTemplateInfoBySignCode(templateCode);
+      if (matchingTemplate?.formConfig == null) {
+        debugPrint('模板 $templateCode 没有配置表单字段默认值，跳过设置');
+        return null;
+      }
+
+      // 获取客户信息
+      final Customer? customer;
+      try {
+        final customerUid = widget.customerUid;
+        if (customerUid == null || customerUid.isEmpty) {
+          debugPrint('客户UID为空，跳过默认值设置');
+          return null;
+        }
+        customer = await _repository.findByUid(customerUid);
+      } catch (e) {
+        debugPrint('获取客户信息失败: $e');
+        return null;
+      }
+
+      if (customer == null) {
+        debugPrint('未找到客户信息，跳过默认值设置');
+        return null;
+      }
+
+      // 从字节数据创建PDF文档
+      final PdfDocument document = PdfDocument(inputBytes: pdfBytes);
+      final PdfForm form = document.form;
+      if (form.fields.count == 0) {
+        debugPrint('PDF中没有表单字段，跳过默认值设置');
+        document.dispose();
+        return null;
+      }
+
+      int defaultSetCount = 0;
+      int defaultSetFailedCount = 0;
+
+      debugPrint('开始为 ${form.fields.count} 个表单字段设置默认值...');
+
+      // 遍历所有表单字段，设置默认值
+      for (int i = 0; i < form.fields.count; i++) {
+        final PdfField field = form.fields[i];
+        final String fieldName = field.name ?? '未知字段$i';
+
+        try {
+          // 获取字段配置
+          final PdfFormFieldDefault? fieldConfig =
+            matchingTemplate!.formConfig!.getFieldConfig(fieldName);
+
+          if (fieldConfig == null) {
+            debugPrint('字段 $fieldName 未配置默认值映射，跳过');
+            continue;
+          }
+
+          String? defaultValue = fieldConfig.defaultValue;
+
+          // 尝试从客户信息获取默认值
+          if (fieldConfig.customerProperty.isNotEmpty) {
+            try {
+              final customerValue = _getCustomerPropertyValue(customer, fieldConfig.customerProperty);
+              if (customerValue != null && customerValue.isNotEmpty) {
+                defaultValue = customerValue;
+                debugPrint('从客户信息获取字段 $fieldName 的默认值: $defaultValue');
+              }
+            } catch (e) {
+              debugPrint('获取客户属性 ${fieldConfig.customerProperty} 失败: $e');
+            }
+          }
+
+          // 如果还是没有默认值，使用配置中的静态默认值
+          if (defaultValue == null || defaultValue.isEmpty) {
+            defaultValue = fieldConfig.defaultValue;
+            if (defaultValue != null && defaultValue.isNotEmpty) {
+              debugPrint('使用静态默认值设置字段 $fieldName: $defaultValue');
+            }
+          }
+
+          // 如果有默认值，设置到字段
+          if (defaultValue != null && defaultValue.isNotEmpty) {
+            bool isSetSuccess = await _setFieldValueForBytes(field, defaultValue, fieldConfig.fieldType);
+            if (isSetSuccess) {
+              defaultSetCount++;
+              debugPrint('✓ 为字段 $fieldName 设置默认值成功: $defaultValue');
+            } else {
+              debugPrint('X 为字段 $fieldName 设置默认值失败');
+            }
+          } else {
+            debugPrint('字段 $fieldName 没有可用的默认值');
+          }
+
+        } catch (e) {
+          defaultSetFailedCount++;
+          debugPrint('× 设置字段 $fieldName 默认值失败: $e');
+        }
+      }
+
+      debugPrint('表单字段默认值设置完成: 成功 $defaultSetCount 个，失败 $defaultSetFailedCount 个');
+
+      if (defaultSetCount > 0) {
+        // 保存处理后的文档为字节数据
+        final Uint8List processedBytes = await document.saveAsBytes();
+        document.dispose();
+
+        debugPrint('✓ PDF字节数据默认值设置完成，返回处理后的字节数据');
+        return processedBytes;
+      } else {
+        // 没有成功设置默认值，返回原始数据
+        return null;
+      }
+
+    } catch (e, s) {
+      debugPrint('设置PDF字节数据表单字段默认值过程中发生错误: $e');
+      debugPrintStack(stackTrace: s);
+      return null;
+    }
+  }
+
+  /// 为PDF字节数据版本设置表单字段的值（不需要字体设置）
+  Future<bool> _setFieldValueForBytes(PdfField field, String value, String fieldType) async {
+    try {
+      if (field is PdfTextBoxField) {
+        // 对于文本框字段，设置text属性
+        if (field.text.isEmpty) {
+          field.text = value;
+          debugPrint('设置TextBox字段 ${field.name} 的值为: $value');
+          return true;
+        } else {
+          debugPrint('设置TextBox字段 ${field.name} 的值跳过，因为已存在值，不覆盖原始值');
+        }
+      } else if (field is PdfComboBoxField) {
+        // 对于下拉框字段，设置selectedValue属性
+        if (field.selectedValue.isEmpty) {
+          field.selectedValue = value;
+          debugPrint('设置ComboBox字段 ${field.name} 的选中值为: $value');
+          return true;
+        } else {
+          debugPrint('设置ComboBox字段 ${field.name} 的值跳过，因为已存在值，不覆盖原始值');
+        }
+      } else {
+        debugPrint('不支持的字段类型 ${field.runtimeType}，字段名: ${field.name}');
+      }
+      return false;
+    } catch (e) {
+      debugPrint('设置字段 ${field.name} 值时发生错误: $e');
+      rethrow;
+    }
+  }
+
   /// 在文档加载后为表单字段设置字体
   Future<void> _setFormFieldsFontAfterLoad(PdfDocument document) async {
     if (_chineseFont == null) {
@@ -1963,6 +2240,82 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       debugPrint('[preview] 字体设置完成: 成功 $fontSetCount 个, 失败 $fontSetFailedCount 个');
     } catch (e) {
       debugPrint('[preview] 设置表单字段字体失败: $e');
+    }
+  }
+
+  /// 为PDF字节数据设置表单字段为只读状态（基于bytes版本）
+  /// 返回设置为只读后的PDF字节数据
+  Future<Uint8List?> _setFormFieldsReadOnly(Uint8List pdfBytes) async {
+    try {
+      debugPrint('=== 开始为PDF字节数据设置表单字段为只读状态 ===');
+
+      // 从字节数据创建PDF文档
+      final PdfDocument document = PdfDocument(inputBytes: pdfBytes);
+      final PdfForm form = document.form;
+
+      if (form.fields.count == 0) {
+        debugPrint('PDF中没有表单字段，跳过只读设置');
+        document.dispose();
+        return null;
+      }
+
+      int readOnlyCount = 0;
+      int readOnlyFailedCount = 0;
+
+      debugPrint('开始为 ${form.fields.count} 个表单字段设置为只读...');
+
+      // 遍历所有表单字段并设置为只读
+      for (int i = 0; i < form.fields.count; i++) {
+        final PdfField field = form.fields[i];
+        final String fieldName = field.name ?? 'Field_$i';
+
+        try {
+          // 设置字段为只读
+          field.readOnly = true;
+          readOnlyCount++;
+
+          // 根据字段类型记录日志
+          String fieldType = 'Unknown';
+          if (field is PdfTextBoxField) {
+            fieldType = 'TextBox';
+          } else if (field is PdfSignatureField) {
+            fieldType = 'Signature';
+          } else if (field is PdfCheckBoxField) {
+            fieldType = 'CheckBox';
+          } else if (field is PdfRadioButtonListField) {
+            fieldType = 'RadioButtonList';
+          } else if (field is PdfComboBoxField) {
+            fieldType = 'ComboBox';
+          } else if (field is PdfListBoxField) {
+            fieldType = 'ListBox';
+          }
+
+          debugPrint('✓ 成功设置 $fieldType 字段 "$fieldName" 为只读');
+        } catch (e) {
+          readOnlyFailedCount++;
+          debugPrint('× 设置字段 "$fieldName" 为只读失败: $e');
+        }
+      }
+
+      debugPrint('表单字段只读设置完成: 成功 $readOnlyCount 个, 失败 $readOnlyFailedCount 个');
+
+      if (readOnlyCount > 0) {
+        // 保存处理后的文档为字节数据
+        final Uint8List processedBytes = await document.saveAsBytes();
+        document.dispose();
+
+        debugPrint('✓ PDF字节数据只读设置完成，返回处理后的字节数据');
+        return processedBytes;
+      } else {
+        // 没有成功设置为只读的字段，返回原始数据
+        document.dispose();
+        return null;
+      }
+
+    } catch (e, s) {
+      debugPrint('设置PDF字节数据表单字段只读状态过程中发生错误: $e');
+      debugPrintStack(stackTrace: s);
+      return null;
     }
   }
 
@@ -2234,9 +2587,10 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                         }
 
                         // 打印所有表单域的所有属性
-                        _printAllFormFieldsProperties(details.document);
+                        _printAllFormFieldsProperties(_currentDocument!);
                         // 文档加载后，再次为所有表单字段设置中文字体
-                        await _setFormFieldsFontAfterLoad(details.document);
+                        await _setFormFieldsFontAfterLoad(_currentDocument!);
+
                       } catch (e, stackTrace) {
                         debugPrint('PDF文档加载后处理失败: $e');
                         debugPrint('堆栈跟踪: $stackTrace');
@@ -2491,6 +2845,13 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       await FileManager.deleteTempFile(_tempPdfPath!);
       _tempPdfPath = null;
       _currentTempFile = null;
+    }
+    if (_defaultValuesTempPath != null) {
+      final tempFile = File(_defaultValuesTempPath!);
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
+      _defaultValuesTempPath = null;
     }
   }
 
