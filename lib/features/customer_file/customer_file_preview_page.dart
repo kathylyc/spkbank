@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui' as ui show Image, ImageByteFormat;
+import 'dart:math' as math;
 import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -559,6 +560,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   /// 返回保存后的PDF字节数据
   Future<List<int>> _savePdfWithFlattenConfig({
     PdfFlattenConfig flattenConfig = PdfFlattenConfig.none,
+    String? watermarkText,
   }) async {
     debugPrint('=== 开始保存PDF，扁平化配置: ${flattenConfig.description} ===');
 
@@ -670,6 +672,25 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
             debugPrint('✓ PDF扁平化完成: 扁平化 $flattenCount 个字段，跳过 $skipCount 个字段');
           } catch (e) {
             debugPrint('⚠ 扁平化PDF时出错: $e，使用原始保存结果');
+          }
+        }
+
+        // 如果有水印文字，添加水印
+        if (watermarkText != null && watermarkText.isNotEmpty) {
+          try {
+            debugPrint('开始添加水印: $watermarkText');
+            final Uint8List? watermarkedBytes = await _addWatermarkToPdf(
+              Uint8List.fromList(savedBytes),
+              watermarkText,
+            );
+            if (watermarkedBytes != null) {
+              savedBytes = watermarkedBytes;
+              debugPrint('✓ 水印添加成功');
+            } else {
+              debugPrint('⚠ 水印添加失败，使用原始PDF');
+            }
+          } catch (e) {
+            debugPrint('⚠ 添加水印时出错: $e，使用原始PDF');
           }
         }
 
@@ -833,7 +854,29 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
     // 如果所有方法都失败，使用原始 PDF 字节（会丢失表单数据和签名）
     if (_originalPdfBytes != null) {
       debugPrint('⚠ 使用原始 PDF 字节（可能丢失表单数据和签名）');
-      return _originalPdfBytes!.toList();
+
+      List<int> originalBytes = _originalPdfBytes!.toList();
+
+      // 如果有水印文字，添加水印
+      if (watermarkText != null && watermarkText.isNotEmpty) {
+        try {
+          debugPrint('开始添加水印: $watermarkText');
+          final Uint8List? watermarkedBytes = await _addWatermarkToPdf(
+            Uint8List.fromList(originalBytes),
+            watermarkText,
+          );
+          if (watermarkedBytes != null) {
+            originalBytes = watermarkedBytes;
+            debugPrint('✓ 水印添加成功');
+          } else {
+            debugPrint('⚠ 水印添加失败，使用原始PDF');
+          }
+        } catch (e) {
+          debugPrint('⚠ 添加水印时出错: $e，使用原始PDF');
+        }
+      }
+
+      return originalBytes;
     } else {
       throw Exception('无法保存PDF：缺少原始数据');
     }
@@ -931,7 +974,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   }
 
   /// 保存PDF文件（支持选择扁平化配置）
-  Future<void> _handleSave({PdfFlattenConfig flattenConfig = PdfFlattenConfig.none}) async {
+  Future<void> _handleSave({PdfFlattenConfig flattenConfig = PdfFlattenConfig.none, String? watermarkText}) async {
     // 防止重复操作
     if (_isProcessing) return;
 
@@ -1043,6 +1086,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       // 使用传入的扁平化配置
       final List<int> savedBytes = await _savePdfWithFlattenConfig(
         flattenConfig: flattenConfig,
+        watermarkText: watermarkText,
       );
 
       await Future.delayed(const Duration(seconds: 1));
@@ -2319,6 +2363,119 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
     }
   }
 
+  /// 为PDF字节数据添加水印（基于bytes版本）
+  /// [pdfBytes] 原始PDF字节数据
+  /// [watermarkText] 水印文字
+  /// 返回添加水印后的PDF字节数据
+  Future<Uint8List?> _addWatermarkToPdf(Uint8List pdfBytes, String watermarkText) async {
+    try {
+      debugPrint('=== 开始为PDF添加水印 ===');
+      debugPrint('水印文字: $watermarkText');
+
+      // 从字节数据创建PDF文档
+      final PdfDocument document = PdfDocument(inputBytes: pdfBytes);
+
+      if (document.pages.count == 0) {
+        debugPrint('PDF中没有页面，跳过水印添加');
+        document.dispose();
+        return null;
+      }
+
+      // 设置水印样式
+      final PdfFont watermarkFont = PdfStandardFont(PdfFontFamily.helvetica, 40);
+      final PdfColor watermarkColor = PdfColor(178, 178, 178); // 浅灰色 (0.7 * 255 ≈ 178)
+
+      debugPrint('开始为 ${document.pages.count} 个页面添加水印...');
+
+      // 为每一页添加水印
+      for (int pageIndex = 0; pageIndex < document.pages.count; pageIndex++) {
+        final PdfPage page = document.pages[pageIndex];
+        final Size pageSize = page.size;
+
+        // 创建页面图形对象
+        final PdfGraphics graphics = page.graphics;
+
+        // 保存当前图形状态
+        graphics.save();
+
+        // 设置水印透明度
+        graphics.setTransparency(0.3);
+
+        // 计算水印旋转和位置参数
+        final double centerX = pageSize.width / 2;
+        final double centerY = pageSize.height / 2;
+        final double angle = -45 * (math.pi / 180); // 45度角转弧度（负值表示顺时针）
+
+        // 计算水印文字大小
+        final Size textSize = watermarkFont.measureString(watermarkText);
+        final double textWidth = textSize.width;
+        final double textHeight = textSize.height;
+
+        // 计算需要多少个水印才能覆盖整个页面（呈网格状排列）
+        final double diagonalLength = math.sqrt(pageSize.width * pageSize.width + pageSize.height * pageSize.height);
+        final double spacingX = textWidth * 2.5; // 水印间距
+        final double spacingY = textHeight * 3; // 水印间距
+
+        // 计算需要的行列数
+        final int rows = (diagonalLength / spacingY).ceil() + 2;
+        final int cols = (diagonalLength / spacingX).ceil() + 2;
+
+        debugPrint('页面 $pageIndex: 将添加 $rows 行 × $cols 列 = ${rows * cols} 个水印');
+
+        int watermarkCount = 0;
+
+        // 在网格中添加水印
+        for (int row = -1; row < rows; row++) {
+          for (int col = -1; col < cols; col++) {
+            // 计算水印位置
+            final double offsetX = (col - cols / 2) * spacingX;
+            final double offsetY = (row - rows / 2) * spacingY;
+
+            // 移动到页面中心，然后偏移，再旋转
+            graphics.translateTransform(centerX + offsetX, centerY + offsetY);
+            graphics.rotateTransform(angle);
+
+            // 绘制水印文字（居中对齐）
+            graphics.drawString(
+              watermarkText,
+              watermarkFont,
+              pen: PdfPen(watermarkColor, width: 0.5),
+              brush: PdfSolidBrush(watermarkColor),
+              bounds: Rect.fromLTWH(-textWidth / 2, -textHeight / 2, textWidth, textHeight),
+              format: PdfStringFormat(
+                alignment: PdfTextAlignment.center,
+                lineAlignment: PdfVerticalAlignment.middle,
+              ),
+            );
+
+            // 恢复变换矩阵，准备下一个水印
+            graphics.restore();
+            graphics.save(); // 重新保存状态以备下次使用
+
+            watermarkCount++;
+          }
+        }
+
+        // 恢复图形状态
+        graphics.restore();
+
+        debugPrint('页面 $pageIndex: 已添加 $watermarkCount 个水印');
+      }
+
+      // 保存处理后的文档为字节数据
+      final Uint8List processedBytes = await document.saveAsBytes();
+      document.dispose();
+
+      debugPrint('✓ PDF水印添加完成，返回处理后的字节数据');
+      return processedBytes;
+
+    } catch (e, s) {
+      debugPrint('为PDF添加水印过程中发生错误: $e');
+      debugPrintStack(stackTrace: s);
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -2426,7 +2583,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
               Padding(
                 padding: const EdgeInsets.only(right: 16),
                 child: ElevatedButton.icon(
-                  onPressed: _isProcessing ? null : () => _handleSave(flattenConfig: PdfFlattenConfig.none),
+                  onPressed: _isProcessing ? null : () => _handleSave(flattenConfig: PdfFlattenConfig.none, watermarkText: null),
                   icon: _isProcessing
                       ? const SizedBox(
                           width: 16,
