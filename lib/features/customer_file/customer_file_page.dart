@@ -1122,6 +1122,10 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         //   builder: (row, context) => Text(row['account_file_uid'].toString()),
         // ),
         DataTableColumn(
+          label: '生效状态',
+          builder: (row, context) => _buildEnableStatusBadge(row['enableStatus']),
+        ),
+        DataTableColumn(
           label: '公司名称（中文/英文）',
           builder: (row, context) => Text(row['customerName']?.toString() ?? '-'),
         ),
@@ -1140,10 +1144,6 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         DataTableColumn(
           label: '签署状态',
           builder: (row, context) => _buildSignStatusBadge(row['status']?.toString() ?? '-'),
-        ),
-        DataTableColumn(
-          label: '生效状态',
-          builder: (row, context) => _buildEnableStatusBadge(row['enableStatus']),
         ),
         DataTableColumn(
           label: '文件类型',
