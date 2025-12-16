@@ -69,11 +69,13 @@ class PdfTemplateInfo {
     required this.assetsPath,
     required this.signFields,
     this.formConfig,
+    this.signChecks,
   });
 
   final String signCode;
   final String assetsPath;
   final List<String>? signFields;
+  final List<PdfSignCheckInfo>? signChecks;
 
   /// 表单字段配置
   final PdfFormConfig? formConfig;
@@ -84,6 +86,18 @@ class PdfTemplateInfo {
     }
     return p.basenameWithoutExtension(assetsPath);
   }
+}
+
+class PdfSignCheckInfo {
+  const PdfSignCheckInfo({
+    required this.chkFiledName,
+    required this.signFieldName,
+    required this.message,
+  });
+
+  final String chkFiledName;
+  final String signFieldName;
+  final String message;
 }
 
 /// PDF 模板常量列表
@@ -102,6 +116,12 @@ const Map<String, PdfTemplateInfo> ConstPdfTemplateMap = {
       signCode: 'fd50f3s9a15wagf3',
       assetsPath: 'assets/pdf/Appendix M (10) CustomerDeclaration and Undertaking in respect of Tax Evasion.pdf',
       signFields: ['Signature1', 'Signature2'],
+      signChecks: [
+        PdfSignCheckInfo(
+            chkFiledName: 'Check Box3',
+            signFieldName: 'Signature2',
+            message: '请Director签名确认。')
+      ],
       // formConfig: PdfFormConfig(
       //   fieldDefaults: [
       //     PdfFormFieldDefault(
@@ -128,7 +148,7 @@ const Map<String, PdfTemplateInfo> ConstPdfTemplateMap = {
   "5": PdfTemplateInfo(
       signCode: 'zcx26adsv220x3d2',
       assetsPath: 'assets/pdf/Appendix 2b - Entity SelfCertification Form_version202506 (clean).pdf',
-      signFields: ['Signature1', 'Signature2', 'Signature3', 'Signature4', 'Signature5', 'Signature6'],
+      signFields: ['Signature1', 'Signature2'],
   ),
   "6": PdfTemplateInfo(
       signCode: 'vh821fdns93xdf23',
@@ -136,7 +156,7 @@ const Map<String, PdfTemplateInfo> ConstPdfTemplateMap = {
       signFields: [
         'Signature1', 'Signature2', 'Signature3', 'Signature4', 'Signature5',
         'Signature6', 'Signature7', 'Signature8', 'Signature9', 'Signature10',
-        'Signature11', 'Signature12', 'Signature',
+        'Signature11', 'Signature12', 'Signature', 'witnessedBy'
       ],
   ),
   "7": PdfTemplateInfo(

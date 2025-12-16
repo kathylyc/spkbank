@@ -387,17 +387,28 @@ void _showSignaturePadDialog(
     builder: (BuildContext context) {
       return LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
-          final double signaturePadWidth =
-              kIsDesktop
-                  ? max(constraints.maxWidth, constraints.maxHeight) *
-                      (isMaterial3 ? 0.27 : 0.25)
-                  : MediaQuery.of(context).size.width < kSignaturePadWidth
-                  ? MediaQuery.of(context).size.width
-                  : kSignaturePadWidth;
-          final double signaturePadHeight =
-              kIsDesktop
-                  ? signaturePadWidth * (isMaterial3 ? 0.53 : 0.6)
-                  : kSignaturePadHeight;
+          // 原始的宽高获取逻辑：
+          // final double signaturePadWidth =
+          //     kIsDesktop
+          //         ? max(constraints.maxWidth, constraints.maxHeight) *
+          //             (isMaterial3 ? 0.27 : 0.25)
+          //         : MediaQuery.of(context).size.width < kSignaturePadWidth
+          //         ? MediaQuery.of(context).size.width
+          //         : kSignaturePadWidth;
+          // final double signaturePadHeight =
+          //     kIsDesktop
+          //         ? signaturePadWidth * (isMaterial3 ? 0.53 : 0.6)
+          //         : kSignaturePadHeight;
+
+          // 20251216 ADD: 浦发表单专用宽高获取逻辑，适配pdf实际表单大小
+          const marginHorizontal = 0;
+          final fieldRatio = (signatureFieldHelper.bounds.width - marginHorizontal) / signatureFieldHelper.bounds.height;
+          final double signaturePadWidth = MediaQuery.of(context).size.width * 0.85;
+          double signaturePadHeight = signaturePadWidth / fieldRatio;
+          if (signaturePadHeight > kSignaturePadHeight) {
+            signaturePadHeight = kSignaturePadHeight;
+          }
+
           return StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
               return AlertDialog(

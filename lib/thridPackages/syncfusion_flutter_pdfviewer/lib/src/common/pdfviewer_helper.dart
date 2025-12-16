@@ -23,7 +23,7 @@ const double kFormFieldSelectionPadding = 3.0;
 const double kSignaturePadWidth = 612;
 
 /// Indicates the default height of signature pad.
-const double kSignaturePadHeight = 344;
+const double kSignaturePadHeight = 600;
 
 /// TextSelectionHelper for storing information of text selection.
 class TextSelectionHelper {

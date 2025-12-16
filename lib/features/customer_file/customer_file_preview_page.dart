@@ -340,10 +340,13 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   bool _isCalcPreviousSignStatus = false;
   int? _cachedPreviousSignStatus;  // 缓存历史签署状态
 
+  // 签名状态实时记录
+  Map<String, bool> _signatureFieldStates = {}; // 记录每个签名字段的签名状态
+
   // 按钮状态管理
   bool _isProcessing = false;
 
-  bool get kIsPrintPdfFields => false;  // 是否打印pdf的每个字段
+  bool get kIsPrintPdfFields => true;  // 是否打印pdf的每个字段
 
   @override
   void initState() {
@@ -365,6 +368,9 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       // 清理字体资源
       _chineseFont = null;
       _chineseFontBytes = null;
+
+      // 清理签名状态记录
+      _signatureFieldStates.clear();
     } catch (e) {
       debugPrint('释放PDF资源时出错: $e');
     }
@@ -375,6 +381,46 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   Future<void> _initializePdf() async {
     await _loadChineseFont();
     await _loadPdf();
+    await _initializeSignatureStates();
+  }
+
+  /// 初始化签名字段状态记录
+  /// 在PDF加载完成后调用，初始化所有签名字段的签名状态
+  Future<void> _initializeSignatureStates() async {
+    if (_currentDocument == null) return;
+
+    try {
+      final PdfForm form = _currentDocument!.form;
+      _signatureFieldStates.clear();
+
+      for (int i = 0; i < form.fields.count; i++) {
+        final PdfField field = form.fields[i];
+        if (field is PdfSignatureField) {
+          final fieldName = field.name ?? '';
+          if (fieldName.isNotEmpty) {
+            // 直接检查签名状态，避免循环调用
+            try {
+              final isSigned = field.isSigned;
+              _signatureFieldStates[fieldName] = isSigned;
+            } catch (e) {
+              debugPrint('⚠ 初始化签名字段 $fieldName 状态失败: $e');
+              _signatureFieldStates[fieldName] = false;
+            }
+          }
+        }
+      }
+
+      debugPrint('✓ 签名状态初始化完成，共记录 ${_signatureFieldStates.length} 个签名字段');
+
+      // 打印初始状态（调试用）
+      if (kIsPrintPdfFields) {
+        _signatureFieldStates.forEach((fieldName, isSigned) {
+          debugPrint('  - $fieldName: ${isSigned ? "已签名" : "未签名"}');
+        });
+      }
+    } catch (e) {
+      debugPrint('⚠ 签名状态初始化失败: $e');
+    }
   }
 
   /// 加载支持中文的字体
@@ -975,6 +1021,26 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
   /// 保存PDF文件（支持选择扁平化配置）
   Future<void> _handleSave({PdfFlattenConfig flattenConfig = PdfFlattenConfig.none, String? watermarkText}) async {
+    // 校验签名域是否已签
+    PdfTemplateInfo? pdfTemplateInfo = _getPdfTemplateInfoBySignCode(widget.templateSignCode);
+    if (pdfTemplateInfo?.signChecks != null) {
+      // 有需要签名校验的域
+      for (var i = 0;i < pdfTemplateInfo!.signChecks!.length; i++) {
+        PdfSignCheckInfo signCheckInfo = pdfTemplateInfo.signChecks![i];
+        // 检查checkbox状态
+        bool? checkboxChecked = _getCheckboxFieldValue(signCheckInfo.chkFiledName);
+        if (checkboxChecked == true) {
+          // checkbox被选中，检查对应的签名字段是否已签名
+          bool isSigned = _isSignatureFieldSigned(signCheckInfo.signFieldName);
+          if (!isSigned) {
+            // 未签名，显示提示对话框
+            await _showSignatureRequiredDialog(signCheckInfo.message);
+            return;
+          }
+        }
+      }
+    }
+
     // 防止重复操作
     if (_isProcessing) return;
 
@@ -1246,7 +1312,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       // 显示模板配置信息
       final String? templateCode = widget.templateSignCode;
       if (templateCode != null) {
-        final PdfTemplateInfo? templateInfo = ConstPdfTemplateMap[templateCode];
+        final PdfTemplateInfo? templateInfo = _getPdfTemplateInfoBySignCode(templateCode);
         if (templateInfo?.formConfig?.fieldDefaults != null) {
           debugPrint('🔧 当前模板配置 ($templateCode):');
           for (var fieldConfig in templateInfo!.formConfig!.fieldDefaults!) {
@@ -1356,7 +1422,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
           // 检查字段映射配置
           final String? templateCode = widget.templateSignCode;
           if (templateCode != null) {
-            final PdfTemplateInfo? templateInfo = ConstPdfTemplateMap[templateCode];
+            final PdfTemplateInfo? templateInfo = _getPdfTemplateInfoBySignCode(templateCode);
             final PdfFormFieldDefault? fieldConfig = templateInfo?.formConfig?.getFieldConfig(fieldName);
             if (fieldConfig != null) {
               debugPrint('    🔧 字段配置映射: ${fieldConfig.customerProperty}${fieldConfig.defaultValue != null ? ' (静态默认值: ${fieldConfig.defaultValue})' : ''}');
@@ -2768,6 +2834,24 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                         debugPrint('页面变化处理失败: $e');
                       }
                     },
+                    onFormFieldValueChanged: (PdfFormFieldValueChangedDetails details) {
+                      if (details.formField is PdfSignatureFormField) {
+                        final fieldName = details.formField.name ?? '';
+                        if (fieldName.isNotEmpty) {
+                          final wasSigned = details.oldValue != null;
+                          final isNowSigned = details.newValue != null;
+
+                          // 更新全局签名状态记录
+                          _signatureFieldStates[fieldName] = isNowSigned;
+
+                          debugPrint('签名字段状态更新: $fieldName, $wasSigned -> $isNowSigned');
+                        } else {
+                          debugPrint('签名字段值变化,字段名为空, oldSigned=${details.oldValue != null}, newSigned=${details.newValue != null}');
+                        }
+                      } else {
+                        debugPrint('表单字段值变化,name=${details.formField.name}, oldValue=${details.oldValue}, newValue=${details.newValue}');
+                      }
+                    },
                   );
                 } catch (e) {
                   debugPrint('创建PDF查看器失败: $e');
@@ -2987,6 +3071,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
       // 重新加载PDF
       await _loadPdf(forceBytes: newPdfBytes);
+      await _initializeSignatureStates();
 
     } catch (e) {
       setState(() {
@@ -3181,6 +3266,115 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       debugPrint('🔄 回退到原始方法处理...');
       return await _createUnsignedPdfBytesOriginal();
     }
+  }
+
+  /// 获取指定名称的checkbox表单域的选中状态
+  /// 返回true表示选中，false表示未选中，null表示找不到字段或不是checkbox类型
+  bool? _getCheckboxFieldValue(String fieldName) {
+    try {
+      if (_currentDocument == null) return null;
+
+      final PdfForm form = _currentDocument!.form;
+      for (int i = 0; i < form.fields.count; i++) {
+        final PdfField field = form.fields[i];
+        if (field.name == fieldName) {
+          if (field is PdfCheckBoxField) {
+            debugPrint('✓ 找到checkbox字段 $fieldName，选中状态: ${field.isChecked}');
+            return field.isChecked;
+          } else {
+            debugPrint('⚠ 字段 $fieldName 存在但不是checkbox类型，实际类型: ${field.runtimeType}');
+            return null;
+          }
+        }
+      }
+      debugPrint('⚠ 未找到checkbox字段: $fieldName');
+      return null;
+    } catch (e) {
+      debugPrint('⚠ 获取checkbox字段 $fieldName 状态时出错: $e');
+      return null;
+    }
+  }
+
+  /// 判断指定名称的签名字段是否已签名
+  /// 返回true表示已签名，false表示未签名或找不到字段
+  bool _isSignatureFieldSigned(String fieldName) {
+    // 优先使用缓存的状态
+    if (_signatureFieldStates.containsKey(fieldName)) {
+      final cachedState = _signatureFieldStates[fieldName]!;
+      debugPrint('✓ 使用缓存状态: $fieldName = ${cachedState ? "已签名" : "未签名"}');
+      return cachedState;
+    }
+
+    // 回退到原有逻辑（缓存未初始化或字段不存在时）
+    try {
+      if (_currentDocument == null) {
+        debugPrint('⚠ _currentDocument 为null，无法检查签名字段');
+        return false;
+      }
+
+      var foundSignField = false;
+      final PdfForm form = _currentDocument!.form;
+      for (int i = 0; i < form.fields.count; i++) {
+        final PdfField field = form.fields[i];
+        if (field.name == fieldName) {
+          if (field is PdfSignatureField) {
+            foundSignField = true;
+            // 通过dynamic访问签名相关属性
+            PdfSignatureField signatureField = field;
+            try {
+              // 检查签名是否存在
+              final isSigned = signatureField.isSigned;
+              if (isSigned) {
+                debugPrint('✓ 更新缓存状态: $fieldName = ${isSigned ? "已签名" : "未签名"}');
+              } else {
+                debugPrint('✓ 签名字段 $fieldName 签名状态: ${isSigned ? "已签名" : "未签名"}');
+              }
+              return isSigned;
+            } catch (e) {
+              debugPrint('⚠ 检查签名字段 $fieldName 签名状态时出错: $e');
+              return false;
+            }
+          } else {
+            debugPrint('⚠ 字段 $fieldName 存在但不是签名字段类型，实际类型: ${field.runtimeType}');
+            return false;
+          }
+        }
+      }
+      if (foundSignField) {
+        debugPrint('⚠ 未找到签名字段: $fieldName');
+        return false;
+      } else {
+        // 连字段都找不到，说明上一次已经扁平化签名了，所以认为已签署
+        debugPrint('✓ 签名字段 $fieldName 签名状态: 已签名（前一次已保存）');
+        return true;
+      }
+    } catch (e) {
+      debugPrint('⚠ 检查签名字段 $fieldName 时出错: $e');
+      return false;
+    }
+  }
+
+  /// 显示签名必填的确认对话框
+  /// 返回true表示用户选择继续保存，false表示取消保存
+  Future<void> _showSignatureRequiredDialog(String message) async {
+    return await showDialog<void>(
+      context: context,
+      barrierDismissible: false, // 不允许点击外部关闭
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('签名校验'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // 取消保存
+              },
+              child: const Text('好的'),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 
