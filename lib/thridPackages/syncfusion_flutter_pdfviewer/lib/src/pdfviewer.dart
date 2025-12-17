@@ -13,6 +13,8 @@ import 'package:syncfusion_flutter_core/localizations.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+import 'form_fields/pdf_image_field.dart';
+
 import 'annotation/annotation.dart';
 import 'annotation/annotation_settings.dart';
 import 'annotation/sticky_notes.dart';
@@ -189,6 +191,7 @@ class SfPdfViewer extends StatefulWidget {
     this.canShowHyperlinkDialog = true,
     this.enableHyperlinkNavigation = true,
     this.canShowTextSelectionMenu = true,
+    this.imageFieldConfig,
   }) : _source = source,
        assert(pageSpacing >= 0),
        assert(!maxZoomLevel.isNaN),
@@ -265,6 +268,7 @@ class SfPdfViewer extends StatefulWidget {
     this.canShowHyperlinkDialog = true,
     this.enableHyperlinkNavigation = true,
     this.canShowTextSelectionMenu = true,
+    this.imageFieldConfig,
   }) : _source = AssetPDFSource(name, bundle: bundle),
        assert(pageSpacing >= 0),
        assert(!maxZoomLevel.isNaN),
@@ -341,6 +345,7 @@ class SfPdfViewer extends StatefulWidget {
     this.canShowHyperlinkDialog = true,
     this.enableHyperlinkNavigation = true,
     this.canShowTextSelectionMenu = true,
+    this.imageFieldConfig,
   }) : _source = URLPDFSource(src, headers: headers),
        assert(pageSpacing >= 0),
        assert(!maxZoomLevel.isNaN),
@@ -416,6 +421,7 @@ class SfPdfViewer extends StatefulWidget {
     this.canShowHyperlinkDialog = true,
     this.enableHyperlinkNavigation = true,
     this.canShowTextSelectionMenu = true,
+    this.imageFieldConfig,
   }) : _source = BytePDFSource(bytes),
        assert(pageSpacing >= 0),
        assert(!maxZoomLevel.isNaN),
@@ -494,6 +500,7 @@ class SfPdfViewer extends StatefulWidget {
     this.canShowHyperlinkDialog = true,
     this.enableHyperlinkNavigation = true,
     this.canShowTextSelectionMenu = true,
+    this.imageFieldConfig,
   }) : _source = FilePDFSource(file),
        // File is not supported on Flutter Web therefore neither this method.
        assert(
@@ -1191,6 +1198,12 @@ class SfPdfViewer extends StatefulWidget {
   /// ```
   final bool canShowTextSelectionMenu;
 
+  /// Configuration for image fields in the PDF form.
+  ///
+  /// When specified, enables image field functionality for form fields whose names
+  /// match the criteria in the configuration.
+  final ImageFieldConfig? imageFieldConfig;
+
   @override
   SfPdfViewerState createState() => SfPdfViewerState();
 }
@@ -1786,7 +1799,42 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
 
         _pdfViewerController._formFields.add(helper.getFormField());
       }
+
+      // Retrieve the image field details
+      if (field is PdfButtonField) {
+        // 检查是否为图像域按钮字段
+        if (_isImageButtonField(field)) {
+          final PdfImageFormFieldHelper helper = PdfImageFormFieldHelper(
+            field,
+            pageIndex,
+            config: _imageFieldConfig,
+            onValueChanged: _formFieldValueChanged,
+          );
+
+          _pdfViewerController._formFields.add(helper.getFormField());
+        }
+      }
     }
+  }
+
+  /// 图像域配置
+  ImageFieldConfig? get _imageFieldConfig {
+    // 可以从widget或全局配置获取
+    return widget.imageFieldConfig;
+  }
+
+  /// 判断是否为图像域按钮字段
+  bool _isImageButtonField(PdfButtonField field) {
+    final String? fieldName = field.name;
+    if (fieldName == null) return false;
+
+    final lowerName = fieldName.toLowerCase();
+    return lowerName.contains('image') ||
+        lowerName.contains('photo') ||
+        lowerName.contains('图片') ||
+        lowerName.contains('照片') ||
+        lowerName.startsWith('img_') ||
+        (_imageFieldConfig?.imageFieldNames?.contains(fieldName) ?? false);
   }
 
   /// Called when the form field focus is changed.
@@ -3781,6 +3829,7 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
                     _selectedAnnotation,
                     _onAnnotationSelectionChanged,
                     _onStickyNoteAnnotationDoubleTapped,
+                    widget.imageFieldConfig,
                   );
                   final double pageSpacing =
                       index == _pdfViewerController._pageCount - 1

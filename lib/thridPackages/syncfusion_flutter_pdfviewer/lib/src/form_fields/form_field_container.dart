@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../../pdfviewer.dart';
@@ -17,6 +18,7 @@ class FormFieldContainer extends StatefulWidget {
     this.heightPercentage = 1,
     this.canShowSignaturePadDialog = true,
     required this.pdfViewerController,
+    this.imageFieldConfig,
   });
 
   final List<PdfFormField> formFields;
@@ -29,11 +31,29 @@ class FormFieldContainer extends StatefulWidget {
 
   final bool canShowSignaturePadDialog;
 
+  /// 图像域配置
+  final ImageFieldConfig? imageFieldConfig;
+
   @override
   State<FormFieldContainer> createState() => _FormFieldContainerState();
 }
 
 class _FormFieldContainerState extends State<FormFieldContainer> {
+  /// 图像域管理器
+  late final ImageFieldManager _imageFieldManager;
+
+  @override
+  void initState() {
+    super.initState();
+    _imageFieldManager = ImageFieldManager(config: widget.imageFieldConfig);
+  }
+
+  @override
+  void dispose() {
+    _imageFieldManager.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Listener(
@@ -59,6 +79,14 @@ class _FormFieldContainerState extends State<FormFieldContainer> {
             setState(() {});
           }
         };
+
+        // 检查是否为图像域
+        if (_isImageField(formField.name)) {
+          // 为图像域创建自定义Widget
+          formFields.add(_buildImageFieldWidget(formField, helper));
+          continue;
+        }
+
         if (formField is PdfTextFormField) {
           formFields.add(
             (helper as PdfTextFormFieldHelper).build(
@@ -101,11 +129,121 @@ class _FormFieldContainerState extends State<FormFieldContainer> {
             formFields.add(helper.build(context, widget.heightPercentage));
           }
         }
+        // 注意：PdfButtonField 默认不渲染，但图像域会特殊处理
       }
     }
     return formFields;
   }
 
+  /// 判断是否为图像域
+  bool _isImageField(String? fieldName) {
+    if (fieldName == null) {
+      return false;
+    }
+    final lowerName = fieldName.toLowerCase();
+    final isContains = lowerName.contains('image') ||
+        lowerName.contains('photo') ||
+        lowerName.contains('图片') ||
+        lowerName.contains('照片') ||
+        lowerName.startsWith('img_') ||
+        (widget.imageFieldConfig?.imageFieldNames?.contains(fieldName) ?? false);
+    debugPrint('_isImageField()==>field=${fieldName}, isContains=${isContains}, imageFieldNames=${widget.imageFieldConfig?.imageFieldNames}');
+    return isContains;
+  }
+
+  /// 构建图像域Widget
+  Widget _buildImageFieldWidget(PdfFormField formField, PdfFormFieldHelper helper) {
+    final Rect originalBounds = helper.bounds;
+    final Rect fieldBounds = Rect.fromLTWH(
+      originalBounds.left / widget.heightPercentage,
+      originalBounds.top / widget.heightPercentage,
+      originalBounds.width / widget.heightPercentage,
+      originalBounds.height / widget.heightPercentage,
+    );
+
+    // 创建图像域数据存储
+    final Uint8List? imageData = _imageFieldManager.getImageData(formField.name);
+
+    return Positioned(
+      left: fieldBounds.left,
+      top: fieldBounds.top,
+      width: fieldBounds.width,
+      height: fieldBounds.height,
+      child: GestureDetector(
+        onTap: () {
+          if (!formField.readOnly) {
+            _handleImageFieldClick(formField);
+          }
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey),
+            borderRadius: BorderRadius.circular(2),
+            color: imageData != null
+                ? (widget.imageFieldConfig?.uploadedColor ?? const Color(0xFFE8F5E8))
+                : Colors.white,
+          ),
+          child: Center(
+            child: imageData != null
+                ? _buildImagePreview(imageData)
+                : _buildUploadButton(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 处理图像域点击
+  Future<void> _handleImageFieldClick(PdfFormField formField) async {
+    try {
+      final imageField = PdfImageFormField(config: widget.imageFieldConfig);
+
+      // 使用现有的表单字段数据
+      final existingImageData = _imageFieldManager.getImageData(formField.name);
+      if (existingImageData != null) {
+        imageField.imageData = existingImageData;
+      }
+
+      await _imageFieldManager.handleImageFieldClick(context, imageField);
+    } catch (e) {
+      debugPrint('Error handling image field click: $e');
+    }
+  }
+
+  /// 构建图像预览
+  Widget _buildImagePreview(Uint8List imageData) {
+    return Image.memory(
+      imageData,
+      fit: BoxFit.contain,
+      width: 100,
+      height: 50,
+    );
+  }
+
+  /// 构建上传按钮
+  Widget _buildUploadButton() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.cloud_upload,
+          color: widget.imageFieldConfig?.iconColor ?? Colors.grey,
+          size: 24,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          widget.imageFieldConfig?.uploadText ?? '点击上传图片',
+          style: TextStyle(
+            color: widget.imageFieldConfig?.textColor ?? Colors.grey,
+            fontSize: 12,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  
   /// Updates the global rect of the form field.
   void _updateGlobalRect(PdfFormFieldHelper helper) {
     if (!mounted) {

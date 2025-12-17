@@ -72,6 +72,7 @@ class PdfPageView extends StatefulWidget {
     this.selectedAnnotation,
     this.onAnnotationSelectionChanged,
     this.onStickyNoteDoubleTapped,
+    this.imageFieldConfig,
   ) : super(key: key);
 
   /// Document ID of current pdf
@@ -194,6 +195,9 @@ class PdfPageView extends StatefulWidget {
 
   /// List of form fields.
   final List<PdfFormField> formFields;
+
+  /// Configuration for image fields in the PDF form.
+  final ImageFieldConfig? imageFieldConfig;
 
   /// List of annotations.
   final List<Annotation> annotations;
@@ -781,6 +785,7 @@ class PdfPageViewState extends State<PdfPageView> {
               heightPercentage: _heightPercentage,
               pdfViewerController: widget.pdfViewerController,
               canShowSignaturePadDialog: widget.canShowSignaturePadDialog,
+              imageFieldConfig: widget.imageFieldConfig,
             ),
           ),
         );

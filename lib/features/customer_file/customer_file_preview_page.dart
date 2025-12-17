@@ -346,7 +346,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   // 按钮状态管理
   bool _isProcessing = false;
 
-  bool get kIsPrintPdfFields => true;  // 是否打印pdf的每个字段
+  bool get kIsPrintPdfFields => false;  // 是否打印pdf的每个字段
 
   @override
   void initState() {
@@ -2792,6 +2792,12 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                   return SfPdfViewer.memory(
                     _pdfBytes!,
                     controller: _pdfViewerController,
+                    imageFieldConfig: ImageFieldConfig(
+                      imageFieldNames: ['signature'],
+                      uploadText: 'X上传X',
+                        uploadedText: 'S已上传S',
+                        imageQuality: 80
+                    ),
                     enableDoubleTapZooming: false,
                     enableTextSelection: false,
                     canShowScrollHead: false,
