@@ -5,6 +5,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../control/pdfviewer_callback_details.dart';
 import 'image_field_manager.dart';
 import 'pdf_form_field.dart';
+import '../utils/image_field_utils.dart';
 
 /// 表单字段值变化回调
 typedef PdfFormFieldValueChangedCallback = void Function(
@@ -41,18 +42,7 @@ class PdfImageFormField extends PdfFormField {
   });
 
   /// 是否为图像域（通过名称判断）
-  bool get isImageField => _isImageFieldName(name);
-
-  /// 判断是否为图像域名称
-  bool _isImageFieldName(String fieldName) {
-    final lowerName = fieldName.toLowerCase();
-    return lowerName.contains('image') ||
-        lowerName.contains('photo') ||
-        lowerName.contains('图片') ||
-        lowerName.contains('照片') ||
-        lowerName.startsWith('img_') ||
-        (config?.imageFieldNames?.contains(fieldName) ?? false);
-  }
+  bool get isImageField => ImageFieldUtils.isImageField(this, config?.imageFieldNames);
 
   /// 设置图像
   void setImage(Uint8List imageBytes, {String? originalPath}) {
@@ -214,7 +204,7 @@ class PdfImageFormFieldHelper extends PdfFormFieldHelper {
   Widget _buildImagePreview(Uint8List imageData) {
     return Image.memory(
       imageData,
-      fit: BoxFit.contain,
+      fit: BoxFit.cover,
       width: bounds.width - 4,
       height: bounds.height - 4,
     );

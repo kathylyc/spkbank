@@ -10,6 +10,7 @@ import 'pdf_radio_button.dart';
 import 'pdf_signature.dart';
 import 'pdf_text_box.dart';
 import 'pdf_image_field.dart';
+import '../utils/image_field_utils.dart';
 
 class FormFieldContainer extends StatefulWidget {
   const FormFieldContainer({
@@ -82,7 +83,7 @@ class _FormFieldContainerState extends State<FormFieldContainer> {
         };
 
         // 检查是否为图像域
-        if (_isImageField(formField.name)) {
+        if (ImageFieldUtils.isImageField(formField, widget.imageFieldConfig?.imageFieldNames)) {
           // 为图像域创建自定义Widget
           formFields.add(_buildImageFieldWidget(formField, helper));
           continue;
@@ -136,22 +137,7 @@ class _FormFieldContainerState extends State<FormFieldContainer> {
     return formFields;
   }
 
-  /// 判断是否为图像域
-  bool _isImageField(String? fieldName) {
-    if (fieldName == null) {
-      return false;
-    }
-    final lowerName = fieldName.toLowerCase();
-    final isContains = lowerName.contains('image') ||
-        lowerName.contains('photo') ||
-        lowerName.contains('图片') ||
-        lowerName.contains('照片') ||
-        lowerName.startsWith('img_') ||
-        (widget.imageFieldConfig?.imageFieldNames?.contains(fieldName) ?? false);
-    // debugPrint('_isImageField()==>field=${fieldName}, isContains=${isContains}, imageFieldNames=${widget.imageFieldConfig?.imageFieldNames}');
-    return isContains;
-  }
-
+  
   /// 构建图像域Widget
   Widget _buildImageFieldWidget(PdfFormField formField, PdfFormFieldHelper helper) {
     final Rect originalBounds = helper.bounds;
@@ -239,9 +225,9 @@ class _FormFieldContainerState extends State<FormFieldContainer> {
   Widget _buildImagePreview(Uint8List imageData) {
     return Image.memory(
       imageData,
-      fit: BoxFit.contain,
-      width: 100,
-      height: 50,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
     );
   }
 

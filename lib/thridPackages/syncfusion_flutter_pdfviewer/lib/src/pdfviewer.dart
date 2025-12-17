@@ -13,7 +13,9 @@ import 'package:syncfusion_flutter_core/localizations.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+import 'form_fields/image_field_manager.dart';
 import 'form_fields/pdf_image_field.dart';
+import 'utils/image_field_utils.dart';
 
 import 'annotation/annotation.dart';
 import 'annotation/annotation_settings.dart';
@@ -1318,6 +1320,9 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
   /// Indicates whether the document needs to be reloaded to update the signed signature field.
   bool _isSignatureSaved = false;
 
+  /// 图像域管理器
+  ImageFieldManager? _imageFieldManager;
+
   /// Indicates whether the built-in bookmark view in the [SfPdfViewer] is
   /// opened or not.
   ///
@@ -1381,6 +1386,11 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
     _pdfViewerController = widget.controller ?? PdfViewerController();
     _pdfViewerController._addListener(_handleControllerValueChange);
     _changeTracker = ChangeTracker()..undoController = _effectiveUndoController;
+
+    // 初始化图像域管理器
+    if (_imageFieldConfig != null) {
+      _imageFieldManager = ImageFieldManager(config: _imageFieldConfig);
+    }
     _setInitialScrollOffset();
     _offsetBeforeOrientationChange = Offset.zero;
     _hasError = false;
@@ -1544,6 +1554,11 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
     _pdfPages.clear();
     _pdfPagesKey.clear();
     _disposeFormFields();
+
+    // 清理图像域管理器
+    _imageFieldManager?.dispose();
+    _imageFieldManager = null;
+
     _textBoxFocusNodes.clear();
     _focusNode.dispose();
     _stickyNoteTextController.dispose();
@@ -1803,7 +1818,7 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
       // Retrieve the image field details
       if (field is PdfButtonField) {
         // 检查是否为图像域按钮字段
-        if (_isImageButtonField(field)) {
+        if (ImageFieldUtils.isImageButtonField(field, _imageFieldConfig?.imageFieldNames)) {
           final PdfImageFormFieldHelper helper = PdfImageFormFieldHelper(
             field,
             pageIndex,
@@ -1823,20 +1838,7 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
     return widget.imageFieldConfig;
   }
 
-  /// 判断是否为图像域按钮字段
-  bool _isImageButtonField(PdfButtonField field) {
-    final String? fieldName = field.name;
-    if (fieldName == null) return false;
-
-    final lowerName = fieldName.toLowerCase();
-    return lowerName.contains('image') ||
-        lowerName.contains('photo') ||
-        lowerName.contains('图片') ||
-        lowerName.contains('照片') ||
-        lowerName.startsWith('img_') ||
-        (_imageFieldConfig?.imageFieldNames?.contains(fieldName) ?? false);
-  }
-
+  
   /// Called when the form field focus is changed.
   void _formFieldFocusChange(PdfFormFieldFocusChangeDetails details) {
     if (widget.onFormFieldFocusChange != null) {
@@ -2201,6 +2203,9 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
     // Update the signature form fields data
     _updateSignatureFormFields();
 
+    // Update the image form fields data
+    _updateImageFormFields();
+
     // Update the annotations in the document
     _updateAnnotations();
 
@@ -2268,6 +2273,86 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
         }
       }
     }
+  }
+
+  /// Update the image form fields data
+  void _updateImageFormFields() {
+    for (final PdfFormField formField in _pdfViewerController._formFields) {
+      // Check if this is an image field using the utility
+      if (ImageFieldUtils.isImageField(formField, _imageFieldConfig?.imageFieldNames)) {
+        // Try to get image data from the field
+        Uint8List? imageData = _getImageDataFromField(formField);
+        if (imageData != null) {
+          try {
+            // Get the helper for this field
+            final PdfFormFieldHelper helper = PdfFormFieldHelper.getHelper(formField);
+            final PdfPage page = helper.pdfField.page!;
+
+            // Draw image on the page
+            void drawImage() {
+              page.graphics.drawImage(
+                PdfBitmap(imageData),
+                Rect.fromLTWH(
+                  helper.bounds.left,
+                  helper.bounds.top,
+                  helper.bounds.width,
+                  helper.bounds.height,
+                ),
+              );
+              // Remove image field from form when flattening
+              helper.pdfField.form!.fields.remove(helper.pdfField);
+            }
+
+            // Always flatten image fields (similar to forceFlattenSignature)
+            const bool forceFlattenImage = true;
+            if (forceFlattenImage) {
+              drawImage();
+              debugPrint('✓ 扁平化图像域 ${ImageFieldUtils.getImageFieldDisplayName(formField)}');
+            } else {
+              if (_pdfViewerController._flattenOption == PdfFlattenOption.formFields) {
+                drawImage();
+                debugPrint('✓ 扁平化图像域 ${ImageFieldUtils.getImageFieldDisplayName(formField)} (表单扁平化)');
+              } else {
+                // When not flattening: set image appearance on the field
+                debugPrint('⚠ 图像域 ${ImageFieldUtils.getImageFieldDisplayName(formField)} 未扁平化（非扁平化模式）');
+              }
+            }
+          } catch (e) {
+            debugPrint('⚠ 扁平化图像域 ${ImageFieldUtils.getImageFieldDisplayName(formField)} 失败: $e');
+          }
+        }
+      }
+    }
+  }
+
+  
+  /// Get image data from a form field
+  Uint8List? _getImageDataFromField(PdfFormField formField) {
+    // Try to get image data from PdfImageFormField
+    if (formField is PdfImageFormField) {
+      return formField.imageData;
+    }
+
+    // Try to get image data from helper
+    try {
+      final PdfFormFieldHelper helper = PdfFormFieldHelper.getHelper(formField);
+      if (helper is PdfImageFormFieldHelper) {
+        // Access the image field through helper
+        final PdfImageFormField imageField = helper.getFormField();
+        return imageField.imageData;
+      } else if (helper.pdfField is PdfButtonField) {
+        // For button fields that are image fields, try to get data from image field manager
+        // This is a fallback approach when the helper is not PdfImageFormFieldHelper
+        final String? fieldName = formField.name;
+        if (fieldName != null && _imageFieldManager != null) {
+          return _imageFieldManager!.getImageData(fieldName);
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠ 获取图像域 ${formField.name} 数据失败: $e');
+    }
+
+    return null;
   }
 
   /// Set signature appearance for non-flattened signature fields
