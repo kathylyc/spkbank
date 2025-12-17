@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import '../utils/image_field_utils.dart';
 import 'pdf_form_field.dart';
 
 // 如果需要使用ImagePicker，请在项目的pubspec.yaml中添加：
@@ -34,19 +35,7 @@ class SimpleImageFieldExtension {
 
   /// 判断是否为图像域
   static bool isImageField(String fieldName) {
-    final lowerName = fieldName.toLowerCase();
-
-    // 检查是否在明确指定的列表中
-    if (_imageFieldNames != null && _imageFieldNames!.contains(fieldName)) {
-      return true;
-    }
-
-    // 自动识别规则
-    return lowerName.contains('image') ||
-        lowerName.contains('photo') ||
-        lowerName.contains('图片') ||
-        lowerName.contains('照片') ||
-        lowerName.startsWith('img_');
+    return ImageFieldUtils.isImageFieldWithFieldName(fieldName, _imageFieldNames);
   }
 
   /// 设置图像数据

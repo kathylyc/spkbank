@@ -122,7 +122,7 @@ class PdfImageFormFieldHelper extends PdfFormFieldHelper {
     super.load(imageFormField);
 
     // 检查是否为图像域
-    if (pdfField.name != null && _isImageField(pdfField.name!)) {
+    if (pdfField.name != null && ImageFieldUtils.isImageFieldWithFieldName(pdfField.name!, config?.imageFieldNames)) {
       // 设置初始状态
       _updateButtonAppearance();
     }
@@ -140,17 +140,6 @@ class PdfImageFormFieldHelper extends PdfFormFieldHelper {
         _updateButtonAppearance();
       }
     }
-  }
-
-  /// 判断是否为图像域名称
-  bool _isImageField(String fieldName) {
-    final lowerName = fieldName.toLowerCase();
-    return lowerName.contains('image') ||
-        lowerName.contains('photo') ||
-        lowerName.contains('图片') ||
-        lowerName.contains('照片') ||
-        lowerName.startsWith('img_') ||
-        (config?.imageFieldNames?.contains(fieldName) ?? false);
   }
 
   /// 构建图像域Widget

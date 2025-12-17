@@ -17,6 +17,20 @@ class ImageFieldUtils {
       return false;
     }
 
+    return isImageFieldWithFieldName(fieldName, imageFieldNames);
+  }
+
+  /// 判断是否为图像域
+  ///
+  /// [formField] 要判断的表单域
+  /// [imageFieldNames] 外部配置的图像域名称列表，如果为null则使用默认判断逻辑
+  ///
+  /// 返回 true 如果是图像域，否则返回 false
+  static bool isImageFieldWithFieldName(String? fieldName, List<String>? imageFieldNames) {
+    if (fieldName == null) {
+      return false;
+    }
+
     final lowerName = fieldName.toLowerCase();
 
     // 如果外部配置了 imageFieldNames，优先使用外部配置
