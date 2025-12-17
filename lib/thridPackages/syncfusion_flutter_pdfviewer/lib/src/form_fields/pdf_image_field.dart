@@ -11,9 +11,20 @@ typedef PdfFormFieldValueChangedCallback = void Function(
   PdfFormFieldValueChangedDetails details,
 );
 
+/// 图像域文件选择回调
+typedef PdfImageFieldFileCallback = Future<PdfImageSelectedFile?> Function(
+  BuildContext context,
+  PdfImageFormField imageField,
+);
+
+/// 图像域状态变化回调
+typedef PdfImageFieldCallback = void Function(
+  PdfImageFieldDetails details,
+);
+
 /// 图像域表单字段
 class PdfImageFormField extends PdfFormField {
-  late final PdfImageFormFieldHelper _helper;
+  PdfImageFormFieldHelper? _helper;
 
   /// 图像数据
   Uint8List? imageData;
@@ -48,7 +59,12 @@ class PdfImageFormField extends PdfFormField {
     imageData = imageBytes;
     originalImagePath = originalPath;
     _updateButtonAppearance();
-    _helper.rebuild();
+    _helper?.rebuild();
+  }
+
+  /// 安全地初始化辅助对象
+  void initializeHelper(PdfImageFormFieldHelper helper) {
+    _helper = helper;
   }
 
   /// 清除图像
@@ -56,13 +72,13 @@ class PdfImageFormField extends PdfFormField {
     imageData = null;
     originalImagePath = null;
     _updateButtonAppearance(clear: true);
-    _helper.rebuild();
+    _helper?.rebuild();
   }
 
   /// 更新按钮外观
   void _updateButtonAppearance({bool clear = false}) {
-    if (_helper.pdfField is PdfButtonField) {
-      final buttonField = _helper.pdfField as PdfButtonField;
+    if (_helper?.pdfField is PdfButtonField) {
+      final buttonField = _helper!.pdfField as PdfButtonField;
       if (clear || imageData == null) {
         buttonField.text = config?.uploadText ?? '点击上传图片';
       } else {
@@ -72,7 +88,16 @@ class PdfImageFormField extends PdfFormField {
   }
 
   /// 获取辅助对象
-  PdfFormFieldHelper get helper => _helper;
+  PdfFormFieldHelper? get helper => _helper;
+
+  /// 获取字段名（安全访问）
+  String? get safeName {
+    try {
+      return name;
+    } catch (e) {
+      return null;
+    }
+  }
 }
 
 /// 图像域表单字段辅助类
@@ -144,7 +169,7 @@ class PdfImageFormFieldHelper extends PdfFormFieldHelper {
       return const SizedBox.shrink();
     }
 
-    final imageField = _formField as PdfImageFormField;
+    final imageField = _formField;
     if (!imageField.isImageField) {
       return const SizedBox.shrink();
     }
@@ -239,6 +264,58 @@ class PdfImageFormFieldHelper extends PdfFormFieldHelper {
   }
 }
 
+/// 选择文件的结果
+class PdfImageSelectedFile {
+  /// 图像字节数据
+  final Uint8List imageData;
+
+  /// 原始文件路径
+  final String? originalPath;
+
+  /// 文件名
+  final String? fileName;
+
+  /// MIME类型
+  final String? mimeType;
+
+  /// 文件大小（字节）
+  final int fileSize;
+
+  /// 文件日期
+  final DateTime? fileDate;
+
+  const PdfImageSelectedFile({
+    required this.imageData,
+    this.originalPath,
+    this.fileName,
+    this.mimeType,
+    this.fileSize = 0,
+    this.fileDate,
+  });
+}
+
+/// 图像域变化详情
+class PdfImageFieldDetails {
+  /// 表单字段
+  final PdfImageFormField formField;
+
+  /// 选择的文件
+  final PdfImageSelectedFile? selectedFile;
+
+  /// 之前的文件
+  final PdfImageSelectedFile? oldFile;
+
+  /// 错误信息
+  final String? errorMessage;
+
+  const PdfImageFieldDetails({
+    required this.formField,
+    required this.selectedFile,
+    required this.oldFile,
+    this.errorMessage,
+  });
+}
+
 /// 图像域配置类
 class ImageFieldConfig {
   /// 图像域名称列表
@@ -280,6 +357,15 @@ class ImageFieldConfig {
   /// 图像质量 (0-100)
   final int imageQuality;
 
+  /// 文件选择回调
+  final PdfImageFieldFileCallback? onFileSelect;
+
+  /// 图像选择成功回调
+  final PdfImageFieldCallback? onImageSelected;
+
+  /// 图像清除回调
+  final PdfImageFieldCallback? onImageCleared;
+
   const ImageFieldConfig({
     this.imageFieldNames,
     this.maxFileSize = 5 * 1024 * 1024, // 5MB
@@ -294,5 +380,8 @@ class ImageFieldConfig {
     this.maxWidth = 1920,
     this.maxHeight = 1080,
     this.imageQuality = 85,
+    this.onFileSelect,
+    this.onImageSelected,
+    this.onImageCleared,
   });
 }

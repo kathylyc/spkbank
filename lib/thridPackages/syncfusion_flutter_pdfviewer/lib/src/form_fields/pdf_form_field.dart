@@ -3,13 +3,21 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 /// Represents the form field.
 abstract class PdfFormField {
-  late final String _name;
+  String? _name;
   late final int _pageNumber;
   bool _readOnly = false;
   late final PdfFormFieldHelper _helper;
 
   /// Gets the name of the [PdfFormField].
-  String get name => _name;
+  String get name {
+    if (_name == null) {
+      throw StateError('PdfFormField name has not been initialized');
+    }
+    return _name!;
+  }
+
+  /// 检查字段名是否已初始化
+  bool isFieldNameInitialized() => _name != null;
 
   /// Gets the page number of the [PdfFormField].
   int get pageNumber => _pageNumber;
@@ -48,7 +56,7 @@ abstract class PdfFormFieldHelper {
   /// Sets the name and read only property of the form field.
   void load(PdfFormField formField) {
     formField
-      .._name = pdfField.name!
+      .._name = pdfField.name
       .._pageNumber = pageIndex + 1
       .._readOnly = pdfField.readOnly
       .._helper = this;

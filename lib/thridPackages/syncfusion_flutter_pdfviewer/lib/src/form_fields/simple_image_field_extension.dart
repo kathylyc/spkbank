@@ -83,7 +83,7 @@ class SimpleImageFieldExtension {
 
       // 示例实现：
       if (context.mounted) {
-        _showMessage(context, '请实现图片选择逻辑');
+        _showMessage(context, '请实现图片选择逻辑simple');
       }
 
       // 实际项目中，您可以：

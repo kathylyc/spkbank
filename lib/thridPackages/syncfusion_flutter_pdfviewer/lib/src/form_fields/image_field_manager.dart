@@ -55,10 +55,92 @@ class ImageFieldManager {
     BuildContext context,
     PdfImageFormField imageField,
   ) async {
-    // 简化实现：实际项目中需要完整的图像选择逻辑
     if (context.mounted) {
-      _showMessage(context, '请实现图片选择逻辑', isError: false);
+      try {
+        // 调用文件选择回调
+        if (config?.onFileSelect != null) {
+          final PdfImageSelectedFile? selectedFile = await config!.onFileSelect!(
+            context,
+            imageField,
+          );
+
+          if (selectedFile != null) {
+            // 验证文件大小
+            if (config!.maxFileSize > 0 && selectedFile.fileSize > config!.maxFileSize) {
+              _showMessage(
+                context,
+                '文件大小超过限制 (${config!.maxFileSize ~/ 1024 ~/ 1024}MB)',
+                isError: true,
+              );
+              return;
+            }
+
+            // 验证文件格式
+            if (config!.allowedFormats.isNotEmpty) {
+              final fileName = selectedFile.fileName?.toLowerCase() ?? '';
+              final hasValidFormat = config!.allowedFormats.any((format) =>
+                  fileName.endsWith('.$format'));
+              if (!hasValidFormat) {
+                _showMessage(
+                  context,
+                  '不支持的文件格式，支持的格式：${config!.allowedFormats.join(', ')}',
+                  isError: true,
+                );
+                return;
+              }
+            }
+
+            // 获取之前的文件信息
+            final PdfImageSelectedFile? oldFile = _getPreviousFile(imageField.name);
+
+            // 保存图像数据
+            saveImageData(imageField.name, selectedFile.imageData);
+
+            // 设置图像路径
+            imageField.originalImagePath = selectedFile.originalPath;
+
+            // 更新表单字段
+            imageField.setImage(selectedFile.imageData, originalPath: selectedFile.originalPath);
+
+            // 调用图像选择成功回调
+            if (config?.onImageSelected != null) {
+              config!.onImageSelected!(
+                PdfImageFieldDetails(
+                  formField: imageField,
+                  selectedFile: selectedFile,
+                  oldFile: oldFile,
+                ),
+              );
+            }
+
+            _showMessage(context, '图片上传成功', isError: false);
+          }
+        } else {
+          // 回退到默认提示
+          _showMessage(context, '请配置文件选择回调', isError: true);
+        }
+      } catch (e, s) {
+        debugPrint('图片选择失败: $e');
+        debugPrintStack(stackTrace: s);
+        _showMessage(context, '图片选择失败: $e', isError: true);
+      }
     }
+  }
+
+  /// 获取之前的文件信息
+  PdfImageSelectedFile? _getPreviousFile(String? fieldName) {
+    if (fieldName == null) {
+      return null;
+    }
+    final imageData = getImageData(fieldName);
+    if (imageData != null) {
+      return PdfImageSelectedFile(
+        imageData: imageData,
+        fileSize: imageData.length,
+        fileDate: DateTime.now(),
+      );
+    }
+    return null;
   }
 
   
@@ -69,7 +151,7 @@ class ImageFieldManager {
   ) async {
     // 使用内部存储的图像数据
     final imageDataMap = getAllImageData();
-    return await saveDocumentWithImageFieldsMap(document, imageDataMap);
+    return saveDocumentWithImageFieldsMap(document, imageDataMap);
   }
 
   /// 保存所有图像域到PDF文档（带指定图像数据）
@@ -93,7 +175,7 @@ class ImageFieldManager {
     }
 
     // 保存文档
-    return await saveDocument.save();
+    return saveDocument.save();
   }
 
   /// 复制页面内容（简化实现）

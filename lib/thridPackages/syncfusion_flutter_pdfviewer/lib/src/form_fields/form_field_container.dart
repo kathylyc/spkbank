@@ -9,6 +9,7 @@ import 'pdf_list_box.dart';
 import 'pdf_radio_button.dart';
 import 'pdf_signature.dart';
 import 'pdf_text_box.dart';
+import 'pdf_image_field.dart';
 
 class FormFieldContainer extends StatefulWidget {
   const FormFieldContainer({
@@ -147,7 +148,7 @@ class _FormFieldContainerState extends State<FormFieldContainer> {
         lowerName.contains('照片') ||
         lowerName.startsWith('img_') ||
         (widget.imageFieldConfig?.imageFieldNames?.contains(fieldName) ?? false);
-    debugPrint('_isImageField()==>field=${fieldName}, isContains=${isContains}, imageFieldNames=${widget.imageFieldConfig?.imageFieldNames}');
+    // debugPrint('_isImageField()==>field=${fieldName}, isContains=${isContains}, imageFieldNames=${widget.imageFieldConfig?.imageFieldNames}');
     return isContains;
   }
 
@@ -196,12 +197,36 @@ class _FormFieldContainerState extends State<FormFieldContainer> {
   /// 处理图像域点击
   Future<void> _handleImageFieldClick(PdfFormField formField) async {
     try {
-      final imageField = PdfImageFormField(config: widget.imageFieldConfig);
+      // 创建或获取 PdfImageFormField 实例
+      PdfImageFormField imageField;
+      if (formField is PdfImageFormField) {
+        imageField = formField;
+        // 使用现有的表单字段数据
+        final existingImageData = _imageFieldManager.getImageData(formField.name);
+        if (existingImageData != null) {
+          imageField.imageData = existingImageData;
+        }
+      } else {
+        // 如果不是 PdfImageFormField，创建一个新的实例
+        imageField = PdfImageFormField(config: widget.imageFieldConfig);
 
-      // 使用现有的表单字段数据
-      final existingImageData = _imageFieldManager.getImageData(formField.name);
-      if (existingImageData != null) {
-        imageField.imageData = existingImageData;
+        // 获取原始字段的helper来访问PdfField
+        final originalHelper = PdfFormFieldHelper.getHelper(formField);
+
+        // 创建并初始化 helper，使用原始的PdfField
+        final helper = PdfImageFormFieldHelper(
+          originalHelper.pdfField,
+          originalHelper.pageIndex,
+          config: widget.imageFieldConfig,
+          imageFieldManager: _imageFieldManager,
+        );
+        imageField.initializeHelper(helper);
+
+        // 使用现有的表单字段数据
+        final existingImageData = _imageFieldManager.getImageData(formField.name);
+        if (existingImageData != null) {
+          imageField.imageData = existingImageData;
+        }
       }
 
       await _imageFieldManager.handleImageFieldClick(context, imageField);

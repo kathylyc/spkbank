@@ -37,7 +37,7 @@ export 'src/control/pdfviewer_callback_details.dart';
 export 'src/form_fields/pdf_checkbox.dart' show PdfCheckboxFormField;
 export 'src/form_fields/pdf_combo_box.dart' show PdfComboBoxFormField;
 export 'src/form_fields/pdf_form_field.dart' show PdfFormField;
-export 'src/form_fields/pdf_image_field.dart' show PdfImageFormField, ImageFieldConfig;
+export 'src/form_fields/pdf_image_field.dart' show PdfImageFormField, ImageFieldConfig, PdfImageSelectedFile;
 export 'src/form_fields/image_field_manager.dart' show ImageFieldManager;
 export 'src/form_fields/simple_image_field_extension.dart' show SimpleImageFieldExtension, ImageFieldExtension;
 export 'src/form_fields/image_field_mixin.dart' show ImageFieldMixin, EnhancedFormFieldContainer;

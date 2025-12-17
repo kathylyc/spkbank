@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
@@ -2745,42 +2746,45 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                 bottom: BorderSide(color: Colors.grey.shade300),
               ),
             ),
-            child: Row(
-              children: [
-                if (widget.customerName != null) ...[
-                  Icon(Icons.person, size: 20, color: Colors.blue.shade700),
-                  const SizedBox(width: 8),
-                  Text(
-                    '客户：${widget.customerName}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade800,
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  Icon(Icons.description, size: 20, color: Colors.blue.shade700),
-                  const SizedBox(width: 8),
-                  Text(
-                    '模板：${widget.templateName}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade800,
-                    ),
-                  ),
-                  if ( widget.fileVersion != null) ...[
-                    const SizedBox(width: 24),
-                    Icon(Icons.info, size: 20, color: Colors.blue.shade700),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  if (widget.customerName != null) ...[
+                    Icon(Icons.person, size: 20, color: Colors.blue.shade700),
                     const SizedBox(width: 8),
                     Text(
-                      '版本：${VersionUtils.intToString(widget.fileVersion!)}',
+                      '客户：${widget.customerName}',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey.shade800,
                       ),
                     ),
-                  ]
+                    const SizedBox(width: 24),
+                    Icon(Icons.description, size: 20, color: Colors.blue.shade700),
+                    const SizedBox(width: 8),
+                    Text(
+                      '模板：${widget.templateName}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                    if ( widget.fileVersion != null) ...[
+                      const SizedBox(width: 24),
+                      Icon(Icons.info, size: 20, color: Colors.blue.shade700),
+                      const SizedBox(width: 8),
+                      Text(
+                        '版本：${VersionUtils.intToString(widget.fileVersion!)}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                    ]
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           
@@ -2795,8 +2799,46 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                     imageFieldConfig: ImageFieldConfig(
                       imageFieldNames: ['signature'],
                       uploadText: 'X上传X',
-                        uploadedText: 'S已上传S',
-                        imageQuality: 80
+                      uploadedText: 'S已上传S',
+                      imageQuality: 80,
+                      maxFileSize: 5 * 1024 * 1024, // 5MB
+                      allowedFormats: ['jpg', 'jpeg', 'png'],
+                      onFileSelect: (context, imageField) async {
+                        try {
+                          final ImagePicker picker = ImagePicker();
+                          final XFile? file = await picker.pickImage(
+                            source: ImageSource.gallery,
+                            imageQuality: 80,
+                            maxWidth: 1920,
+                            maxHeight: 1080,
+                          );
+
+                          if (file != null) {
+                            final bytes = await file.readAsBytes();
+                            return _createSelectedImageFile(
+                              imageData: bytes,
+                              originalPath: file.path,
+                              fileName: file.name,
+                              mimeType: file.mimeType,
+                              fileSize: bytes.length,
+                              fileDate: DateTime.now()
+                            );
+                          }
+                          return null;
+                        } catch (e) {
+                          debugPrint('图片选择失败: $e');
+                          return null;
+                        }
+                      },
+                      onImageSelected: (details) {
+                        debugPrint('图像上传成功: ${details.formField.name}, 文件大小: ${details.selectedFile?.fileSize ?? 0} 字节');
+                        // 可以在这里添加银行业务特定的处理逻辑
+                        // 例如：记录日志、更新数据库等
+                      },
+                      onImageCleared: (details) {
+                        debugPrint('图像已清除: ${details.formField.name}');
+                        // 清理相关资源
+                      },
                     ),
                     enableDoubleTapZooming: false,
                     enableTextSelection: false,
@@ -3380,6 +3422,24 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
           ],
         );
       },
+    );
+  }
+
+  PdfImageSelectedFile _createSelectedImageFile({
+    required Uint8List imageData,
+    required String originalPath,
+    required String fileName,
+    String? mimeType,
+    required int fileSize,
+    required DateTime fileDate}) {
+
+    return PdfImageSelectedFile(
+      imageData: imageData,
+      originalPath: originalPath,
+      fileName: fileName,
+      mimeType: mimeType,
+      fileSize: fileSize,
+      fileDate: fileDate,
     );
   }
 }
