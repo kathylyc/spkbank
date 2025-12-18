@@ -351,6 +351,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   bool _isProcessing = false;
 
   bool get kIsPrintPdfFields => false;  // 是否打印pdf的每个字段
+  bool get kIsPrintFontSet => false; // 是否打印pdf设置字体
 
   @override
   void initState() {
@@ -2321,39 +2322,57 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
             try {
               field.font = _chineseFont!;
               fontSetCount++;
-              debugPrint('✓ [preview] 为 TextBox 字段 $fieldName 设置字体成功');
+              if (kIsPrintFontSet) {
+                debugPrint('✓ [preview] 为 TextBox 字段 $fieldName 设置字体成功');
+              }
             } catch (e) {
               fontSetFailedCount++;
-              debugPrint('× [preview] 为 TextBox 字段 $fieldName 设置字体失败: $e');
+              if (kIsPrintFontSet) {
+                debugPrint('× [preview] 为 TextBox 字段 $fieldName 设置字体失败: $e');
+              }
             }
           } else if (field is PdfComboBoxField) {
             try {
               field.font = _chineseFont!;
               fontSetCount++;
-              debugPrint('✓ [preview] 为 ComboBox 字段 $fieldName 设置字体成功');
+              if (kIsPrintFontSet) {
+                debugPrint('✓ [preview] 为 ComboBox 字段 $fieldName 设置字体成功');
+              }
             } catch (e) {
               fontSetFailedCount++;
-              debugPrint('× [preview] 为 ComboBox 字段 $fieldName 设置字体失败: $e');
+              if (kIsPrintFontSet) {
+                debugPrint('× [preview] 为 ComboBox 字段 $fieldName 设置字体失败: $e');
+              }
             }
           } else if (field is PdfListBoxField) {
             try {
               field.font = _chineseFont!;
               fontSetCount++;
-              debugPrint('✓ [preview] 为 ListBox 字段 $fieldName 设置字体成功');
+              if (kIsPrintFontSet) {
+                debugPrint('✓ [preview] 为 ListBox 字段 $fieldName 设置字体成功');
+              }
             } catch (e) {
               fontSetFailedCount++;
-              debugPrint('× [preview] 为 ListBox 字段 $fieldName 设置字体失败: $e');
+              if (kIsPrintFontSet) {
+                debugPrint('× [preview] 为 ListBox 字段 $fieldName 设置字体失败: $e');
+              }
             }
           }
         } catch (e) {
           fontSetFailedCount++;
-          debugPrint('× [preview] 为字段 $fieldName 设置字体失败: $e');
+          if (kIsPrintFontSet) {
+            debugPrint('× [preview] 为字段 $fieldName 设置字体失败: $e');
+          }
         }
       }
 
-      debugPrint('[preview] 字体设置完成: 成功 $fontSetCount 个, 失败 $fontSetFailedCount 个');
+      if (kIsPrintFontSet) {
+        debugPrint('[preview] 字体设置完成: 成功 $fontSetCount 个, 失败 $fontSetFailedCount 个');
+      }
     } catch (e) {
-      debugPrint('[preview] 设置表单字段字体失败: $e');
+      if (kIsPrintFontSet) {
+        debugPrint('[preview] 设置表单字段字体失败: $e');
+      }
     }
   }
 
