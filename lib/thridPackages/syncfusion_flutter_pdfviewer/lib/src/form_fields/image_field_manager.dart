@@ -65,55 +65,63 @@ class ImageFieldManager {
           );
 
           if (selectedFile != null) {
-            // 验证文件大小
-            if (config!.maxFileSize > 0 && selectedFile.fileSize > config!.maxFileSize) {
-              _showMessage(
-                context,
-                '文件大小超过限制 (${config!.maxFileSize ~/ 1024 ~/ 1024}MB)',
-                isError: true,
-              );
-              return;
+            // 验证是否为删除图片
+            final isDelete = selectedFile.fileName == 'deleted' && selectedFile.fileSize == 0;
+            if (isDelete) {
+              // 本次删除图片
+              removeImageData(imageField.name);
             }
-
-            // 验证文件格式
-            if (config!.allowedFormats.isNotEmpty) {
-              final fileName = selectedFile.fileName?.toLowerCase() ?? '';
-              final hasValidFormat = config!.allowedFormats.any((format) =>
-                  fileName.endsWith('.$format'));
-              if (!hasValidFormat) {
+            else {
+              // 非删除，即选择了图片
+              // 验证文件大小
+              if (config!.maxFileSize > 0 && selectedFile.fileSize > config!.maxFileSize) {
                 _showMessage(
                   context,
-                  '不支持的文件格式，支持的格式：${config!.allowedFormats.join(', ')}',
+                  '文件大小超过限制 (${config!.maxFileSize ~/ 1024 ~/ 1024}MB)',
                   isError: true,
                 );
                 return;
               }
+
+              // 验证文件格式
+              if (config!.allowedFormats.isNotEmpty) {
+                final fileName = selectedFile.fileName?.toLowerCase() ?? '';
+                final hasValidFormat = config!.allowedFormats.any((format) =>
+                    fileName.endsWith('.$format'));
+                if (!hasValidFormat) {
+                  _showMessage(
+                    context,
+                    '不支持的文件格式，支持的格式：${config!.allowedFormats.join(', ')}',
+                    isError: true,
+                  );
+                  return;
+                }
+              }
+
+
+              // 获取之前的文件信息
+              final PdfImageSelectedFile? oldFile = _getPreviousFile(imageField.name);
+
+              // 保存图像数据
+              saveImageData(imageField.name, selectedFile.imageData);
+
+              // 设置图像路径
+              imageField.originalImagePath = selectedFile.originalPath;
+
+              // 更新表单字段
+              imageField.setImage(selectedFile.imageData, originalPath: selectedFile.originalPath);
+
+              // 调用图像选择成功回调
+              if (config?.onImageSelected != null) {
+                config!.onImageSelected!(
+                  PdfImageFieldDetails(
+                    formField: imageField,
+                    selectedFile: selectedFile,
+                    oldFile: oldFile,
+                  ),
+                );
+              }
             }
-
-            // 获取之前的文件信息
-            final PdfImageSelectedFile? oldFile = _getPreviousFile(imageField.name);
-
-            // 保存图像数据
-            saveImageData(imageField.name, selectedFile.imageData);
-
-            // 设置图像路径
-            imageField.originalImagePath = selectedFile.originalPath;
-
-            // 更新表单字段
-            imageField.setImage(selectedFile.imageData, originalPath: selectedFile.originalPath);
-
-            // 调用图像选择成功回调
-            if (config?.onImageSelected != null) {
-              config!.onImageSelected!(
-                PdfImageFieldDetails(
-                  formField: imageField,
-                  selectedFile: selectedFile,
-                  oldFile: oldFile,
-                ),
-              );
-            }
-
-            _showMessage(context, '图片上传成功', isError: false);
           }
         } else {
           // 回退到默认提示

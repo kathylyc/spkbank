@@ -350,7 +350,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   // 按钮状态管理
   bool _isProcessing = false;
 
-  bool get kIsPrintPdfFields => false;  // 是否打印pdf的每个字段
+  bool get kIsPrintPdfFields => true;  // 是否打印pdf的每个字段
   bool get kIsPrintFontSet => false; // 是否打印pdf设置字体
 
   @override
@@ -2828,56 +2828,40 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                       // 配置裁剪比例：签名域使用正方形 1:1 比例
                       defaultCropRatio: 'square',
                       useSmartRatio: true, // 启用智能比例匹配
-                      cropToolbarTitle: '裁剪签名图片',
+                      cropToolbarTitle: '裁剪图片',
                       cropToolbarColor: Colors.blue,
                       // 启用比例选择UI，提供多个选项供用户选择
                       showRatioSelector: false,
                       availableRatios: [
-                        // '1:1',        // 正方形
+                        '1:1',        // 正方形
                         // '3:4',        // 竖版证件照
                         // '4:3',        // 标准照片
                         // '16:9',       // 横版宽屏
-                        '173:67',     // 自定义比例（特殊需求）
+                        // '173:67',     // 自定义比例（特殊需求）
                         // 'free',       // 自由裁剪
                       ],
                       onFileSelect: (context, imageField) async {
                         try {
-                          final ImagePicker picker = ImagePicker();
-                          final XFile? file = await picker.pickImage(
-                            source: ImageSource.gallery,
-                            imageQuality: 80,
-                            maxWidth: 1920,
-                            maxHeight: 1080,
-                          );
+                          // 显示选项对话框
+                          final String? action = await _showImageActionDialog(context, imageField);
 
-                          if (file != null) {
-                            // 使用新的智能比例配置进行裁剪
-                            final String? croppedPath = await _cropImageWithConfig(
-                              file.path,
-                              imageField,
-                              context,
-                            );
-
-                            // 处理裁剪结果
-                            if (croppedPath != null) {
-                              final bytes = await File(croppedPath).readAsBytes();
-                              return _createSelectedImageFile(
-                                imageData: bytes,
-                                originalPath: croppedPath,
-                                fileName: file.name, // 保持原始文件名
-                                mimeType: file.mimeType,
-                                fileSize: bytes.length,
-                                fileDate: DateTime.now()
-                              );
-                            } else {
-                              // 用户取消裁剪，不使用图片
-                              debugPrint('用户取消图片裁剪');
-                              return null;
-                            }
+                          if (action == null) {
+                            // 用户取消了操作
+                            return null;
                           }
-                          return null;
+
+                          switch (action) {
+                            case 'camera':
+                              return await _pickImageFromSource(ImageSource.camera, context, imageField);
+                            case 'gallery':
+                              return await _pickImageFromSource(ImageSource.gallery, context, imageField);
+                            case 'delete':
+                              return await _handleDeletePhoto(context, imageField);
+                            default:
+                              return null;
+                          }
                         } catch (e) {
-                          debugPrint('图片选择失败: $e');
+                          debugPrint('图片操作失败: $e');
                           return null;
                         }
                       },
@@ -3105,6 +3089,177 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       return null;
     } catch (e) {
       debugPrint('提取signCode失败: $e');
+      return null;
+    }
+  }
+
+  /// 显示图片操作选项对话框
+  Future<String?> _showImageActionDialog(
+    BuildContext context,
+    PdfImageFormField imageField,
+  ) async {
+    final bool hasImage = imageField.imageData != null;
+
+    return await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('选择操作'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (hasImage) ...[
+                // 如果已有图片，显示替换选项
+                ListTile(
+                  leading: Icon(Icons.camera_alt, color: Colors.blue),
+                  title: Text('拍照'),
+                  subtitle: Text('使用相机拍摄新照片'),
+                  onTap: () => Navigator.of(context).pop('camera'),
+                ),
+                ListTile(
+                  leading: Icon(Icons.photo_library, color: Colors.green),
+                  title: Text('选择照片'),
+                  subtitle: Text('从相册选择照片'),
+                  onTap: () => Navigator.of(context).pop('gallery'),
+                ),
+              ] else ...[
+                // 如果没有图片，显示添加选项
+                ListTile(
+                  leading: Icon(Icons.camera_alt, color: Colors.blue),
+                  title: Text('拍照'),
+                  subtitle: Text('使用相机拍摄照片'),
+                  onTap: () => Navigator.of(context).pop('camera'),
+                ),
+                ListTile(
+                  leading: Icon(Icons.photo_library, color: Colors.green),
+                  title: Text('选择照片'),
+                  subtitle: Text('从相册选择照片'),
+                  onTap: () => Navigator.of(context).pop('gallery'),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            if (hasImage)
+              TextButton.icon(
+                onPressed: () => Navigator.of(context).pop('delete'),
+                icon: Icon(Icons.delete, color: Colors.red),
+                label: Text(
+                  '删除照片',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(null),
+              child: Text('取消'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 处理删除照片操作
+  Future<PdfImageSelectedFile?> _handleDeletePhoto(
+    BuildContext context,
+    PdfImageFormField imageField,
+  ) async {
+    try {
+      // 确认删除
+      final bool? confirmed = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('确认删除'),
+            content: Text('确定要删除当前的照片吗？此操作不可撤销。'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text('取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.red,
+                ),
+                child: Text('删除'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (confirmed == true) {
+
+        // 返回null表示删除成功
+        return _createSelectedImageFile(
+          imageData: Uint8List(0), // 空数据表示删除
+          originalPath: '', // 使用空字符串而不是null
+          fileName: 'deleted',
+          mimeType: '', // 使用空字符串而不是null
+          fileSize: 0,
+          fileDate: DateTime.now(),
+        );
+      }
+    } catch (e) {
+      debugPrint('删除照片失败: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('删除照片失败: $e')),
+        );
+      }
+    }
+    return null;
+  }
+
+  /// 选择照片的通用方法
+  Future<PdfImageSelectedFile?> _pickImageFromSource(
+    ImageSource source,
+    BuildContext context,
+    PdfImageFormField imageField,
+  ) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? file = await picker.pickImage(
+        source: source,
+        imageQuality: 80,
+        maxWidth: 1920,
+        maxHeight: 1080,
+      );
+
+      if (file != null) {
+        // 使用新的智能比例配置进行裁剪
+        final String? croppedPath = await _cropImageWithConfig(
+          file.path,
+          imageField,
+          context,
+        );
+
+        // 处理裁剪结果
+        if (croppedPath != null) {
+          final bytes = await File(croppedPath).readAsBytes();
+          return _createSelectedImageFile(
+            imageData: bytes,
+            originalPath: croppedPath,
+            fileName: file.name, // 保持原始文件名
+            mimeType: file.mimeType,
+            fileSize: bytes.length,
+            fileDate: DateTime.now()
+          );
+        } else {
+          // 用户取消裁剪，不使用图片
+          debugPrint('用户取消图片裁剪');
+          return null;
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('图片选择失败: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('图片选择失败: $e')),
+        );
+      }
       return null;
     }
   }
