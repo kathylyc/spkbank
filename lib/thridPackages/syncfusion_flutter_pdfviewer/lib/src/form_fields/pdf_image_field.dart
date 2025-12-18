@@ -345,6 +345,27 @@ class ImageFieldConfig {
   /// 图像清除回调
   final PdfImageFieldCallback? onImageCleared;
 
+  /// 默认裁剪比例类型 (字符串格式，如 'square', 'portrait', 'landscape', 'free')
+  final String? defaultCropRatio;
+
+  /// 是否使用智能比例匹配（根据字段名自动推荐比例）
+  final bool useSmartRatio;
+
+  /// 裁剪工具栏标题
+  final String cropToolbarTitle;
+
+  /// 裁剪工具栏颜色
+  final Color cropToolbarColor;
+
+  /// 裁剪工具栏文本颜色
+  final Color cropToolbarTextColor;
+
+  /// 是否显示比例选择UI（让用户手动选择裁剪比例）
+  final bool showRatioSelector;
+
+  /// 可选的比例列表（当 showRatioSelector 为 true 时显示）
+  final List<String>? availableRatios;
+
   const ImageFieldConfig({
     this.imageFieldNames,
     this.maxFileSize = 5 * 1024 * 1024, // 5MB
@@ -362,5 +383,12 @@ class ImageFieldConfig {
     this.onFileSelect,
     this.onImageSelected,
     this.onImageCleared,
+    this.defaultCropRatio,
+    this.useSmartRatio = true,
+    this.cropToolbarTitle = '裁剪图片',
+    this.cropToolbarColor = Colors.blue,
+    this.cropToolbarTextColor = Colors.white,
+    this.showRatioSelector = false,
+    this.availableRatios,
   });
 }

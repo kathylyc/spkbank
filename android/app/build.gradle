@@ -88,7 +88,9 @@ flutter {
     source '../..'
 }
 
-dependencies {}
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+}
 
 // 自动重命名 release APK 文件
 android.applicationVariants.all { variant ->

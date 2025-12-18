@@ -16,6 +16,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'form_fields/image_field_manager.dart';
 import 'form_fields/pdf_image_field.dart';
 import 'utils/image_field_utils.dart';
+import 'utils/image_fit_helper.dart';
 
 import 'annotation/annotation.dart';
 import 'annotation/annotation_settings.dart';
@@ -2204,7 +2205,7 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
     _updateSignatureFormFields();
 
     // Update the image form fields data
-    _updateImageFormFields();
+    await _updateImageFormFields();
 
     // Update the annotations in the document
     _updateAnnotations();
@@ -2276,7 +2277,7 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
   }
 
   /// Update the image form fields data
-  void _updateImageFormFields() {
+  Future<void> _updateImageFormFields() async {
     for (final PdfFormField formField in _pdfViewerController._formFields) {
       // Check if this is an image field using the utility
       if (ImageFieldUtils.isImageField(formField, _imageFieldConfig?.imageFieldNames)) {
@@ -2289,7 +2290,8 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
             final PdfPage page = helper.pdfField.page!;
 
             // Draw image on the page
-            void drawImage() {
+            Future<void> drawImage() async {
+              // 原始绘制代码（已注释）
               page.graphics.drawImage(
                 PdfBitmap(imageData),
                 Rect.fromLTWH(
@@ -2299,6 +2301,20 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
                   helper.bounds.height,
                 ),
               );
+
+              // // 使用 ImageFitHelper 进行图片绘制，支持 BoxFit 模式
+              // await ImageFitHelper.drawImageWithFit(
+              //   page.graphics,
+              //   imageData,
+              //   Rect.fromLTWH(
+              //     helper.bounds.left,
+              //     helper.bounds.top,
+              //     helper.bounds.width,
+              //     helper.bounds.height,
+              //   ),
+              //   boxFit: BoxFit.cover,
+              // );
+
               // Remove image field from form when flattening
               helper.pdfField.form!.fields.remove(helper.pdfField);
             }
@@ -2306,11 +2322,11 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
             // Always flatten image fields (similar to forceFlattenSignature)
             const bool forceFlattenImage = true;
             if (forceFlattenImage) {
-              drawImage();
+              await drawImage();
               debugPrint('✓ 扁平化图像域 ${ImageFieldUtils.getImageFieldDisplayName(formField)}');
             } else {
               if (_pdfViewerController._flattenOption == PdfFlattenOption.formFields) {
-                drawImage();
+                await drawImage();
                 debugPrint('✓ 扁平化图像域 ${ImageFieldUtils.getImageFieldDisplayName(formField)} (表单扁平化)');
               } else {
                 // When not flattening: set image appearance on the field

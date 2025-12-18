@@ -175,7 +175,7 @@ class ImageFitHelper {
       );
 
       // 转换为字节数据
-      final ui.ByteData? byteData = await croppedImage.toByteData(
+      final ByteData? byteData = await croppedImage.toByteData(
         format: ui.ImageByteFormat.png,
       );
 

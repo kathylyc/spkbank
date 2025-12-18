@@ -5,7 +5,10 @@ import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:flutter/services.dart';
+import '../../data/models/crop_ratio.dart';
+import '../../utils/image_crop_ratio_utils.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -2798,11 +2801,26 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                     controller: _pdfViewerController,
                     imageFieldConfig: ImageFieldConfig(
                       imageFieldNames: ['signature'],
-                      uploadText: 'X上传X',
-                      uploadedText: 'S已上传S',
+                      uploadText: '请上传图片',
+                      uploadedText: '已上传',
                       imageQuality: 80,
                       maxFileSize: 5 * 1024 * 1024, // 5MB
                       allowedFormats: ['jpg', 'jpeg', 'png'],
+                      // 配置裁剪比例：签名域使用正方形 1:1 比例
+                      defaultCropRatio: 'square',
+                      useSmartRatio: true, // 启用智能比例匹配
+                      cropToolbarTitle: '裁剪签名图片',
+                      cropToolbarColor: Colors.blue,
+                      // 启用比例选择UI，提供多个选项供用户选择
+                      showRatioSelector: false,
+                      availableRatios: [
+                        // '1:1',        // 正方形
+                        // '3:4',        // 竖版证件照
+                        // '4:3',        // 标准照片
+                        // '16:9',       // 横版宽屏
+                        '173:67',     // 自定义比例（特殊需求）
+                        // 'free',       // 自由裁剪
+                      ],
                       onFileSelect: (context, imageField) async {
                         try {
                           final ImagePicker picker = ImagePicker();
@@ -2814,15 +2832,29 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
                           );
 
                           if (file != null) {
-                            final bytes = await file.readAsBytes();
-                            return _createSelectedImageFile(
-                              imageData: bytes,
-                              originalPath: file.path,
-                              fileName: file.name,
-                              mimeType: file.mimeType,
-                              fileSize: bytes.length,
-                              fileDate: DateTime.now()
+                            // 使用新的智能比例配置进行裁剪
+                            final String? croppedPath = await _cropImageWithConfig(
+                              file.path,
+                              imageField,
+                              context,
                             );
+
+                            // 处理裁剪结果
+                            if (croppedPath != null) {
+                              final bytes = await File(croppedPath).readAsBytes();
+                              return _createSelectedImageFile(
+                                imageData: bytes,
+                                originalPath: croppedPath,
+                                fileName: file.name, // 保持原始文件名
+                                mimeType: file.mimeType,
+                                fileSize: bytes.length,
+                                fileDate: DateTime.now()
+                              );
+                            } else {
+                              // 用户取消裁剪，不使用图片
+                              debugPrint('用户取消图片裁剪');
+                              return null;
+                            }
                           }
                           return null;
                         } catch (e) {
@@ -3423,6 +3455,168 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         );
       },
     );
+  }
+
+  /// 根据图片域配置生成裁剪比例配置
+  CropRatioConfig _generateCropRatioConfig(PdfImageFormField imageField) {
+    final config = imageField.config;
+
+    // 如果配置中指定了默认比例，直接使用
+    if (config?.defaultCropRatio != null) {
+      final ratioType = ImageCropRatioUtils.parseRatioType(config!.defaultCropRatio!);
+      if (ratioType != null) {
+        return CropRatioConfig(type: ratioType);
+      }
+    }
+
+    // 如果启用了智能比例匹配，根据字段名推荐比例
+    if (config?.useSmartRatio == true) {
+      final fieldName = imageField.safeName ?? '';
+      final recommendedType = ImageCropRatioUtils.getRecommendedRatioType(fieldName);
+      return CropRatioConfig(type: recommendedType);
+    }
+
+    // 默认使用自由裁剪
+    return const CropRatioConfig.free();
+  }
+
+  /// 显示比例选择对话框
+  Future<CropRatioConfig?> _showRatioSelector(
+    BuildContext context,
+    PdfImageFormField imageField,
+  ) async {
+    final config = imageField.config;
+    final List<String>? availableRatios = config?.availableRatios;
+
+    if (availableRatios == null || availableRatios.isEmpty) {
+      return null;
+    }
+
+    // 解析可用的比例选项
+    final List<Map<String, dynamic>> ratioOptions = [];
+    for (String ratioString in availableRatios) {
+      final CropRatioConfig? ratioConfig = ImageCropRatioUtils.parseRatioFromString(ratioString);
+      if (ratioConfig != null) {
+        ratioOptions.add({
+          'string': ratioString,
+          'config': ratioConfig,
+        });
+      }
+    }
+
+    if (ratioOptions.isEmpty) {
+      return null;
+    }
+
+    return showDialog<CropRatioConfig>(
+      context: context,
+      builder: (BuildContext context) {
+        CropRatioConfig? selectedRatio = ratioOptions.first['config'];
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('选择裁剪比例'),
+              content: SizedBox(
+                width: 300,
+                height: 400,
+                child: ListView.builder(
+                  itemCount: ratioOptions.length,
+                  itemBuilder: (context, index) {
+                    final option = ratioOptions[index];
+                    final ratioConfig = option['config'] as CropRatioConfig;
+                    final ratioString = option['string'] as String;
+
+                    return RadioListTile<CropRatioConfig>(
+                      title: Text(ratioString),
+                      subtitle: Text(ratioConfig.description),
+                      value: ratioConfig,
+                      groupValue: selectedRatio,
+                      onChanged: (CropRatioConfig? value) {
+                        if (value != null) {
+                          setState(() {
+                            selectedRatio = value;
+                          });
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: Text('取消'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(selectedRatio);
+                  },
+                  child: Text('确定'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// 使用比例配置裁剪图片
+  Future<String?> _cropImageWithConfig(
+    String sourcePath,
+    PdfImageFormField imageField,
+    BuildContext context,
+  ) async {
+    try {
+      final config = imageField.config;
+      CropRatioConfig ratioConfig;
+
+      // 如果启用了比例选择器，显示选择对话框
+      if (config?.showRatioSelector == true) {
+        final CropRatioConfig? selectedRatio = await _showRatioSelector(context, imageField);
+        if (selectedRatio == null) {
+          // 用户取消了比例选择
+          debugPrint('用户取消比例选择');
+          return null;
+        }
+        ratioConfig = selectedRatio;
+      } else {
+        // 是否配置了单个自定义比例
+        final List<String>? availableRatios = config?.availableRatios;
+
+        if (availableRatios != null && availableRatios.length == 1) {
+          ratioConfig = ImageCropRatioUtils.parseRatioFromString(availableRatios[0])!;
+        } else {
+          // 使用默认的比例配置
+          ratioConfig = _generateCropRatioConfig(imageField);
+        }
+      }
+
+      final CroppedFile? croppedFile = await ImageCropRatioUtils.cropImageWithRatio(
+        sourcePath,
+        ratioConfig: ratioConfig,
+        maxWidth: config?.maxWidth?.toInt(),
+        maxHeight: config?.maxHeight?.toInt(),
+        compressQuality: config?.imageQuality ?? 85,
+        toolbarTitle: config?.cropToolbarTitle ?? '裁剪图片',
+        toolbarColor: config?.cropToolbarColor ?? Colors.blue,
+        toolbarWidgetColor: config?.cropToolbarTextColor ?? Colors.white,
+      );
+
+      if (croppedFile != null) {
+        debugPrint('图片裁剪成功: ${croppedFile.path}, 比例: ${ratioConfig.displayName}');
+        return croppedFile.path;
+      } else {
+        debugPrint('用户取消图片裁剪');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('图片裁剪失败: $e');
+      return null;
+    }
   }
 
   PdfImageSelectedFile _createSelectedImageFile({

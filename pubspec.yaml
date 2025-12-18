@@ -75,6 +75,7 @@ dependencies:
   uuid: ^4.4.1
   file_picker: ^8.1.2
   image_picker: ^1.1.2
+  image_cropper: ^8.0.1
 
   # File sharing and opening
   url_launcher: ^6.3.1
