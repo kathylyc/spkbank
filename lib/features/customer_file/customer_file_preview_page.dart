@@ -936,6 +936,13 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   /// 计算文档签署状态
   Future<int?> _calculateSigningStatus() async {
     try {
+      if (_currentDocument == null) {
+        debugPrint('⚠ 无法计算签署状态：当前文档为空');
+        return 0;
+      }
+
+      final pdfForm = _currentDocument!.form;
+
       // 1. 获取当前文档的signCode
       final currentSignCode = widget.templateSignCode;
       if (currentSignCode == null || currentSignCode.isEmpty) {
@@ -954,22 +961,49 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       }
 
       // 3. 从模板获取期望的签名字段
-      final expectedSignFields = matchingTemplate.signFields;
-      if (expectedSignFields == null || expectedSignFields.isEmpty) {
+      List<String> expectedSignFields = [...matchingTemplate.signFields];
+      // 20251219 ADD 从预期签名的字段中，继续过滤由checkbox控制的签名域
+      if (expectedSignFields.isNotEmpty && matchingTemplate.signChecks.isNotEmpty) {
+        // 获取文档中所有的checkbox字段
+        List<PdfCheckBoxField> checkboxFields = [];
+        for (int i = 0; i < pdfForm.fields.count; i++) {
+          final field = pdfForm.fields[i];
+          if (field is PdfCheckBoxField) {
+            checkboxFields.add(field);
+          }
+        }
+
+        for (PdfSignCheckInfo signCheckInfo in matchingTemplate.signChecks) {
+          // 找到对应需要check的checkbox域
+          PdfCheckBoxField? targetCheckboxField;
+          for (PdfCheckBoxField c in checkboxFields) {
+            if (signCheckInfo.chkFiledName == c.name) {
+              targetCheckboxField = c;
+              break;
+            }
+          }
+          if (targetCheckboxField != null) {
+            // 找到了，获取当前的选中状态
+            if (targetCheckboxField.isChecked) {
+              // 当前打钩了，那么对应的签名域需要签名
+            } else {
+              // 当前未打钩，对应的签名域不需要校验签名，移除校验列表
+              expectedSignFields.remove(signCheckInfo.signFieldName);
+            }
+          } else {
+            // 未找到，忽略此校验
+            continue;
+          }
+        }
+      }
+
+      if (expectedSignFields.isEmpty) {
         debugPrint('ℹ 模板未定义签名字段，视为无需签署，sign_status=1');
         return 0; // 无签名域，视为未签署
       }
-
       debugPrint('📝 期望签名数量: ${expectedSignFields.length} 个');
 
       // 4. 检查当前文档中的实际签名字段
-      if (_currentDocument == null) {
-        debugPrint('⚠ 无法计算签署状态：当前文档为空');
-        return 0;
-      }
-
-      final pdfForm = _currentDocument!.form;
-
       // 获取文档中所有的签名字段
       List<PdfSignatureField> signatureFields = [];
       for (int i = 0; i < pdfForm.fields.count; i++) {
