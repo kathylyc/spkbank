@@ -350,7 +350,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   // 按钮状态管理
   bool _isProcessing = false;
 
-  bool get kIsPrintPdfFields => true;  // 是否打印pdf的每个字段
+  bool get kIsPrintPdfFields => false;  // 是否打印pdf的每个字段
   bool get kIsPrintFontSet => false; // 是否打印pdf设置字体
 
   @override

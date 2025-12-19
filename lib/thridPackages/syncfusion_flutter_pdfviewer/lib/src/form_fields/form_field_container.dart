@@ -82,13 +82,6 @@ class _FormFieldContainerState extends State<FormFieldContainer> {
           }
         };
 
-        // 检查是否为图像域
-        if (ImageFieldUtils.isImageField(formField, widget.imageFieldConfig?.imageFieldNames)) {
-          // 为图像域创建自定义Widget
-          formFields.add(_buildImageFieldWidget(formField, helper));
-          continue;
-        }
-
         if (formField is PdfTextFormField) {
           formFields.add(
             (helper as PdfTextFormFieldHelper).build(
@@ -131,12 +124,22 @@ class _FormFieldContainerState extends State<FormFieldContainer> {
             formFields.add(helper.build(context, widget.heightPercentage));
           }
         }
+        // 检查是否为图像域
+        else if (ImageFieldUtils.isImageField(formField, widget.imageFieldConfig?.imageFieldNames)) {
+          // 为图像域创建自定义Widget
+          formFields.add(_buildImageFieldWidget(formField, helper));
+        }
         // 注意：PdfButtonField 默认不渲染，但图像域会特殊处理
       }
     }
     return formFields;
   }
 
+  /// 创建图像域数据存储
+  Uint8List? _getFormFieldImageData(String formFieldName) {
+    final Uint8List? imageData = _imageFieldManager.getImageData(formFieldName);
+    return imageData;
+  }
   
   /// 构建图像域Widget
   Widget _buildImageFieldWidget(PdfFormField formField, PdfFormFieldHelper helper) {
@@ -148,9 +151,6 @@ class _FormFieldContainerState extends State<FormFieldContainer> {
       originalBounds.height / widget.heightPercentage,
     );
 
-    // 创建图像域数据存储
-    final Uint8List? imageData = _imageFieldManager.getImageData(formField.name);
-
     return Positioned(
       left: fieldBounds.left,
       top: fieldBounds.top,
@@ -159,20 +159,20 @@ class _FormFieldContainerState extends State<FormFieldContainer> {
       child: GestureDetector(
         onTap: () {
           if (!formField.readOnly) {
-            _handleImageFieldClick(formField);
+            _handleImageFieldClick(formField, helper);
           }
         },
         child: Container(
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey),
             borderRadius: BorderRadius.circular(2),
-            color: imageData != null
+            color: _getFormFieldImageData(formField.name) != null
                 ? (widget.imageFieldConfig?.uploadedColor ?? const Color(0xFFE8F5E8))
                 : Colors.white,
           ),
           child: Center(
-            child: imageData != null
-                ? _buildImagePreview(imageData)
+            child: _getFormFieldImageData(formField.name) != null
+                ? _buildImagePreview(_getFormFieldImageData(formField.name)!)
                 : _buildUploadButton(),
           ),
         ),
@@ -181,41 +181,45 @@ class _FormFieldContainerState extends State<FormFieldContainer> {
   }
 
   /// 处理图像域点击
-  Future<void> _handleImageFieldClick(PdfFormField formField) async {
+  Future<void> _handleImageFieldClick(PdfFormField formField, PdfFormFieldHelper helper) async {
     try {
       // 创建或获取 PdfImageFormField 实例
       PdfImageFormField imageField;
+      // if (formField is PdfImageFormField) {
+      //   imageField = formField;
+      //   // 使用现有的表单字段数据
+      //   final existingImageData = _imageFieldManager.getImageData(formField.name);
+      //   if (existingImageData != null) {
+      //     imageField.imageData = existingImageData;
+      //   }
+      // } else {
+      //   // 如果不是 PdfImageFormField，创建一个新的实例
+      //   imageField = PdfImageFormField(config: widget.imageFieldConfig);
+      //
+      //   // 获取原始字段的helper来访问PdfField
+      //   final originalHelper = PdfFormFieldHelper.getHelper(formField);
+      //
+      //   // 创建并初始化 helper，使用原始的PdfField
+      //   final helper = PdfImageFormFieldHelper(
+      //     originalHelper.pdfField,
+      //     originalHelper.pageIndex,
+      //     config: widget.imageFieldConfig,
+      //     pdfViewerController: _pdfViewerController,
+      //     imageFieldManager: _imageFieldManager,
+      //   );
+      //   imageField.initializeHelper(helper);
+      //
+      //   // 使用现有的表单字段数据
+      //   final existingImageData = _imageFieldManager.getImageData(formField.name);
+      //   if (existingImageData != null) {
+      //     imageField.imageData = existingImageData;
+      //   }
+      // }
       if (formField is PdfImageFormField) {
+        debugPrint('form_field_container._handleImageFieldClick()==>');
         imageField = formField;
-        // 使用现有的表单字段数据
-        final existingImageData = _imageFieldManager.getImageData(formField.name);
-        if (existingImageData != null) {
-          imageField.imageData = existingImageData;
-        }
-      } else {
-        // 如果不是 PdfImageFormField，创建一个新的实例
-        imageField = PdfImageFormField(config: widget.imageFieldConfig);
-
-        // 获取原始字段的helper来访问PdfField
-        final originalHelper = PdfFormFieldHelper.getHelper(formField);
-
-        // 创建并初始化 helper，使用原始的PdfField
-        final helper = PdfImageFormFieldHelper(
-          originalHelper.pdfField,
-          originalHelper.pageIndex,
-          config: widget.imageFieldConfig,
-          imageFieldManager: _imageFieldManager,
-        );
-        imageField.initializeHelper(helper);
-
-        // 使用现有的表单字段数据
-        final existingImageData = _imageFieldManager.getImageData(formField.name);
-        if (existingImageData != null) {
-          imageField.imageData = existingImageData;
-        }
+        await _imageFieldManager.handleImageFieldClick(context, imageField);
       }
-
-      await _imageFieldManager.handleImageFieldClick(context, imageField);
     } catch (e) {
       debugPrint('Error handling image field click: $e');
     }

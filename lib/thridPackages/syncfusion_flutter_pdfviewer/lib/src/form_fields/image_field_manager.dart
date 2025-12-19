@@ -32,17 +32,23 @@ class ImageFieldManager {
 
   /// 获取图像数据
   Uint8List? getImageData(String fieldName) {
-    return _imageDataMap[fieldName];
+    final Uint8List? foundImageData = _imageDataMap[fieldName];
+    debugPrint('image_field_manager.getImageData()==>fieldName=${fieldName}, _imageDataMap.length=${_imageDataMap.length}, found=${foundImageData != null}');
+    return foundImageData;
   }
 
   /// 保存图像数据
   void saveImageData(String fieldName, Uint8List imageData) {
+    debugPrint('image_field_manager.saveImageData()==>BEFORE===fieldName=${fieldName}, _imageDataMap.length=${_imageDataMap.length}, found=${_imageDataMap[fieldName] != null}');
     _imageDataMap[fieldName] = imageData;
+    debugPrint('image_field_manager.saveImageData()==>AFTER===fieldName=${fieldName}, _imageDataMap.length=${_imageDataMap.length}, found=${_imageDataMap[fieldName] != null}');
   }
 
   /// 删除图像数据
   void removeImageData(String fieldName) {
+    debugPrint('image_field_manager.removeImageData()==>BEFORE===fieldName=${fieldName}, _imageDataMap.length=${_imageDataMap.length}, found=${_imageDataMap[fieldName] != null}');
     _imageDataMap.remove(fieldName);
+    debugPrint('image_field_manager.removeImageData()==>AFTER===fieldName=${fieldName}, _imageDataMap.length=${_imageDataMap.length}, found=${_imageDataMap[fieldName] != null}');
   }
 
   /// 获取所有图像数据
@@ -69,7 +75,10 @@ class ImageFieldManager {
             final isDelete = selectedFile.fileName == 'deleted' && selectedFile.fileSize == 0;
             if (isDelete) {
               // 本次删除图片
+              imageField.setImage(null);
               removeImageData(imageField.name);
+              // 重绘
+              imageField.helper!.onChanged!();
             }
             else {
               // 非删除，即选择了图片
@@ -110,6 +119,9 @@ class ImageFieldManager {
 
               // 更新表单字段
               imageField.setImage(selectedFile.imageData, originalPath: selectedFile.originalPath);
+
+              // 重绘
+              imageField.helper!.onChanged!();
 
               // 调用图像选择成功回调
               if (config?.onImageSelected != null) {
@@ -201,26 +213,6 @@ class ImageFieldManager {
   ) async {
     // 简化实现：实际应用中需要完整的图像处理逻辑
     // 这里提供一个基础的框架，您需要根据具体需求完善
-  }
-
-  
-  /// 从图像域收集所有图像数据（简化实现）
-  Map<String, Uint8List> collectImageDataFromFields(
-    List<dynamic> imageFields,
-  ) {
-    final Map<String, Uint8List> imageDataMap = <String, Uint8List>{};
-
-    // 简化实现：实际应用中需要完整的图像数据收集逻辑
-    for (final field in imageFields) {
-      if (field.name != null) {
-        final imageData = getImageData(field.name);
-        if (imageData != null) {
-          imageDataMap[field.name] = imageData;
-        }
-      }
-    }
-
-    return imageDataMap;
   }
 
   /// 释放资源

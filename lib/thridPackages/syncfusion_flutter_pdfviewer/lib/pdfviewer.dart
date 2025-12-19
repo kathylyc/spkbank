@@ -39,8 +39,6 @@ export 'src/form_fields/pdf_combo_box.dart' show PdfComboBoxFormField;
 export 'src/form_fields/pdf_form_field.dart' show PdfFormField;
 export 'src/form_fields/pdf_image_field.dart' show PdfImageFormField, ImageFieldConfig, PdfImageSelectedFile;
 export 'src/form_fields/image_field_manager.dart' show ImageFieldManager;
-export 'src/form_fields/simple_image_field_extension.dart' show SimpleImageFieldExtension, ImageFieldExtension;
-export 'src/form_fields/image_field_mixin.dart' show ImageFieldMixin, EnhancedFormFieldContainer;
 export 'src/form_fields/pdf_list_box.dart' show PdfListBoxFormField;
 export 'src/form_fields/pdf_radio_button.dart' show PdfRadioFormField;
 export 'src/form_fields/pdf_signature.dart' show PdfSignatureFormField;

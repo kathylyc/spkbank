@@ -1805,6 +1805,23 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
         _pdfViewerController._formFields.add(helper.getFormField());
       }
 
+      // Retrieve the image field details
+      if (field is PdfButtonField) {
+        // 检查是否为图像域按钮字段
+        if (ImageFieldUtils.isImageButtonField(field, _imageFieldConfig?.imageFieldNames)) {
+          final PdfImageFormFieldHelper helper = PdfImageFormFieldHelper(
+            field,
+            pageIndex,
+            config: _imageFieldConfig,
+            pdfViewerController: _pdfViewerController,
+            imageFieldManager: _imageFieldManager,
+            onValueChanged: _formFieldValueChanged,
+          );
+
+          _pdfViewerController._formFields.add(helper.getFormField());
+        }
+      }
+
       // Retrieve the list box field details
       if (field is PdfListBoxField) {
         final PdfListBoxFormFieldHelper helper = PdfListBoxFormFieldHelper(
@@ -1814,21 +1831,6 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
         );
 
         _pdfViewerController._formFields.add(helper.getFormField());
-      }
-
-      // Retrieve the image field details
-      if (field is PdfButtonField) {
-        // 检查是否为图像域按钮字段
-        if (ImageFieldUtils.isImageButtonField(field, _imageFieldConfig?.imageFieldNames)) {
-          final PdfImageFormFieldHelper helper = PdfImageFormFieldHelper(
-            field,
-            pageIndex,
-            config: _imageFieldConfig,
-            onValueChanged: _formFieldValueChanged,
-          );
-
-          _pdfViewerController._formFields.add(helper.getFormField());
-        }
       }
     }
   }

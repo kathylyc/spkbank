@@ -25,6 +25,8 @@ typedef PdfImageFieldCallback = void Function(
 
 /// 图像域表单字段
 class PdfImageFormField extends PdfFormField {
+  PdfImageFormField._();
+
   PdfImageFormFieldHelper? _helper;
 
   /// 图像数据
@@ -34,18 +36,18 @@ class PdfImageFormField extends PdfFormField {
   String? originalImagePath;
 
   /// 图像域配置
-  final ImageFieldConfig? config;
+  ImageFieldConfig? config;
 
-  /// 创建图像域表单字段
-  PdfImageFormField({
-    required this.config,
-  });
+  /// 设置图像
+  void setImageFieldConfig(ImageFieldConfig? config) {
+    config = config;
+  }
 
   /// 是否为图像域（通过名称判断）
   bool get isImageField => ImageFieldUtils.isImageField(this, config?.imageFieldNames);
 
   /// 设置图像
-  void setImage(Uint8List imageBytes, {String? originalPath}) {
+  void setImage(Uint8List? imageBytes, {String? originalPath}) {
     imageData = imageBytes;
     originalImagePath = originalPath;
     _updateButtonAppearance();
@@ -80,6 +82,11 @@ class PdfImageFormField extends PdfFormField {
   /// 获取辅助对象
   PdfFormFieldHelper? get helper => _helper;
 
+  /// 设置辅助对象
+  void setHelper(PdfImageFormFieldHelper helper) {
+    _helper = helper;
+  }
+
   /// 获取字段名（安全访问）
   String? get safeName {
     try {
@@ -95,6 +102,9 @@ class PdfImageFormFieldHelper extends PdfFormFieldHelper {
   /// PDF控制器
   dynamic pdfViewerController;
 
+  /// The image form field object.
+  late PdfImageFormField imageFormField;
+
   /// 图像域管理器
   ImageFieldManager? imageFieldManager;
 
@@ -108,24 +118,19 @@ class PdfImageFormFieldHelper extends PdfFormFieldHelper {
   PdfImageFormFieldHelper(
     super.pdfField,
     super.pageIndex, {
-    this.config,
-    this.pdfViewerController,
-    this.imageFieldManager,
-    this.onValueChanged,
+    required this.config,
+    required this.pdfViewerController,
+    required this.imageFieldManager,
+    required this.onValueChanged,
   }) {
     bounds = pdfField.bounds;
   }
 
   /// 获取图像域表单字段
   PdfImageFormField getFormField() {
-    final imageFormField = PdfImageFormField(config: config);
+    imageFormField = PdfImageFormField._();
+    imageFormField.setHelper(this);
     super.load(imageFormField);
-
-    // 检查是否为图像域
-    if (pdfField.name != null && ImageFieldUtils.isImageFieldWithFieldName(pdfField.name!, config?.imageFieldNames)) {
-      // 设置初始状态
-      _updateButtonAppearance();
-    }
 
     return imageFormField;
   }
@@ -144,15 +149,20 @@ class PdfImageFormFieldHelper extends PdfFormFieldHelper {
 
   /// 构建图像域Widget
   Widget build(BuildContext context, double heightPercentage) {
+    debugPrint('pdf_image_field._handleImageFieldClick()==>111');
     if (pdfField is! PdfButtonField) {
+      debugPrint('pdf_image_field._handleImageFieldClick()==>222');
       return const SizedBox.shrink();
     }
 
+    debugPrint('pdf_image_field._handleImageFieldClick()==>333');
     final imageField = _formField;
     if (!imageField.isImageField) {
+      debugPrint('pdf_image_field._handleImageFieldClick()==>444');
       return const SizedBox.shrink();
     }
 
+    debugPrint('pdf_image_field._handleImageFieldClick()==>555');
     final Rect fieldBounds = Rect.fromLTWH(
       bounds.left / heightPercentage,
       bounds.top / heightPercentage,
@@ -227,6 +237,7 @@ class PdfImageFormFieldHelper extends PdfFormFieldHelper {
     BuildContext context,
     PdfImageFormField imageField,
   ) async {
+    debugPrint('pdf_image_field._handleImageFieldClick()==>');
     await imageFieldManager?.handleImageFieldClick(context, imageField);
   }
 
