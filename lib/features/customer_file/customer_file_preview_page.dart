@@ -3748,26 +3748,28 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       final config = imageField.config;
       CropRatioConfig ratioConfig;
 
-      // 如果启用了比例选择器，显示选择对话框
-      if (config?.showRatioSelector == true) {
-        final CropRatioConfig? selectedRatio = await _showRatioSelector(context, imageField);
-        if (selectedRatio == null) {
-          // 用户取消了比例选择
-          debugPrint('用户取消比例选择');
-          return null;
-        }
-        ratioConfig = selectedRatio;
-      } else {
-        // 是否配置了单个自定义比例
-        final List<String>? availableRatios = config?.availableRatios;
+      // // 如果启用了比例选择器，显示选择对话框
+      // if (config?.showRatioSelector == true) {
+      //   final CropRatioConfig? selectedRatio = await _showRatioSelector(context, imageField);
+      //   if (selectedRatio == null) {
+      //     // 用户取消了比例选择
+      //     debugPrint('用户取消比例选择');
+      //     return null;
+      //   }
+      //   ratioConfig = selectedRatio;
+      // } else {
+      //   // 是否配置了单个自定义比例
+      //   final List<String>? availableRatios = config?.availableRatios;
+      //
+      //   if (availableRatios != null && availableRatios.length == 1) {
+      //     ratioConfig = ImageCropRatioUtils.parseRatioFromString(availableRatios[0])!;
+      //   } else {
+      //     // 使用默认的比例配置
+      //     ratioConfig = _generateCropRatioConfig(imageField);
+      //   }
+      // }
 
-        if (availableRatios != null && availableRatios.length == 1) {
-          ratioConfig = ImageCropRatioUtils.parseRatioFromString(availableRatios[0])!;
-        } else {
-          // 使用默认的比例配置
-          ratioConfig = _generateCropRatioConfig(imageField);
-        }
-      }
+      ratioConfig = ImageCropRatioUtils.parseRatioFromString('1:1')!;
 
       final CroppedFile? croppedFile = await ImageCropRatioUtils.cropImageWithRatio(
         sourcePath,

@@ -50,6 +50,9 @@ class PdfImageFormField extends PdfFormField {
   void setImage(Uint8List? imageBytes, {String? originalPath}) {
     imageData = imageBytes;
     originalImagePath = originalPath;
+    if (_helper != null) {
+      setImageFieldConfig(_helper?.config);
+    }
     _updateButtonAppearance();
     _helper?.rebuild();
   }
@@ -130,6 +133,7 @@ class PdfImageFormFieldHelper extends PdfFormFieldHelper {
   PdfImageFormField getFormField() {
     imageFormField = PdfImageFormField._();
     imageFormField.setHelper(this);
+    imageFormField.setImageFieldConfig(config);
     super.load(imageFormField);
 
     return imageFormField;
