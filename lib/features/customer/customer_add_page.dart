@@ -612,7 +612,7 @@ class _CustomerAddPageState extends State<CustomerAddPage> {
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'[0-9\s-]')),
                   ],
-                  maxLength: 20,
+                  maxLength: 15,
                   decoration: InputDecoration(
                     hintText: '请输入客户电话',
                     hintStyle: TextStyle(color: Colors.grey.shade400),
