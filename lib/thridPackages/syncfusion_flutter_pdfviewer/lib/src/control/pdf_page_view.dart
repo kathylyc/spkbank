@@ -257,6 +257,9 @@ class PdfPageViewState extends State<PdfPageView> {
 
   late PdfInteractionMode _interactionMode;
 
+  /// 20251219 ADD: ImageManager in the page
+  late ImageFieldManager _imageFieldManager;
+
   RawImage? _pdfPage;
   RawImage? _tileImage;
   CancelableOperation<Uint8List?>? _tileImageOperation;
@@ -278,6 +281,7 @@ class PdfPageViewState extends State<PdfPageView> {
         widget.formFields
             .where((formField) => formField.pageNumber == widget.pageIndex + 1)
             .toList();
+    _imageFieldManager = ImageFieldManager(config: widget.imageFieldConfig);
     super.initState();
   }
 
@@ -781,6 +785,7 @@ class PdfPageViewState extends State<PdfPageView> {
             width: _isRotatedTo90or270 ? widget.height : widget.width,
             child: FormFieldContainer(
               formFields: _formFields,
+              imageFieldManager: _imageFieldManager,
               onTap: _onPageTapped,
               heightPercentage: _heightPercentage,
               pdfViewerController: widget.pdfViewerController,

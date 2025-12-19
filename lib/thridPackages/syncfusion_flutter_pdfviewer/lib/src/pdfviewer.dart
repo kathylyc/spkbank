@@ -1896,6 +1896,22 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
         } else if (editedField is PdfSignatureFormField &&
             field is PdfSignatureFormField) {
           field.signature = editedField.signature;
+        } else if (editedField is PdfImageFormField &&
+            field is PdfImageFormField) {
+          // 同步图像数据
+          if (editedField.imageData != null) {
+            field.setImage(
+              editedField.imageData,
+              originalPath: editedField.originalImagePath,
+            );
+            // 同步配置信息
+            if (editedField.config != null) {
+              field.config = editedField.config;
+            }
+          } else {
+            // 如果源域没有图像，清除目标域的图像
+            field.clearImage();
+          }
         }
       }
     }
@@ -2047,6 +2063,12 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
       oldValue = field.signature;
       formFieldHelper.setSignature(value);
       newValue = field.signature;
+    } else if (formFieldHelper is PdfImageFormFieldHelper &&
+        field is PdfImageFormField &&
+        value is Uint8List?) {
+      oldValue = field.imageData;
+      field.setImage(value, originalPath: field.originalImagePath);
+      newValue = field.imageData;
     }
     _changeLinkedFieldValue(field);
     formFieldHelper.rebuild();
@@ -6129,6 +6151,9 @@ class SfPdfViewerState extends State<SfPdfViewer> with WidgetsBindingObserver {
               record = _updateFormField(field, List<String>.empty());
             } else if (formFieldHelper is PdfSignatureFormFieldHelper &&
                 field is PdfSignatureFormField) {
+              record = _updateFormField(field, null);
+            } else if (formFieldHelper is PdfImageFormFieldHelper &&
+                field is PdfImageFormField) {
               record = _updateFormField(field, null);
             }
             if (record != null) {

@@ -16,6 +16,7 @@ class FormFieldContainer extends StatefulWidget {
   const FormFieldContainer({
     super.key,
     required this.formFields,
+    required this.imageFieldManager,
     this.onTap,
     this.heightPercentage = 1,
     this.canShowSignaturePadDialog = true,
@@ -24,6 +25,8 @@ class FormFieldContainer extends StatefulWidget {
   });
 
   final List<PdfFormField> formFields;
+
+  final ImageFieldManager imageFieldManager;
 
   final void Function(Offset)? onTap;
 
@@ -41,18 +44,16 @@ class FormFieldContainer extends StatefulWidget {
 }
 
 class _FormFieldContainerState extends State<FormFieldContainer> {
-  /// 图像域管理器
-  late final ImageFieldManager _imageFieldManager;
 
   @override
   void initState() {
     super.initState();
-    _imageFieldManager = ImageFieldManager(config: widget.imageFieldConfig);
+    debugPrint('form_field_container.initState()==>');
   }
 
   @override
   void dispose() {
-    _imageFieldManager.dispose();
+    debugPrint('form_field_container.dispose()==>');
     super.dispose();
   }
 
@@ -137,7 +138,7 @@ class _FormFieldContainerState extends State<FormFieldContainer> {
 
   /// 创建图像域数据存储
   Uint8List? _getFormFieldImageData(String formFieldName) {
-    final Uint8List? imageData = _imageFieldManager.getImageData(formFieldName);
+    final Uint8List? imageData = widget.imageFieldManager.getImageData(formFieldName);
     return imageData;
   }
   
@@ -218,7 +219,7 @@ class _FormFieldContainerState extends State<FormFieldContainer> {
       if (formField is PdfImageFormField) {
         debugPrint('form_field_container._handleImageFieldClick()==>');
         imageField = formField;
-        await _imageFieldManager.handleImageFieldClick(context, imageField);
+        await widget.imageFieldManager.handleImageFieldClick(context, imageField);
       }
     } catch (e) {
       debugPrint('Error handling image field click: $e');

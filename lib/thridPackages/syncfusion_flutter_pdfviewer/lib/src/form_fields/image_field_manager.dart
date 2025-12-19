@@ -63,6 +63,8 @@ class ImageFieldManager {
   ) async {
     if (context.mounted) {
       try {
+        // 防止翻页后不刷新之前曾经设置过的图片，先重绘
+        imageField.helper!.onChanged!();
         // 调用文件选择回调
         if (config?.onFileSelect != null) {
           final PdfImageSelectedFile? selectedFile = await config!.onFileSelect!(
