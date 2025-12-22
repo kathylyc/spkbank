@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:uuid/uuid.dart';
 import '../../widgets/common_data_table_page.dart';
 import '../../utils/page_transition_animations.dart';
 import '../../utils/storage_utils.dart';
@@ -65,6 +66,9 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
 
   // 选中的行ID集合
   Set<String> _selectedIds = {};
+
+  // UUID生成器
+  static const _uuid = Uuid();
   
   // Repository
   final CustomerRepository _repository = CustomerRepository();
@@ -557,7 +561,6 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     }
 
     // 获取所有现有开户文件（用于匹配）
-    // 先获取所有唯一的accountFileUid
     final allAccountFiles = await _repository.findAccountFilesWithDetails(limit: 10000);
     final accountFileUids = <String>{};
     for (final fileData in allAccountFiles) {
@@ -572,7 +575,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
     for (final accountFileUid in accountFileUids) {
       final files = await _repository.findAccountFilesByAccountFileUid(accountFileUid);
       for (final file in files) {
-        final key = '${file.accountFileUid}_${file.fileVersion ?? ''}';
+        final key = '${file.customerUid}_${file.templateSignCode}_${file.fileVersion ?? ''}';
         accountFilesMap[key] = file;
       }
     }
@@ -647,7 +650,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       }
 
       // 处理文件路径：如果Excel中有相对路径，且files目录存在，则复制文件到APP缓存目录
-      Future<String?> copyOrReplaceToAppCacheFile() async {
+      Future<String?> copyOrReplaceToAppCacheFile({required String targetAccountFileUid}) async {
         String? appCacheFilePath = null;
         if (relativeFilePath.isNotEmpty &&
             relativeFilePath != '-'
@@ -662,9 +665,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
 
             if (await sourceFile.exists()) {
               // 生成目标文件名：使用accountFileUid和fileVersion，如果不存在则使用UUID
-              final finalAccountFileUid = accountFileUid.isNotEmpty
-              ? accountFileUid
-                  : '${customerUid}_${DateTime.now().millisecondsSinceEpoch}';
+              final finalAccountFileUid = targetAccountFileUid;
               final finalFileVersion = fileVersion;
               final targetFileName = '${finalAccountFileUid}_$finalFileVersion.pdf';
               final targetFilePath = p.join(accountDir.path, targetFileName);
@@ -690,9 +691,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       }
 
       // 尝试匹配现有开户文件
-      final key = accountFileUid.isNotEmpty
-          ? '${accountFileUid}_$fileVersion'
-          : '${customerUid}_${accountFileName}_$fileVersion';
+      final key = '${customerUid}_${templateSignCode}_$fileVersion';
       final existingFile = accountFilesMap[key];
 
       if (existingFile != null) {
@@ -756,12 +755,12 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           }
 
           // 3. 更新原版本数据（保持原版本号不变）
-          String? appCacheFilePath = await copyOrReplaceToAppCacheFile();
+          String? appCacheFilePath = await copyOrReplaceToAppCacheFile(targetAccountFileUid: existingFile.accountFileUid);
 
         } catch (e) {
           debugPrint('处理现有文件时出错: $e');
           // 即使备份失败，也尝试更新原文件
-          String? appCacheFilePath = await copyOrReplaceToAppCacheFile();
+          String? appCacheFilePath = await copyOrReplaceToAppCacheFile(targetAccountFileUid: existingFile.accountFileUid);
           final updatedFile = existingFile.copyWith(
             accountFileName: accountFileName.isNotEmpty ? accountFileName : existingFile.accountFileName,
             filePath: appCacheFilePath ?? existingFile.filePath,
@@ -780,10 +779,9 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
         }
       } else {
         // 插入新开户文件
-        String? appCacheFilePath = await copyOrReplaceToAppCacheFile();
-        final finalAccountFileUid = accountFileUid.isNotEmpty
-            ? accountFileUid
-            : '${customerUid}_${DateTime.now().millisecondsSinceEpoch}';
+        // 使用 UUID 生成 account_file_uid，file_version 设为 1
+        final finalAccountFileUid = _uuid.v4().replaceAll('-', '');
+        String? appCacheFilePath = await copyOrReplaceToAppCacheFile(targetAccountFileUid: finalAccountFileUid);
         final newFile = CustomerAccountFile(
           accountFileUid: finalAccountFileUid,
           customerUid: customerUid,
