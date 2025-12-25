@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:bank_flutter/utils/version_utils.dart';
+import 'package:bank_flutter/utils/common_const.dart';
 import 'package:excel/excel.dart' as excel;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:flutter/material.dart';
@@ -184,6 +185,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
           'fileName': row['account_file_name'] ?? '',
           'fileVersion': row['file_version'],
           'status': _formatSignStatus(row['sign_status']),
+          'signStatus': row['sign_status'], // 保留原始签署状态用于判断
           'enableStatus': row['enable_status'],
           'file_src_type': row['file_src_type'] ?? '',
           'template': row['template_name'] ?? '-',
@@ -594,14 +596,7 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       final relativeFilePath = (row[4]?.value?.toString() ?? '').trim(); // 第5列：文件路径（相对路径）
       final signStatusStr = row[5]?.value?.toString().trim();
       // 将 Excel 中的 signStatus 字符串转换为 int
-      int? signStatus;
-      if (signStatusStr != null && signStatusStr.isNotEmpty) {
-        if (signStatusStr == '已签署' || signStatusStr == '1') {
-          signStatus = 1;
-        } else {
-          signStatus = int.tryParse(signStatusStr) ?? 0;
-        }
-      }
+      int signStatus = ConstSignatureStatus.getStatusValue(signStatusStr);
       final fileSrcType = row[6]?.value?.toString().trim();
       final templateName = row[7]?.value?.toString().trim();
       final templateSignCode = row[8]?.value?.toString().trim();
@@ -1299,23 +1294,8 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   }
 
   /// 格式化签署状态为显示文本
-  String _formatSignStatus(Object? status) {
-    if (status == null) return '未签署';
-    if (status is int) {
-      switch (status) {
-        case 1:
-          return '已签署';
-        default:
-          return '未签署';
-      }
-    }
-    if (status is String) {
-      // 兼容旧数据
-      if (status == '已签署' || status == '1') return '已签署';
-      if (status == '未签署' || status == '2') return '未签署';
-      return status.isEmpty ? '-' : status;
-    }
-    return '-';
+  String _formatSignStatus(dynamic status) {
+    return ConstSignatureStatus.getStatusName(status);
   }
 
   /// 格式化日期时间
@@ -1412,6 +1392,11 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
   bool _isEnabled(Map<String, dynamic> row) {
     final enableStatus = row['enableStatus'];
     return enableStatus != null && (enableStatus == 1 || enableStatus == '1');
+  }
+
+  /// 判断是否已签署
+  bool _isSigned(Map<String, dynamic> row) {
+    return ConstSignatureStatus.isSigned(row['signStatus']);
   }
 
   /// 处理生效操作
@@ -1514,14 +1499,14 @@ class _CustomerFilePageState extends State<CustomerFilePage> {
       
       const SizedBox(width: 8),
       
-      // 修改按钮（已失效或扫描生成时灰显不可用）
+      // 修改按钮（已失效、扫描生成或已签署时灰显不可用）
       ElevatedButton(
-        onPressed: (isEnabled && !isScanGenerated) ? () {
+        onPressed: (isEnabled && !isScanGenerated && !_isSigned(row)) ? () {
           _navigateToPreviewPage(row, isEditMode: true);
         } : null,
         style: ElevatedButton.styleFrom(
-          backgroundColor: (isEnabled && !isScanGenerated) ? Colors.blue : Colors.grey.shade300,
-          foregroundColor: (isEnabled && !isScanGenerated) ? Colors.white : Colors.grey.shade600,
+          backgroundColor: (isEnabled && !isScanGenerated && !_isSigned(row)) ? Colors.blue : Colors.grey.shade300,
+          foregroundColor: (isEnabled && !isScanGenerated && !_isSigned(row)) ? Colors.white : Colors.grey.shade600,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(4),

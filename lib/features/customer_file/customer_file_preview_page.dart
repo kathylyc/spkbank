@@ -938,7 +938,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
     try {
       if (_currentDocument == null) {
         debugPrint('⚠ 无法计算签署状态：当前文档为空');
-        return 0;
+        return ConstSignatureStatus.notSigned;
       }
 
       final pdfForm = _currentDocument!.form;
@@ -947,7 +947,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       final currentSignCode = widget.templateSignCode;
       if (currentSignCode == null || currentSignCode.isEmpty) {
         debugPrint('⚠ 无法计算签署状态：signCode为空');
-        return 0;
+        return ConstSignatureStatus.notSigned;
       }
 
       debugPrint('🔍 开始计算签署状态，当前signCode: $currentSignCode');
@@ -957,7 +957,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
       if (matchingTemplate == null) {
         debugPrint('⚠ 无法计算签署状态：未找到匹配的模板，signCode=$currentSignCode');
-        return 0;
+        return ConstSignatureStatus.notSigned;
       }
 
       // 3. 从模板获取期望的签名字段
@@ -999,7 +999,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
       if (expectedSignFields.isEmpty) {
         debugPrint('ℹ 模板未定义签名字段，视为无需签署，sign_status=1');
-        return 0; // 无签名域，视为未签署
+        return ConstSignatureStatus.notSigned; // 无签名域，视为未签署
       }
       debugPrint('📝 期望签名数量: ${expectedSignFields.length} 个');
 
@@ -1047,14 +1047,14 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       // 5. 确定签署状态，已签的数量==常量定义的签名域的数量，视为已签署
       if (signedFieldCount == expectedSignFields.length) {
         debugPrint('===已签名');
-        return 1;
+        return ConstSignatureStatus.signed;
       } else {
         debugPrint('===未签名');
-        return 0;
+        return ConstSignatureStatus.notSigned;
       }
     } catch (e) {
       debugPrint('💥 计算签署状态时发生异常: $e');
-      return 0; // 异常情况下返回未签署状态
+      return ConstSignatureStatus.notSigned; // 异常情况下返回未签署状态
     }
   }
 
@@ -1205,8 +1205,8 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       final int? currentSignStatus = await _calculateSigningStatus();
       // 判断是否从未签署变为已签署
       final bool isSigningStatusChanged =
-          (previousSignStatus == null || previousSignStatus == 0) &&
-              (currentSignStatus == 1);
+          (previousSignStatus == null || previousSignStatus == ConstSignatureStatus.notSigned) &&
+              (currentSignStatus == ConstSignatureStatus.signed);
       debugPrint('📊 签署状态检测: 之前=$previousSignStatus, 当前=$currentSignStatus, 变更=$isSigningStatusChanged');
 
       // 4. 保存到数据库（已签署版本）
@@ -1264,7 +1264,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
             accountFileName: widget.fileName!,
             fileVersion: backupVersion,
             filePath: backupFilePath,
-            signStatus: 0, // 未签署状态
+            signStatus: ConstSignatureStatus.notSigned, // 未签署状态
             templateName: widget.templateName,
             templateSignCode: widget.templateSignCode,
             fileSrcType: widget.fileSrcType ?? '模板生成',

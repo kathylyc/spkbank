@@ -15,9 +15,51 @@ class ConstSex  {
   static const woman = 1;// 女
 }
 
-class ConstSignatureStatus  {
+class ConstSignatureStatus {
   static const signed = 1;// 已签署
-  static const notSigned = 2;// 未签署
+  static const notSigned = 0;// 未签署
+
+  /// 根据签署状态值返回状态名称
+  static String getStatusName(dynamic status) {
+    if (status == null) return '未签署';
+    if (status is int) {
+      return status == signed ? '已签署' : '未签署';
+    }
+    if (status is String) {
+      // 兼容旧数据
+      if (status == '已签署' || status == '1') return '已签署';
+      if (status == '未签署' || status == '0') return '未签署';
+      return status.isEmpty ? '-' : status;
+    }
+    return '-';
+  }
+
+  /// 根据签署状态名称返回状态值
+  static int getStatusValue(String? signStatusStr) {
+    if (signStatusStr != null && signStatusStr.isNotEmpty) {
+      if (signStatusStr == '已签署' || signStatusStr == '1') {
+        return signed;
+      } else {
+        final intSignStatus = int.tryParse(signStatusStr) ?? notSigned;
+        if (intSignStatus == signed) {
+          return signed;
+        }
+      }
+    }
+    return notSigned;
+  }
+
+  /// 判断是否已签署
+  static bool isSigned(dynamic status) {
+    if (status == null) return false;
+    if (status is int) {
+      return status == signed;
+    }
+    if (status is String) {
+      return status == '已签署' || status == '1';
+    }
+    return false;
+  }
 }
 
 /// PDF表单字段默认值配置
