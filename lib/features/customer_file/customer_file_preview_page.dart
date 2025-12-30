@@ -352,7 +352,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   // 按钮状态管理
   bool _isProcessing = false;
 
-  bool get kIsPrintPdfFields => false;  // 是否打印pdf的每个字段
+  bool get kIsPrintPdfFields => true;  // 是否打印pdf的每个字段
   bool get kIsPrintFontSet => false; // 是否打印pdf设置字体
 
   @override
@@ -612,8 +612,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   /// [flattenConfig] 扁平化配置，默认为不扁平化
   /// 返回保存后的PDF字节数据
   Future<List<int>> _savePdfWithFlattenConfig({
-    PdfFlattenConfig flattenConfig = PdfFlattenConfig.none,
-    String? watermarkText,
+    PdfFlattenConfig flattenConfig = PdfFlattenConfig.none
   }) async {
     debugPrint('=== 开始保存PDF，扁平化配置: ${flattenConfig.description} ===');
 
@@ -725,25 +724,6 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
             debugPrint('✓ PDF扁平化完成: 扁平化 $flattenCount 个字段，跳过 $skipCount 个字段');
           } catch (e) {
             debugPrint('⚠ 扁平化PDF时出错: $e，使用原始保存结果');
-          }
-        }
-
-        // 如果有水印文字，添加水印
-        if (watermarkText != null && watermarkText.isNotEmpty) {
-          try {
-            debugPrint('开始添加水印: $watermarkText');
-            final Uint8List? watermarkedBytes = await _addWatermarkToPdf(
-              Uint8List.fromList(savedBytes),
-              watermarkText,
-            );
-            if (watermarkedBytes != null) {
-              savedBytes = watermarkedBytes;
-              debugPrint('✓ 水印添加成功');
-            } else {
-              debugPrint('⚠ 水印添加失败，使用原始PDF');
-            }
-          } catch (e) {
-            debugPrint('⚠ 添加水印时出错: $e，使用原始PDF');
           }
         }
 
@@ -910,25 +890,6 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
       List<int> originalBytes = _originalPdfBytes!.toList();
 
-      // 如果有水印文字，添加水印
-      if (watermarkText != null && watermarkText.isNotEmpty) {
-        try {
-          debugPrint('开始添加水印: $watermarkText');
-          final Uint8List? watermarkedBytes = await _addWatermarkToPdf(
-            Uint8List.fromList(originalBytes),
-            watermarkText,
-          );
-          if (watermarkedBytes != null) {
-            originalBytes = watermarkedBytes;
-            debugPrint('✓ 水印添加成功');
-          } else {
-            debugPrint('⚠ 水印添加失败，使用原始PDF');
-          }
-        } catch (e) {
-          debugPrint('⚠ 添加水印时出错: $e，使用原始PDF');
-        }
-      }
-
       return originalBytes;
     } else {
       throw Exception('无法保存PDF：缺少原始数据');
@@ -1063,7 +1024,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   }
 
   /// 保存PDF文件（支持选择扁平化配置）
-  Future<void> _handleSave({PdfFlattenConfig flattenConfig = PdfFlattenConfig.none, String? watermarkText}) async {
+  Future<void> _handleSave({PdfFlattenConfig flattenConfig = PdfFlattenConfig.none}) async {
     // 校验签名域是否已签
     PdfTemplateInfo? pdfTemplateInfo = _getPdfTemplateInfoBySignCode(widget.templateSignCode);
     if (pdfTemplateInfo?.signChecks != null) {
@@ -1203,8 +1164,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       // 3. 将页面上的表单数据保存到新的PDF中
       // 使用传入的扁平化配置（先保存才能获取到当前页面上的签署状态）
       final List<int> savedBytes = await _savePdfWithFlattenConfig(
-        flattenConfig: flattenConfig,
-        watermarkText: watermarkText,
+        flattenConfig: flattenConfig
       );
 
       await Future.delayed(const Duration(seconds: 1));
@@ -1222,22 +1182,22 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
               (currentSignStatus == ConstSignatureStatus.signed);
       debugPrint('📊 签署状态检测: 之前=$previousSignStatus, 当前=$currentSignStatus, 变更=$isSigningStatusChanged');
 
-      // TODO：保存水印逻辑
+      // 保存水印逻辑
       if (isSigningStatusChanged) {
         // 将刚才保存的savedFile重新用syncfusion_flutter_pdf库读出来（不是pdfviewer库，是pdf库），每一页都添加水印
-        // 水印格式：【浦发银行 登录用户 时间戳】，示例：【浦发银行 admin 202512301104】
+        // 水印格式：浦发银行 登录用户 时间戳，示例：浦发银行 admin 202512301104
         // 添加水印后保存，覆盖savedFile文件
 
         // 1. 读取已保存的文件
-        final Uint8List originalBytes = await savedFile.readAsBytes();
+        final List<int> originalBytes = savedBytes;
 
         // 2. 生成水印文字
         final timestamp = DateFormat('yyyyMMddHHmm').format(now);
-        final watermarkText = '【浦发银行 ${loginUser?.userName ?? ''} $timestamp】';
+        final watermarkText = '浦发银行 ${loginUser?.userName ?? ''} $timestamp';
         debugPrint('📝 PDF已签署，添加水印: $watermarkText');
 
         // 3. 添加水印
-        final Uint8List? watermarkedBytes = await _addWatermarkToPdf(originalBytes, watermarkText);
+        final List<int>? watermarkedBytes = await _addWatermarkToPdf(originalBytes, watermarkText);
 
         // 4. 如果水印添加成功，覆盖原文件
         if (watermarkedBytes != null) {
@@ -2530,16 +2490,16 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   /// [pdfBytes] 原始PDF字节数据
   /// [watermarkText] 水印文字
   /// 返回添加水印后的PDF字节数据
-  Future<Uint8List?> _addWatermarkToPdf(Uint8List pdfBytes, String watermarkText) async {
+  Future<List<int>?> _addWatermarkToPdf(List<int> pdfBytes, String watermarkText) async {
     try {
       debugPrint('=== 开始为PDF添加水印 ===');
       debugPrint('水印文字: $watermarkText');
 
       // ========== 水印配置参数 ==========
       // 字体大小
-      final int fontSize = 10;
+      final int fontSize = 14;
       // 旋转角度（度数，负数=顺时针，正数=逆时针）
-      final double rotateAngle = -45;
+      final double rotateAngle = -25;
       // 透明度（0.0-1.0，越小越透明）
       final double transparency = 0.4;
       // 水印颜色（RGB，0-255）
@@ -2586,25 +2546,28 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
         int watermarkCount = 0;
 
-        // 【关键】在循环外获取 graphics 对象
-        final PdfGraphics graphics = page.graphics;
-
         // 网格状排列水印（直接计算绝对位置）
         for (int row = 0; row < gridRows; row++) {
           for (int col = 0; col < gridCols; col++) {
-            // 直接计算绝对位置
-            final double x = spacingX / 2 + col * spacingX;
+            // 每次获取新的 graphics 对象（和能工作的3x3版本一样）
+            final PdfGraphics graphics = page.graphics;
+
+            // 直接计算绝对位置，奇数行错位排列（警戒线效果）
+            final double xOffset = (row % 2 == 0) ? 0 : spacingX / 2;
+            final double x = spacingX / 2 + col * spacingX + xOffset;
             final double y = spacingY / 2 + row * spacingY;
+
+            debugPrint('水印 #$watermarkCount: pos=($x,$y), angle=$rotateAngle°');
 
             // 保存状态
             graphics.save();
 
-            // 移动到位置并旋转
-            graphics.translateTransform(x, y);
-            graphics.rotateTransform(rotateAngle * math.pi / 180);
-
-            // 设置透明度
+            // 【关键】先设置透明度（在某些 PDF 库中，透明度必须最先设置）
             graphics.setTransparency(transparency);
+
+            // 移动到位置并旋转（Syncfusion 使用度数，不是弧度！）
+            graphics.translateTransform(x, y);
+            graphics.rotateTransform(rotateAngle);
 
             // 绘制水印
             graphics.drawString(
@@ -2746,7 +2709,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
               Padding(
                 padding: const EdgeInsets.only(right: 16),
                 child: ElevatedButton.icon(
-                  onPressed: _isProcessing ? null : () => _handleSave(flattenConfig: PdfFlattenConfig.none, watermarkText: null),
+                  onPressed: _isProcessing ? null : () => _handleSave(flattenConfig: PdfFlattenConfig.none),
                   icon: _isProcessing
                       ? const SizedBox(
                           width: 16,
