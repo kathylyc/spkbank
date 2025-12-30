@@ -159,12 +159,20 @@ const Map<String, PdfTemplateInfo> ConstPdfTemplateMap = {
   "3": PdfTemplateInfo(
       signCode: 'fd50f3s9a15wagf3',
       assetsPath: 'assets/pdf/Appendix M (10) CustomerDeclaration and Undertaking in respect of Tax Evasion.pdf',
-      signFields: ['Signature1', 'Signature2'],
+      signFields: ['Signature1', 'Signature2', 'Signature3'],
       signChecks: [
+        PdfSignCheckInfo(
+            chkFiledName: '',
+            signFieldName: 'Signature1',
+            message: '请进行签名确认。'),
         PdfSignCheckInfo(
             chkFiledName: 'Check Box3',
             signFieldName: 'Signature2',
-            message: '请Director签名确认。')
+            message: '请进行签名确认。'),
+        PdfSignCheckInfo(
+            chkFiledName: 'Check Box4',
+            signFieldName: 'Signature3',
+            message: '请进行签名确认。')
       ],
       formConfig: PdfFormConfig(
         fieldDefaults: [

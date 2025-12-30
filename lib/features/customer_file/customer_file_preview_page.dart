@@ -351,7 +351,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   // 按钮状态管理
   bool _isProcessing = false;
 
-  bool get kIsPrintPdfFields => false;  // 是否打印pdf的每个字段
+  bool get kIsPrintPdfFields => true;  // 是否打印pdf的每个字段
   bool get kIsPrintFontSet => false; // 是否打印pdf设置字体
 
   @override
@@ -975,6 +975,11 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         }
 
         for (PdfSignCheckInfo signCheckInfo in matchingTemplate.signChecks) {
+          if (signCheckInfo.chkFiledName.isEmpty) {
+            // chkFiledName为空时，对应signFieldName必填，不做移除处理
+            continue;
+          }
+
           // 找到对应需要check的checkbox域
           PdfCheckBoxField? targetCheckboxField;
           for (PdfCheckBoxField c in checkboxFields) {
@@ -985,16 +990,13 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
           }
           if (targetCheckboxField != null) {
             // 找到了，获取当前的选中状态
-            if (targetCheckboxField.isChecked) {
-              // 当前打钩了，那么对应的签名域需要签名
-            } else {
+            if (!targetCheckboxField.isChecked) {
               // 当前未打钩，对应的签名域不需要校验签名，移除校验列表
               expectedSignFields.remove(signCheckInfo.signFieldName);
             }
-          } else {
-            // 未找到，忽略此校验
-            continue;
+            // 打钩了则保留，无需处理
           }
+          // 未找到checkbox域的情况，保留校验（兼容处理）
         }
       }
 
@@ -1067,10 +1069,19 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       // 有需要签名校验的域
       for (var i = 0;i < pdfTemplateInfo!.signChecks!.length; i++) {
         PdfSignCheckInfo signCheckInfo = pdfTemplateInfo.signChecks![i];
-        // 检查checkbox状态
-        bool? checkboxChecked = _getCheckboxFieldValue(signCheckInfo.chkFiledName);
-        if (checkboxChecked == true) {
-          // checkbox被选中，检查对应的签名字段是否已签名
+        // 检查是否需要验证签名
+        bool needCheckSign;
+        if (signCheckInfo.chkFiledName.isEmpty) {
+          // chkFiledName为空时，对应signFieldName必填
+          needCheckSign = true;
+        } else {
+          // chkFiledName不为空时，只有checkbox被选中才需要检查签名
+          bool? checkboxChecked = _getCheckboxFieldValue(signCheckInfo.chkFiledName);
+          needCheckSign = checkboxChecked == true;
+        }
+
+        if (needCheckSign) {
+          // 检查对应的签名字段是否已签名
           bool isSigned = _isSignatureFieldSigned(signCheckInfo.signFieldName);
           if (!isSigned) {
             // 未签名，显示提示对话框
