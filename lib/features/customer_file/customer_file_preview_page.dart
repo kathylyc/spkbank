@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui show Image, ImageByteFormat;
 import 'dart:math' as math;
+import 'package:intl/intl.dart';
 import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -351,7 +352,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
   // 按钮状态管理
   bool _isProcessing = false;
 
-  bool get kIsPrintPdfFields => true;  // 是否打印pdf的每个字段
+  bool get kIsPrintPdfFields => false;  // 是否打印pdf的每个字段
   bool get kIsPrintFontSet => false; // 是否打印pdf设置字体
 
   @override
@@ -1200,7 +1201,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       }
 
       // 3. 将页面上的表单数据保存到新的PDF中
-      // 使用传入的扁平化配置
+      // 使用传入的扁平化配置（先保存才能获取到当前页面上的签署状态）
       final List<int> savedBytes = await _savePdfWithFlattenConfig(
         flattenConfig: flattenConfig,
         watermarkText: watermarkText,
@@ -1220,6 +1221,33 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
           (previousSignStatus == null || previousSignStatus == ConstSignatureStatus.notSigned) &&
               (currentSignStatus == ConstSignatureStatus.signed);
       debugPrint('📊 签署状态检测: 之前=$previousSignStatus, 当前=$currentSignStatus, 变更=$isSigningStatusChanged');
+
+      // TODO：保存水印逻辑
+      if (isSigningStatusChanged) {
+        // 将刚才保存的savedFile重新用syncfusion_flutter_pdf库读出来（不是pdfviewer库，是pdf库），每一页都添加水印
+        // 水印格式：【浦发银行 登录用户 时间戳】，示例：【浦发银行 admin 202512301104】
+        // 添加水印后保存，覆盖savedFile文件
+
+        // 1. 读取已保存的文件
+        final Uint8List originalBytes = await savedFile.readAsBytes();
+
+        // 2. 生成水印文字
+        final timestamp = DateFormat('yyyyMMddHHmm').format(now);
+        final watermarkText = '【浦发银行 ${loginUser?.userName ?? ''} $timestamp】';
+        debugPrint('📝 PDF已签署，添加水印: $watermarkText');
+
+        // 3. 添加水印
+        final Uint8List? watermarkedBytes = await _addWatermarkToPdf(originalBytes, watermarkText);
+
+        // 4. 如果水印添加成功，覆盖原文件
+        if (watermarkedBytes != null) {
+          await savedFile.writeAsBytes(watermarkedBytes, flush: true);
+          debugPrint('✓ 水印添加成功，已覆盖原文件');
+          debugPrint('📁 文件路径: ${savedFile.path}');
+        } else {
+          debugPrint('⚠ 水印添加失败，使用原始PDF');
+        }
+      }
 
       // 4. 保存到数据库（已签署版本）
       final accountFile = CustomerAccountFile(
@@ -2507,6 +2535,22 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
       debugPrint('=== 开始为PDF添加水印 ===');
       debugPrint('水印文字: $watermarkText');
 
+      // ========== 水印配置参数 ==========
+      // 字体大小
+      final int fontSize = 10;
+      // 旋转角度（度数，负数=顺时针，正数=逆时针）
+      final double rotateAngle = -45;
+      // 透明度（0.0-1.0，越小越透明）
+      final double transparency = 0.4;
+      // 水印颜色（RGB，0-255）
+      final int colorR = 150;
+      final int colorG = 150;
+      final int colorB = 150;
+      // 水印网格行列数
+      final int gridCols = 4;
+      final int gridRows = 5;
+      // ================================
+
       // 从字节数据创建PDF文档
       final PdfDocument document = PdfDocument(inputBytes: pdfBytes);
 
@@ -2516,9 +2560,11 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         return null;
       }
 
-      // 设置水印样式
-      final PdfFont watermarkFont = PdfStandardFont(PdfFontFamily.helvetica, 40);
-      final PdfColor watermarkColor = PdfColor(178, 178, 178); // 浅灰色 (0.7 * 255 ≈ 178)
+      // 加载中文字体（思源宋体）
+      final ByteData fontData = await rootBundle.load('assets/fonts/SourceHanSerifSC-VF.ttf');
+      final Uint8List fontBytes = fontData.buffer.asUint8List();
+      final PdfFont watermarkFont = PdfTrueTypeFont(fontBytes, fontSize.toDouble());
+      final PdfColor watermarkColor = PdfColor(colorR, colorG, colorB);
 
       debugPrint('开始为 ${document.pages.count} 个页面添加水印...');
 
@@ -2527,72 +2573,54 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
         final PdfPage page = document.pages[pageIndex];
         final Size pageSize = page.size;
 
-        // 创建页面图形对象
-        final PdfGraphics graphics = page.graphics;
-
-        // 保存当前图形状态
-        graphics.save();
-
-        // 设置水印透明度
-        graphics.setTransparency(0.3);
-
-        // 计算水印旋转和位置参数
-        final double centerX = pageSize.width / 2;
-        final double centerY = pageSize.height / 2;
-        final double angle = -45 * (math.pi / 180); // 45度角转弧度（负值表示顺时针）
-
-        // 计算水印文字大小
+        // 测量文字大小
         final Size textSize = watermarkFont.measureString(watermarkText);
         final double textWidth = textSize.width;
         final double textHeight = textSize.height;
 
-        // 计算需要多少个水印才能覆盖整个页面（呈网格状排列）
-        final double diagonalLength = math.sqrt(pageSize.width * pageSize.width + pageSize.height * pageSize.height);
-        final double spacingX = textWidth * 2.5; // 水印间距
-        final double spacingY = textHeight * 3; // 水印间距
+        // 计算水印间距
+        final double spacingX = pageSize.width / gridCols;
+        final double spacingY = pageSize.height / gridRows;
 
-        // 计算需要的行列数
-        final int rows = (diagonalLength / spacingY).ceil() + 2;
-        final int cols = (diagonalLength / spacingX).ceil() + 2;
-
-        debugPrint('页面 $pageIndex: 将添加 $rows 行 × $cols 列 = ${rows * cols} 个水印');
+        debugPrint('页面 $pageIndex: 将添加 $gridRows 行 × $gridCols 列水印');
 
         int watermarkCount = 0;
 
-        // 在网格中添加水印
-        for (int row = -1; row < rows; row++) {
-          for (int col = -1; col < cols; col++) {
-            // 计算水印位置
-            final double offsetX = (col - cols / 2) * spacingX;
-            final double offsetY = (row - rows / 2) * spacingY;
+        // 【关键】在循环外获取 graphics 对象
+        final PdfGraphics graphics = page.graphics;
 
-            // 移动到页面中心，然后偏移，再旋转
-            graphics.translateTransform(centerX + offsetX, centerY + offsetY);
-            graphics.rotateTransform(angle);
+        // 网格状排列水印（直接计算绝对位置）
+        for (int row = 0; row < gridRows; row++) {
+          for (int col = 0; col < gridCols; col++) {
+            // 直接计算绝对位置
+            final double x = spacingX / 2 + col * spacingX;
+            final double y = spacingY / 2 + row * spacingY;
 
-            // 绘制水印文字（居中对齐）
+            // 保存状态
+            graphics.save();
+
+            // 移动到位置并旋转
+            graphics.translateTransform(x, y);
+            graphics.rotateTransform(rotateAngle * math.pi / 180);
+
+            // 设置透明度
+            graphics.setTransparency(transparency);
+
+            // 绘制水印
             graphics.drawString(
               watermarkText,
               watermarkFont,
               pen: PdfPen(watermarkColor, width: 0.5),
               brush: PdfSolidBrush(watermarkColor),
               bounds: Rect.fromLTWH(-textWidth / 2, -textHeight / 2, textWidth, textHeight),
-              format: PdfStringFormat(
-                alignment: PdfTextAlignment.center,
-                lineAlignment: PdfVerticalAlignment.middle,
-              ),
             );
 
-            // 恢复变换矩阵，准备下一个水印
+            // 恢复状态
             graphics.restore();
-            graphics.save(); // 重新保存状态以备下次使用
 
             watermarkCount++;
           }
         }
-
-        // 恢复图形状态
-        graphics.restore();
 
         debugPrint('页面 $pageIndex: 已添加 $watermarkCount 个水印');
       }
