@@ -1,3 +1,4 @@
+import 'package:bank_flutter/utils/pdf_template_utils.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -22,7 +23,8 @@ class MigrationV3 implements MigrationStep {
     ''');
 
     // 插入 ConstPdfTemplateMap 中的数据
-    for (final entry in ConstPdfTemplateMap.entries) {
+    final Map<String, PdfTemplateInfo> pdfTemplateMap = PdfTemplateUtils.getPdfTemplateMap();
+    for (final entry in pdfTemplateMap.entries) {
       final templateInfo = entry.value;
       final signCode = templateInfo.signCode;
 
@@ -37,7 +39,7 @@ class MigrationV3 implements MigrationStep {
       );
     }
 
-    debugPrint('MigrationV3().up()==> Created t_pdf_template_info table and inserted ${ConstPdfTemplateMap.length} records');
+    debugPrint('MigrationV3().up()==> Created t_pdf_template_info table and inserted ${pdfTemplateMap.length} records');
   }
 
   @override

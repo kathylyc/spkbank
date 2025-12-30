@@ -19,6 +19,7 @@ import '../../data/models/customer_account_file.dart';
 import '../../data/models/customer.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../utils/file_manager.dart';
+import '../../utils/pdf_template_utils.dart';
 import '../../utils/storage_utils.dart';
 import '../../utils/common_const.dart';
 import '../../utils/version_utils.dart';
@@ -2116,7 +2117,7 @@ class _CustomerFilePreviewPageState extends State<CustomerFilePreviewPage> {
 
   PdfTemplateInfo? _getPdfTemplateInfoBySignCode(currentSignCode) {
     PdfTemplateInfo? matchingTemplate;
-    for (final entry in ConstPdfTemplateMap.entries) {
+    for (final entry in PdfTemplateUtils.getPdfTemplateMap().entries) {
       if (entry.value.signCode == currentSignCode) {
         matchingTemplate = entry.value;
         debugPrint('📋 找到匹配模板: ID=${entry.key}, signCode=${entry.value.signCode}');

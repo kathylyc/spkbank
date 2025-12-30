@@ -59,7 +59,7 @@ class _PdfTemplatePageState extends State<PdfTemplatePage> {
       }
 
       // 从工具类获取PDF模板列表
-      final constantData = PdfTemplateUtils.getPdfTemplateList();
+      final constantData = PdfTemplateUtils.getPdfTemplateList(includeTemplatePreviewOnly: true);
 
       // 组合数据
       _allPdfData = [];

@@ -168,7 +168,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
     String tab2FileNamePrefix = '选择PDF文件';
     if (_pdfSignCode != null) {
       // 已上传合法的pdf
-      for (final entry in ConstPdfTemplateMap.entries) {
+      for (final entry in PdfTemplateUtils.getPdfTemplateMap().entries) {
         if (entry.value.signCode == _pdfSignCode) {
           tab2FileNamePrefix = entry.value.fileName;
           break;
@@ -559,7 +559,7 @@ class _CustomerFileAddPageState extends State<CustomerFileAddPage>
 
         // 检查signCode是否在常量中存在
         bool isValidSignCode = false;
-        for (final entry in ConstPdfTemplateMap.entries) {
+        for (final entry in PdfTemplateUtils.getPdfTemplateMap().entries) {
           if (entry.value.signCode == signCodeFromPdf) {
             isValidSignCode = true;
             break;

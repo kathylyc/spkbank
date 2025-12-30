@@ -210,6 +210,12 @@ const Map<String, PdfTemplateInfo> ConstPdfTemplateMap = {
       signFields: ['Signature'],
       signChecks: []
   ),
+  "9": PdfTemplateInfo(
+      signCode: 'urbqq67tjx2jd6hq',
+      assetsPath: 'assets/pdf/Appendix 2c - Meaning of termsand expressions used in CRS.pdf',
+      signFields: [],
+      signChecks: []
+  ),
 };
 
 
