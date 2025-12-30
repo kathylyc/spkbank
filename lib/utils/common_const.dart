@@ -147,8 +147,21 @@ const Map<String, PdfTemplateInfo> ConstPdfTemplateMap = {
   "1": PdfTemplateInfo(
       signCode: '265xxaq545a2xq6x',
       assetsPath: 'assets/pdf/Account Mandate for BusinessAccount_201908.pdf',
-      signFields: ['Signature1', 'Signature2'],
-      signChecks: []
+      signFields: ['Signature1', 'Signature2', 'Signature3'],
+      signChecks: [
+        PdfSignCheckInfo(
+            chkFiledName: '',
+            signFieldName: 'Signature1',
+            message: '请进行签名确认。'),
+        PdfSignCheckInfo(
+            chkFiledName: 'Check Box5',
+            signFieldName: 'Signature2',
+            message: '请进行签名确认。'),
+        PdfSignCheckInfo(
+            chkFiledName: 'Check Box6',
+            signFieldName: 'Signature3',
+            message: '请进行签名确认。'),
+      ]
   ),
   "2": PdfTemplateInfo(
       signCode: 'x8q8a3d9dz771ds6',
@@ -177,7 +190,12 @@ const Map<String, PdfTemplateInfo> ConstPdfTemplateMap = {
       formConfig: PdfFormConfig(
         fieldDefaults: [
           PdfFormFieldDefault(
-            fieldName: 'directorName',
+            fieldName: 'companyName1',
+            customerProperty: 'customerName',// 空字符串表示不从客户信息获取
+            defaultValue: '',
+          ),
+          PdfFormFieldDefault(
+            fieldName: 'companyName',
             customerProperty: 'customerName',// 空字符串表示不从客户信息获取
             defaultValue: '',
           ),
