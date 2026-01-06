@@ -1,8 +1,24 @@
+import 'package:bcrypt/bcrypt.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../db/db_provider.dart';
 import '../models/user.dart';
 import '../../utils/password_utils.dart';
+import '../../utils/file_manager.dart';
+
+/// 账户删除统计信息
+class AccountDeletionStats {
+  const AccountDeletionStats({
+    required this.customerCount,
+    required this.accountFileCount,
+    required this.attachmentFileCount,
+  });
+
+  final int customerCount;
+  final int accountFileCount;
+  final int attachmentFileCount;
+}
 
 class UserRepository {
   UserRepository({DbProvider? provider}) : _provider = provider ?? DbProvider.instance;
@@ -156,5 +172,162 @@ class UserRepository {
   /// 检查手机号是否重复（排除指定用户ID）
   Future<bool> isPhoneNumberExists(String phoneNumber, {int? excludeId}) =>
       _provider.userDao.existsByPhoneNumber(phoneNumber, excludeId: excludeId);
+
+  /// 统计用户关联数据量
+  ///
+  /// [userName] 用户名
+  ///
+  /// 返回统计信息（客户数量、开户文件数量、附件文件数量）
+  Future<Map<String, int>> countUserData(String userName) async {
+    final db = await _provider.database;
+
+    // 统计客户数量
+    final customerResult = await db.rawQuery(
+      'SELECT COUNT(*) AS count FROM t_customer WHERE manager_account = ?',
+      [userName],
+    );
+    final customerCount = Sqflite.firstIntValue(customerResult) ?? 0;
+
+    // 统计开户文件数量
+    final accountFileResult = await db.rawQuery(
+      '''SELECT COUNT(*) AS count FROM t_customer_account_file
+         WHERE customer_uid IN (
+           SELECT customer_uid FROM t_customer WHERE manager_account = ?
+         )''',
+      [userName],
+    );
+    final accountFileCount = Sqflite.firstIntValue(accountFileResult) ?? 0;
+
+    // 统计附件文件数量
+    final attachmentFileResult = await db.rawQuery(
+      '''SELECT COUNT(*) AS count FROM t_customer_attachment_file
+         WHERE customer_uid IN (
+           SELECT customer_uid FROM t_customer WHERE manager_account = ?
+         )''',
+      [userName],
+    );
+    final attachmentFileCount = Sqflite.firstIntValue(attachmentFileResult) ?? 0;
+
+    return {
+      'customerCount': customerCount,
+      'accountFileCount': accountFileCount,
+      'attachmentFileCount': attachmentFileCount,
+    };
+  }
+
+  /// 删除用户账户及其所有关联数据
+  ///
+  /// [userName] 用户名
+  /// [password] 密码（用于验证身份，如果为空则跳过验证）
+  ///
+  /// 返回删除统计信息
+  ///
+  /// 抛出异常的情况：
+  /// - [ArgumentError] 密码验证失败
+  /// - [StateError] 管理员账号不允许删除
+  /// - [Exception] 删除过程中发生错误
+  Future<AccountDeletionStats> deleteAccountWithCascade({
+    required String userName,
+    required String password,
+  }) async {
+    // 1. 验证用户存在
+    final user = await findByUserName(userName);
+    if (user == null) {
+      throw Exception('用户不存在');
+    }
+
+    // 2. 如果提供了密码，则验证密码
+    if (password.isNotEmpty) {
+      if (!BCrypt.checkpw(password, user.password)) {
+        throw ArgumentError('密码不正确');
+      }
+    }
+
+    // 3. 检查是否为管理员
+    if (user.userType == '00') {
+      throw StateError('管理员账号不允许删除');
+    }
+
+    final db = await _provider.database;
+
+    return await db.transaction<AccountDeletionStats>((txn) async {
+      // 在事务上下文中直接执行删除操作
+      int customerCount = 0;
+      int accountFileCount = 0;
+      int attachmentFileCount = 0;
+
+      // 4.1 查询所有客户
+      final customers = await txn.query(
+        't_customer',
+        where: 'manager_account = ?',
+        whereArgs: [userName],
+      );
+
+      customerCount = customers.length;
+
+      // 4.2 删除每个客户的文件和数据
+      for (final customerRow in customers) {
+        final customerUid = customerRow['customer_uid'] as String;
+
+        // 删除开户文件（物理文件）
+        final accountFiles = await txn.query(
+          't_customer_account_file',
+          where: 'customer_uid = ?',
+          whereArgs: [customerUid],
+        );
+
+        accountFileCount += accountFiles.length.toInt();
+
+        for (final accountFile in accountFiles) {
+          final filePath = accountFile['file_path'] as String;
+          try {
+            debugPrint('准备删除开户文件: $filePath');
+            await FileManager.deleteAccountFile(filePath);
+          } catch (e) {
+            debugPrint('删除开户文件失败: $filePath, 错误: $e');
+          }
+        }
+
+        // 删除附件文件（物理文件）
+        final attachmentFiles = await txn.query(
+          't_customer_attachment_file',
+          where: 'customer_uid = ?',
+          whereArgs: [customerUid],
+        );
+
+        attachmentFileCount += attachmentFiles.length.toInt();
+
+        for (final attachmentFile in attachmentFiles) {
+          final filePath = attachmentFile['file_path'] as String;
+          try {
+            debugPrint('准备删除附件文件: $filePath');
+            await FileManager.deleteCustomerAttachment(filePath);
+          } catch (e) {
+            debugPrint('删除附件文件失败: $filePath, 错误: $e');
+          }
+        }
+
+        // 删除客户记录（会自动级联删除开户文件和附件记录）
+        await txn.delete(
+          't_customer',
+          where: 'customer_uid = ?',
+          whereArgs: [customerUid],
+        );
+      }
+
+      // 5. 删除用户记录
+      await txn.delete(
+        User.tableName,
+        where: 'user_name = ?',
+        whereArgs: [userName],
+      );
+
+      return AccountDeletionStats(
+        customerCount: customerCount,
+        accountFileCount: accountFileCount,
+        attachmentFileCount: attachmentFileCount,
+      );
+    });
+  }
 }
 

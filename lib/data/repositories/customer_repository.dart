@@ -5,7 +5,21 @@ import '../db/db_provider.dart';
 import '../models/customer.dart';
 import '../models/customer_account_file.dart';
 import '../models/customer_attachment_file.dart';
-import '../utils/customer_uid_generator.dart';
+import '../../utils/file_manager.dart';
+import '../../data/utils/customer_uid_generator.dart';
+
+/// 删除统计信息
+class DeletionStats {
+  const DeletionStats({
+    required this.customerCount,
+    required this.accountFileCount,
+    required this.attachmentFileCount,
+  });
+
+  final int customerCount;
+  final int accountFileCount;
+  final int attachmentFileCount;
+}
 
 class ManagerCustomerStats {
   const ManagerCustomerStats({
@@ -274,5 +288,72 @@ class CustomerRepository {
   /// 按模板名称统计使用次数
   Future<int> countByTemplateName(String templateName) =>
       _provider.customerAccountFileDao.countByTemplateName(templateName);
+
+  /// 删除指定用户名下的所有客户及其关联数据
+  ///
+  /// [managerAccount] 客户经理账号
+  ///
+  /// 返回删除统计信息
+  ///
+  /// 删除顺序：
+  /// 1. 删除每个客户的附件文件（物理文件）
+  /// 2. 删除客户记录（会自动级联删除开户文件和附件记录）
+  ///
+  /// 注意：此方法会在事务中执行，确保数据一致性
+  Future<DeletionStats> deleteAllCustomersByManager(String managerAccount) async {
+    final db = await _provider.database;
+
+    return await db.transaction<DeletionStats>((txn) async {
+      int customerCount = 0;
+      int attachmentFileCount = 0;
+
+      // 1. 查询所有客户
+      final customers = await txn.query(
+        Customer.tableName,
+        where: 'manager_account = ?',
+        whereArgs: [managerAccount],
+      );
+
+      customerCount = customers.length;
+
+      // 2. 删除每个客户的文件和数据
+      for (final customerRow in customers) {
+        final customer = Customer.fromMap(customerRow);
+        final customerUid = customer.customerUid;
+
+        // 2.1 删除附件文件（物理文件）
+        final attachmentFiles = await txn.query(
+          't_customer_attachment_file',
+          where: 'customer_uid = ?',
+          whereArgs: [customerUid],
+        );
+
+        attachmentFileCount += attachmentFiles.length.toInt();
+
+        for (final attachmentFile in attachmentFiles) {
+          final filePath = attachmentFile['file_path'] as String;
+          try {
+            await FileManager.deleteCustomerAttachment(filePath);
+          } catch (e) {
+            debugPrint('删除附件文件失败: $filePath, 错误: $e');
+            // 继续删除其他文件，不中断流程
+          }
+        }
+
+        // 2.2 删除客户记录（会自动级联删除开户文件和附件记录）
+        await txn.delete(
+          Customer.tableName,
+          where: 'customer_uid = ?',
+          whereArgs: [customerUid],
+        );
+      }
+
+      return DeletionStats(
+        customerCount: customerCount,
+        accountFileCount: 0, // 开户文件会自动级联删除，无需手动统计
+        attachmentFileCount: attachmentFileCount,
+      );
+    });
+  }
 }
 

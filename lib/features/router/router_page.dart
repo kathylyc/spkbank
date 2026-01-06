@@ -1,6 +1,8 @@
+import 'package:bcrypt/bcrypt.dart';
 import 'package:bank_flutter/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import '../../data/models/user.dart';
+import '../../data/repositories/user_repository.dart';
 import '../../utils/context_extensions.dart';
 import '../../utils/storage_utils.dart';
 import '../dashboard/dashboard_page.dart';
@@ -143,6 +145,222 @@ class _RouterPageState extends State<RouterPage> {
     }
   }
 
+  /// 处理注销账号
+  Future<void> _handleDeleteAccount() async {
+    if (_loginUser == null) return;
+
+    // 检查是否为超级管理员
+    if (_loginUser!.userType == '00') {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('提示'),
+            content: const Text('超级管理员不允许注销账号'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('确定'),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+
+    // 开始注销流程
+    await _showDeleteAccountFlow();
+  }
+
+  /// 注销账号流程（两次弹窗）
+  Future<void> _showDeleteAccountFlow() async {
+    // 第一步：显示第一次确认弹窗
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('确认注销账户？'),
+          content: const Text(
+            '您确定要注销账户吗？注销后所有数据将被永久删除，且无法恢复。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                '取消',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                '确定',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    // 第二步：显示密码输入弹窗
+    await _showPasswordInputDialog();
+  }
+
+  /// 显示密码输入弹窗
+  Future<void> _showPasswordInputDialog() async {
+    final passwordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('注销账户'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Text(
+                        '* ',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        '输入登录密码',
+                        style: TextStyle(
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: passwordController,
+                    obscureText: true,
+                    validator: (value) {
+                      final password = value?.trim() ?? '';
+                      if (password.isEmpty) {
+                        return '请输入密码';
+                      }
+                      if (_loginUser != null &&
+                          !BCrypt.checkpw(password, _loginUser!.password)) {
+                        return '密码不正确';
+                      }
+                      return null;
+                    },
+                    decoration: const InputDecoration(
+                      hintText: '请输入',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                '取消',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                if (formKey.currentState?.validate() ?? false) {
+                  Navigator.of(context).pop(true);
+                }
+              },
+              child: const Text(
+                '确认注销',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    // 确保弹窗完全关闭后再释放 controller
+    Future.delayed(Duration.zero, () {
+      passwordController.dispose();
+    });
+
+    if (result == true && mounted) {
+      await _performAccountDeletion();
+    } else if (mounted && result == false) {
+      // 如果取消，返回第一个弹窗
+      _showDeleteAccountFlow();
+    }
+  }
+
+  /// 执行账户删除
+  Future<void> _performAccountDeletion() async {
+    if (_loginUser == null) return;
+
+    try {
+      final userRepo = UserRepository();
+      await userRepo.deleteAccountWithCascade(
+        userName: _loginUser!.userName,
+        password: '', // 密码已在弹窗中验证过
+      );
+
+      // 删除成功，显示成功弹窗
+      if (mounted) {
+        await _showSuccessDialog();
+        // 成功后退出登录
+        await _doLogout();
+      }
+    } catch (e) {
+      if (mounted) {
+        // 删除失败，显示错误提示并返回密码输入页
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('删除失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        _showPasswordInputDialog();
+      }
+    }
+  }
+
+  /// 显示成功弹窗
+  Future<void> _showSuccessDialog() async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('注销账户'),
+        content: const Text(
+          '注销成功！若后续需要使用，可重新注册账户。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(
+              '确定',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// 处理退出登录
   Future<void> _handleLogout() async {
     // 显示确认对话框
@@ -279,7 +497,7 @@ class _RouterPageState extends State<RouterPage> {
               ),
             ),
           ),
-          // 下方：操作图标（修改密码、退出登录）
+          // 下方：操作图标（修改密码、注销账号、退出登录）
           Column(
             children: [
               // 修改密码图标
@@ -287,6 +505,13 @@ class _RouterPageState extends State<RouterPage> {
                 icon: Icons.lock_outline,
                 tooltip: context.S.changePassword,
                 onTap: _handleChangePassword,
+              ),
+              const SizedBox(height: 8),
+              // 注销账号图标
+              _buildActionIcon(
+                icon: Icons.person_remove,
+                tooltip: '注销账号',
+                onTap: _handleDeleteAccount,
               ),
               const SizedBox(height: 8),
               // 退出登录图标

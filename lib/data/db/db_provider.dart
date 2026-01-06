@@ -1,3 +1,5 @@
+import 'package:sqflite/sqflite.dart';
+
 import 'dao/customer_account_file_dao.dart';
 import 'dao/customer_attachment_file_dao.dart';
 import 'dao/customer_dao.dart';
@@ -12,6 +14,9 @@ class DbProvider {
   static final DbProvider instance = DbProvider._(DatabaseManager.instance);
 
   final DatabaseManager _manager;
+
+  /// 获取数据库实例（用于事务操作）
+  Future<Database> get database async => await _manager.database;
 
   late final UserDao userDao = UserDao(_manager);
   late final CustomerDao customerDao = CustomerDao(_manager);
