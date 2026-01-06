@@ -155,8 +155,8 @@ class _RouterPageState extends State<RouterPage> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('提示'),
-            content: const Text('超级管理员不允许注销账号'),
+            title: const Text('确认注销账户？'),
+            content: const Text('超级管理员账号如需注销，请联系：baiyuekeji@beyoit.com'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
