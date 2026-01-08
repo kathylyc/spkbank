@@ -1,5 +1,6 @@
 import 'package:bcrypt/bcrypt.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../db/db_provider.dart';
@@ -213,6 +214,50 @@ class UserRepository {
       'accountFileCount': accountFileCount,
       'attachmentFileCount': attachmentFileCount,
     };
+  }
+
+  /// 创建iOS审核专用账号（仅创建一次，即使删除也不再创建）
+  ///
+  /// 用户名：storeuser1，密码：SiPoDsBANK2026@，user_type: 01
+  /// 设置 isFirstLogin=false，pwdUpdateDate=100年后，避免触发强制修改密码
+  Future<void> createReviewAccountIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 检查是否已经创建过审核账号（使用SharedPreferences记录，创建后即使删除也不再创建）
+    final hasCreated = prefs.getBool('review_account_created');
+    if (hasCreated == true) {
+      return;
+    }
+
+    // 检查数据库中是否已存在审核账号
+    final existing = await findByUserName('storeuser1');
+    if (existing != null) {
+      await prefs.setBool('review_account_created', true);
+      return;
+    }
+
+    final now = DateTime.now();
+    final pwdExpiry = now.add(const Duration(days: 365 * 100)); // 100年后
+
+    final reviewUser = User(
+      userName: 'storeuser1',
+      nickName: '客户经理1',
+      userType: '01', // 客户经理
+      password: r'$2a$10$IfJ./yfWT4uN9TLnUpucBeAjYVye/hBxCvw8.eZhuy390HGyhg1W2',// SiPoDsBANK2026@ 生成方法：BCrypt.hashpw(text, BCrypt.gensalt());
+      status: '0',
+      groupCode: 'default',
+      pwdUpdateDate: pwdExpiry, // 100年后过期，避免触发密码修改
+      isFirstLogin: false, // 非首次登录，不触发强制修改密码
+      createTime: now,
+      createBy: 'system',
+    );
+
+    await upsert(reviewUser);
+
+    debugPrint('已创建iOS审核专用账号: storeuser1');
+
+    // 标记审核账号已创建，即使删除也不再创建
+    await prefs.setBool('review_account_created', true);
   }
 
   /// 删除用户账户及其所有关联数据

@@ -213,91 +213,15 @@ class _RouterPageState extends State<RouterPage> {
 
   /// 显示密码输入弹窗
   Future<void> _showPasswordInputDialog() async {
-    final passwordController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
+    if (_loginUser == null) return;
 
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('注销账户'),
-          content: SingleChildScrollView(
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Text(
-                        '* ',
-                        style: TextStyle(
-                          color: Colors.red,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        '输入登录密码',
-                        style: TextStyle(
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: passwordController,
-                    obscureText: true,
-                    validator: (value) {
-                      final password = value?.trim() ?? '';
-                      if (password.isEmpty) {
-                        return '请输入密码';
-                      }
-                      if (_loginUser != null &&
-                          !BCrypt.checkpw(password, _loginUser!.password)) {
-                        return '密码不正确';
-                      }
-                      return null;
-                    },
-                    decoration: const InputDecoration(
-                      hintText: '请输入',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text(
-                '取消',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                if (formKey.currentState?.validate() ?? false) {
-                  Navigator.of(context).pop(true);
-                }
-              },
-              child: const Text(
-                '确认注销',
-                style: TextStyle(color: Colors.red),
-              ),
-            ),
-          ],
-        );
+        return _PasswordInputDialog(loginUser: _loginUser!);
       },
     );
-
-    // 确保弹窗完全关闭后再释放 controller
-    Future.delayed(Duration.zero, () {
-      passwordController.dispose();
-    });
 
     if (result == true && mounted) {
       await _performAccountDeletion();
@@ -326,14 +250,15 @@ class _RouterPageState extends State<RouterPage> {
       }
     } catch (e) {
       if (mounted) {
-        // 删除失败，显示错误提示并返回密码输入页
+        // 删除失败，显示错误提示
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('删除失败: $e'),
             backgroundColor: Colors.red,
           ),
         );
-        _showPasswordInputDialog();
+        // 不再递归调用，让用户重新操作
+        // _showPasswordInputDialog();
       }
     }
   }
@@ -738,5 +663,102 @@ class _RouterPageState extends State<RouterPage> {
       case FunctionType.accountManager:
         return const AccountManagerPage();
     }
+  }
+}
+
+/// 密码输入对话框 - 独立的 StatefulWidget 用于管理 TextEditingController 生命周期
+class _PasswordInputDialog extends StatefulWidget {
+  const _PasswordInputDialog({
+    required this.loginUser,
+  });
+
+  final User loginUser;
+
+  @override
+  State<_PasswordInputDialog> createState() => _PasswordInputDialogState();
+}
+
+class _PasswordInputDialogState extends State<_PasswordInputDialog> {
+  final TextEditingController _passwordController = TextEditingController();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('注销账户'),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Text(
+                    '* ',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    '输入登录密码',
+                    style: TextStyle(
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _passwordController,
+                obscureText: true,
+                validator: (value) {
+                  final password = value?.trim() ?? '';
+                  if (password.isEmpty) {
+                    return '请输入密码';
+                  }
+                  if (!BCrypt.checkpw(password, widget.loginUser.password)) {
+                    return '密码不正确';
+                  }
+                  return null;
+                },
+                decoration: const InputDecoration(
+                  hintText: '请输入',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text(
+            '取消',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+        TextButton(
+          onPressed: () {
+            if (_formKey.currentState?.validate() ?? false) {
+              Navigator.of(context).pop(true);
+            }
+          },
+          child: const Text(
+            '确认注销',
+            style: TextStyle(color: Colors.red),
+          ),
+        ),
+      ],
+    );
   }
 }

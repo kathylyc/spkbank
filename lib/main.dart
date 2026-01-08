@@ -1,12 +1,14 @@
 import 'dart:ui';
 import 'package:bank_flutter/utils/context_extensions.dart';
 import 'package:bank_flutter/utils/storage_utils.dart';
+import 'package:bcrypt/bcrypt.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'data/db/database_manager.dart';
 import 'data/models/user.dart';
+import 'data/repositories/user_repository.dart';
 import 'features/admin_user/login_page.dart';
 import 'features/router/router_page.dart';
 import 'l10n/app_localizations.dart';
@@ -68,6 +70,14 @@ Future<void> _initSdk() async {
   debugPrint('db path = ${db.path}');
   final rows = await db.rawQuery('SELECT * FROM t_user');
   debugPrint('raw t_user = $rows');
+
+  // final pwd1 = BCrypt.hashpw('SiPoDsBANK2026@', BCrypt.gensalt());// storeuser1
+  // final pwd2 = BCrypt.hashpw('SaP2dDm0BiA2nNK6#', BCrypt.gensalt());// admin
+  // debugPrint('storeuser1 密码哈希: $pwd1');
+  // debugPrint('admin 密码哈希: $pwd2');
+
+  // 创建iOS审核专用账号
+  await UserRepository().createReviewAccountIfNeeded();
 }
 
 class MyApp extends StatelessWidget {

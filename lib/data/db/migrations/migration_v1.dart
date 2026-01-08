@@ -100,7 +100,7 @@ class MigrationV1 implements MigrationStep {
         'nick_name': '超级管理员',
         'user_type': '00',
         // 'password': r'$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2',// admin123
-        'password': r'$2a$10$twkqepxKQwY4d/lXweZmm.UMi45sPcrv0HjTdKg1VN0es7xgmaBrW',// SaP2dDm0BiA2nNK6@ 生成方法：BCrypt.hashpw(text, BCrypt.gensalt());
+        'password': r'$2a$10$DvMDYwB5njiacJo2Ckzv.e.fh9KZ6X5GhZHj7EUTx7ilJXJNwUUXu',// SaP2dDm0BiA2nNK6# 生成方法：BCrypt.hashpw(text, BCrypt.gensalt());
         'status': '0',
         'create_time': DateTime.now().toIso8601String(),
         'create_by': 'system',
